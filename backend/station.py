@@ -1,9 +1,9 @@
 # Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026
 """Centralita (cuadro de mandos del hábitat), registro de eventos en memoria y grafo de conocimiento.
 Todo es SIMULADO salvo las fuentes citadas. Sin base de datos: al reiniciar se pierden los eventos."""
-import datetime, itertools, random, threading
+import datetime, itertools, os, random, threading
 
-ONE_WAY_DELAY_S = 300  # valor del escenario de hoy (tránsito a Marte, día 112), dentro del rango "up to 20 minutes one way" (NASA HRP)
+ONE_WAY_DELAY_S = int(os.environ.get("METIS_DELAY_S", "300"))  # configurable para tests; valor del escenario de hoy (tránsito a Marte, día 112), dentro del rango "up to 20 minutes one way" (NASA HRP)
 RANGE_MAX_S = 1200
 COMMS_SOURCES = [
     {"title": "NASA HRP, Hazard: Distance from Earth (challenge Resources): communication delay of up to 20 minutes one way",

@@ -183,9 +183,18 @@ def main():
         return
     print("\n[metis] Ctrl+C para parar lo arrancado por este script.")
     signal.signal(signal.SIGTERM, _on_term)
+    # La IA es opcional: si llama-server cae, se avisa y el resto sigue (frases de reserva).
+    # Solo se para todo si cae una pieza imprescindible (backend o frontend).
+    core = [(n, p) for n, p in procs if n != "llama-server"] or procs
+    warned = False
     try:
-        while all(p.poll() is None for _, p in procs):
+        while all(p.poll() is None for _, p in core):
+            if not warned and any(n == "llama-server" and p.poll() is not None for n, p in procs):
+                print("[metis] la IA local (llama-server) se ha parado: sigo sin IA, con frases de reserva."
+                      " En Ubuntu/WSL suele faltar libgomp1: sudo apt install -y libgomp1")
+                warned = True
             time.sleep(1)
+        print("[metis] se ha parado " + ", ".join(n for n, p in core if p.poll() is not None))
     except KeyboardInterrupt:
         pass
     finally:
