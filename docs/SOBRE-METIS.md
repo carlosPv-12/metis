@@ -111,6 +111,7 @@ referencia. Los datos se sirven en `GET /api/blood` y siguen visibles en la pant
 |---|---|---|
 | Cuerpos 3D de mujer y hombre (`frontend/src/assets/metis-body-*.glb`) | [Blender Studio — Human Base Meshes](https://www.blender.org/download/demo-files/#assets) (v1.4.1, `body_female_realistic` / `body_male_realistic`), exportados a glTF y reducidos a ~60 000 triángulos | CC0 (dominio público) |
 | Ilustraciones 2D del busto (`frontend/src/assets/metis-body-*.webp`, solo si el navegador no tiene WebGL) | Generadas con IA para Metis | Propias del proyecto |
+| Retratos de la tripulación ficticia: Lena, Marco, Noor y Kenji (`frontend/src/assets/crew/*.webp`) | Generados con IA para Metis; personas inventadas, no se parecen a nadie real | Propias del proyecto |
 | Tipografías Fira Sans, Overpass y Fira Code | Guía de marca de NASA Space Apps, vía Fontsource | SIL OFL 1.1 |
 
 ---
