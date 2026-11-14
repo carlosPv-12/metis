@@ -230,13 +230,13 @@ export default function BodyModel3D(props: Props) {
         for (const [material,base] of model.materials) { material.opacity=base*model.opacity; if (material instanceof THREE.ShaderMaterial) material.uniforms.opacity.value=model.opacity }
         for (const [id, glow] of model.glows) {
           const level = latest.current.hotspots.find(h => h.id === id)?.level
-          glow.visible = level === 'watch' || level === 'alarm'
+          glow.visible = (level === 'watch' || level === 'alarm') && !model.statusMaterials.has(id)
           if (glow.visible) {
             glow.material.color.set(level === 'alarm' ? '#FF5A36' : '#F59E0B')
             const pulse = still() ? .5 : (1 + Math.sin(now * Math.PI * 2 / 4800 + [...model.glows.keys()].indexOf(id))) / 2
-            glow.material.opacity = (.58 + .1 * pulse) * model.opacity
+            glow.material.opacity = (.3 + .08 * pulse) * model.opacity
             // Radius is 14–20% of body height. Shape each wash to its anatomy.
-            const diameter = model.height * (.28 + .025 * pulse)
+            const diameter = model.height * (.11 + .01 * pulse)
             const aspect = id === 'skin' ? .5 : id === 'muscle' ? .65 : 1
             glow.scale.set(diameter * aspect, diameter, 1)
           }
@@ -246,10 +246,10 @@ export default function BodyModel3D(props: Props) {
           const attention = level === 'watch' || level === 'alarm'
           const pulse = still() ? .5 : (1 + Math.sin(now * Math.PI * 2 / 4800)) / 2
           for (const { material, color, opacity } of entries) {
-            material.color.copy(attention ? new THREE.Color(level === 'alarm' ? '#C42F00' : '#B45309') : color)
+            material.color.copy(attention ? new THREE.Color(level === 'alarm' ? '#E8532E' : '#F28C28') : color)
             material.emissive.set(attention ? level === 'alarm' ? '#FF5A36' : '#F59E0B' : '#000000')
-            material.emissiveIntensity = attention ? .3 + .1 * pulse : 0
-            material.opacity = (attention ? .6 + .1 * pulse : opacity) * model.opacity
+            material.emissiveIntensity = attention ? .18 + .06 * pulse : 0
+            material.opacity = (attention ? .5 + .06 * pulse : opacity) * model.opacity
           }
         }
         const heartLevel = latest.current.hotspots.find(h => h.id === 'heart')?.level
@@ -259,7 +259,6 @@ export default function BodyModel3D(props: Props) {
       for (let i=visible.length-1;i>=0;i--) if (!visible[i].target && visible[i].opacity<.01) { pivot.remove(visible[i].group); dispose(visible[i].group); visible.splice(i,1) }
       const vfov=THREE.MathUtils.degToRad(camera.fov), fit=Math.max(height*1.18/2/Math.tan(vfov/2),height*.64/2/Math.tan(vfov/2)/camera.aspect)
       camera.position.set(0,height*.51,fit/magnification); camera.lookAt(0,height*.51,0); camera.updateMatrixWorld(); pivot.updateMatrixWorld(true)
-      const placed: {x:number;y:number;w:number;h:number}[]=[]
       for (const hotspot of latest.current.hotspots) {
         const button=buttons.current[hotspot.id], point=active?.points[hotspot.id]
         if (!button || !point || !active) continue
@@ -267,17 +266,7 @@ export default function BodyModel3D(props: Props) {
         const facing=point.clone().setY(0).normalize().applyEuler(pivot.rotation).z>-.12
         v.project(camera); const x=(v.x+1)*el.clientWidth/2,y=(1-v.y)*el.clientHeight/2
         button.style.left=`${x}px`; button.style.top=`${y}px`; button.style.setProperty('--hotspot-facing', facing ? '1' : '.6'); button.style.visibility=v.z>1||x<0||x>el.clientWidth||y<0||y>el.clientHeight?'hidden':'visible'
-        const label=button.querySelector<HTMLElement>('.figure-label')!
-        // Only revealed labels participate in collision placement.
-        if (getComputedStyle(label).opacity === '0') continue
-        const width=label.offsetWidth,height=label.offsetHeight
-        let lx=hotspot.left?x-20-width:x+20
-        if (lx+width>el.clientWidth-8) lx=x-20-width
-        lx=clamp(lx,8,Math.max(8,el.clientWidth-width-8))
-        let ly=clamp(y-height/2,8,el.clientHeight-height-8)
-        for (let attempts=0;attempts<20;attempts++) { const collision=placed.find(r=>lx<r.x+r.w+6&&lx+width+6>r.x&&ly<r.y+r.h+6&&ly+height+6>r.y); if (!collision) break; ly=collision.y+collision.h+8 }
-        if (ly+height>el.clientHeight-8) { label.style.visibility='hidden' } else { label.style.visibility=''; placed.push({x:lx,y:ly,w:width,h:height}) }
-        label.style.left=`${lx-x+button.offsetWidth/2}px`; label.style.right='auto'; label.style.top=`${ly-y+button.offsetHeight/2}px`; label.style.transform='none'
+        // No text on the body: each point is only a coloured dot with a halo (the name is in the aria-label and the panel).
       }
       renderer.render(scene,camera); raf=requestAnimationFrame(frame)
     }
@@ -295,7 +284,7 @@ export default function BodyModel3D(props: Props) {
   return <>
     <div ref={host} className="body-figure body-model" aria-label={copy.figure}>
       {loading && <span className="body-model-loading" role="status">{copy.loading}</span>}
-      {props.hotspots.map(h => <button key={h.id} ref={el=>{buttons.current[h.id]=el}} type="button" aria-label={`${h.label}, ${copy.level[h.level]}`} aria-pressed={props.selected===h.id} aria-haspopup="dialog" className={`figure-hotspot lvl-${h.level}${props.selected===h.id?' selected':''}`} style={{visibility:loading?'hidden':undefined}} onClick={e=>{e.currentTarget.focus({preventScroll:true});const r=e.currentTarget.getBoundingClientRect(),hb=host.current?.getBoundingClientRect();const side:'left'|'right'=hb&&r.left+r.width/2-hb.left<hb.width/2?'left':'right';if(host.current)host.current.dataset.panelSide=side;engine.current?.focus(h.id,side);props.onSelect(h.id)}}><span className="figure-marker" aria-hidden="true">+</span><span className={`figure-label lvl-${h.level}`}>{h.label}</span></button>)}
+      {props.hotspots.map(h => <button key={h.id} ref={el=>{buttons.current[h.id]=el}} type="button" aria-label={`${h.label}, ${copy.level[h.level]}`} aria-pressed={props.selected===h.id} aria-haspopup="dialog" className={`figure-hotspot lvl-${h.level}${props.selected===h.id?' selected':''}`} style={{visibility:loading?'hidden':undefined}} onClick={e=>{e.currentTarget.focus({preventScroll:true});const r=e.currentTarget.getBoundingClientRect(),hb=host.current?.getBoundingClientRect();const side:'left'|'right'=hb&&r.left+r.width/2-hb.left<hb.width/2?'left':'right';if(host.current)host.current.dataset.panelSide=side;engine.current?.focus(h.id,side);props.onSelect(h.id)}}><span className="figure-marker" aria-hidden="true" /></button>)}
     </div>
     <div className="figure-zoom" role="group" aria-label={copy.controls}>
       <button type="button" aria-label={copy.zoomOut} title={copy.zoomOut} disabled={zoom<=.8} onClick={()=>engine.current?.zoom(1/1.2)}>−</button>
@@ -332,7 +321,7 @@ function BodyFallback(props: Props) {
   return <div ref={host} className="body-fallback-live">
     <BodyFigure {...props} hotspots={props.hotspots.filter(h => h.id !== 'skin')} />
     {skin && <button ref={marker} type="button" className={`figure-hotspot fallback-skin lvl-${skin.level}${props.selected === skin.id ? ' selected' : ''}`} style={{ visibility: 'hidden' }} aria-label={`${skin.label}, ${COPY[lang].level[skin.level]}`} aria-pressed={props.selected === skin.id} aria-haspopup="dialog" onClick={e => { e.currentTarget.focus({ preventScroll: true }); props.onSelect(skin.id) }}>
-      <span className="figure-marker" aria-hidden="true">+</span><span className={`figure-label lvl-${skin.level}`}>{skin.label}</span>
+      <span className="figure-marker" aria-hidden="true" />
     </button>}
   </div>
 }

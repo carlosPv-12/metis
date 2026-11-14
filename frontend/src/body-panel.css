@@ -126,3 +126,12 @@
 .body-panel .body-activity h4 { margin: 0 }
 .body-fallback-live { position: absolute; inset: 0 }
 .bodywrap.figure .fallback-skin { left: 23%; top: 57%; z-index: 2 }
+
+/* Points on the body: just a small coloured dot with a moving halo. No "+", no text. */
+.bodywrap.figure .figure-hotspot { width: 32px; height: 32px }
+.bodywrap.figure .figure-marker { width: 12px !important; height: 12px !important; font-size: 0 !important; color: transparent !important; background: var(--hotspot-color) !important; box-shadow: 0 0 0 2px #FFFFFFCC !important }
+.bodywrap.figure .figure-hotspot:is(.lvl-nodata, :has(.s-nodata)) .figure-marker { background: var(--hotspot-color) !important }
+.bodywrap.figure .figure-marker::after { inset: -9px !important; border-width: 2px !important; opacity: .55 }
+.bodywrap.figure .figure-hotspot.selected .figure-marker { box-shadow: 0 0 0 3px white, 0 0 0 5px var(--hotspot-color) !important }
+.bodywrap.figure .figure-label { display: none !important }
+.bodywrap.figure .figure-hotspot:is(:hover, :focus-visible) .figure-marker { transform: scale(1.25); transition: transform .15s }
