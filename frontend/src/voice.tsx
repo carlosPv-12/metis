@@ -247,7 +247,7 @@ export function EarSwitch() {
         {!ear.on ? <EarOff size={14} /> : ear.state === 'conversation' ? <MessageCircle size={14} /> : <Ear size={14} />}{label}
       </button>
       {ear.on && ear.heard && <span className="small dim" style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-        title={ear.heard}>«{ear.heard}»{ear.ignored && <b> · {t('ear_ignored')}</b>}</span>}
+        title={ear.heard}>«{ear.heard}»{ear.ignored && <b>, {t('ear_ignored')}</b>}</span>}
     </>
   )
 }
