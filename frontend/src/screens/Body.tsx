@@ -10,37 +10,49 @@ import BodyModel3D from '../BodyModel3D'
 import { useCrewSex } from '../settings'
 import { IndicatorSheet } from '../IndicatorSheet'
 import { Activity, Heart, Moon, Wind } from 'lucide-react'
+import { useLiveVitals, type Live } from '../vitals'
+import { LIVE_COPY, LiveTile, liveStatus } from './Greeting'
 import '../body-panel.css'
 
-export type BP = 'heart' | 'ear' | 'lungs' | 'brain' | 'eyes' | 'bones' | 'muscle'
+export type BP = 'heart' | 'ear' | 'lungs' | 'brain' | 'eyes' | 'bones' | 'muscle' | 'skin'
 export const BP_POS: Record<BP, [number, number, number]> = {
   heart: [0.045, 1.31, 0.11], ear: [0.112, 1.655, 0.0], lungs: [-0.1, 1.37, 0.1], brain: [0, 1.77, 0.02],
-  eyes: [-0.035, 1.68, 0.095], bones: [-0.09, 0.6, 0.07], muscle: [0.27, 1.05, 0.05],
+  eyes: [-0.035, 1.68, 0.095], bones: [-0.09, 0.6, 0.07], muscle: [0.27, 1.05, 0.05], skin: [-0.3, 1.05, 0.05],
 }
-export const BP_METRICS: Record<BP, Metric[]> = { heart: ['resting_hr_bpm', 'hrv_ms'], ear: [], lungs: ['co2_night_peak_mmhg'], brain: ['sleep_h'], eyes: [], bones: [], muscle: [] }
-const BP_LABEL: Record<BP, Key> = { heart: 'bp_heart', ear: 'bp_ear', lungs: 'bp_lungs', brain: 'bp_brain', eyes: 'bp_eyes', bones: 'bp_bones', muscle: 'bp_muscle' }
+export const BP_METRICS: Record<BP, Metric[]> = { heart: ['resting_hr_bpm', 'hrv_ms'], ear: [], lungs: ['co2_night_peak_mmhg'], brain: ['sleep_h'], eyes: [], bones: [], muscle: [], skin: [] }
+const BP_LABEL: Record<Exclude<BP, 'skin'>, Key> = { heart: 'bp_heart', ear: 'bp_ear', lungs: 'bp_lungs', brain: 'bp_brain', eyes: 'bp_eyes', bones: 'bp_bones', muscle: 'bp_muscle' }
 export const HRP_URL = 'https://www.nasa.gov/hrp/risks/', HAZ_URL = 'https://www.nasa.gov/hrp/hazards/'
 
-export function bodyLevels(c: CrewDetail): Record<BP, Level> {
+export function bodyLevels(c: CrewDetail, live?: Live): Record<BP, Level> {
   const today = c.days[c.days.length - 1]
   const worst = (ms: Metric[]): Level => {
     if (!ms.length) return 'nodata'
     const ls = ms.map(m => levelOf(m, today[m], c.baseline[m]))
     return ls.includes('alarm') ? 'alarm' : ls.includes('watch') ? 'watch' : 'ok'
   }
-  return { heart: worst(BP_METRICS.heart), ear: 'ok', lungs: worst(BP_METRICS.lungs), brain: worst(BP_METRICS.brain), eyes: 'nodata', bones: 'nodata', muscle: 'nodata' }
+  const lv: Record<BP, Level> = { heart: worst(BP_METRICS.heart), ear: 'ok', lungs: worst(BP_METRICS.lungs), brain: worst(BP_METRICS.brain), eyes: 'nodata', bones: 'nodata', muscle: 'nodata', skin: 'nodata' }
+  if (live?.online && live.crew?.id === c.id) {
+    const signalLevel = (k: 'hr_bpm' | 'rr_brpm' | 'spo2_pct' | 'temp_c'): Level => liveStatus(live, k) === 'exercising' ? 'ok' : live.level[k]
+    const worstLevel = (...ls: Level[]): Level => ls.includes('alarm') ? 'alarm' : ls.includes('watch') ? 'watch' : ls.includes('ok') ? 'ok' : 'nodata'
+    lv.heart = worstLevel(lv.heart, signalLevel('hr_bpm'))
+    lv.lungs = worstLevel(lv.lungs, signalLevel('rr_brpm'), signalLevel('spo2_pct'))
+    lv.muscle = Number.isFinite(live.crew.now.activity) ? 'ok' : 'nodata'
+    lv.skin = live.level.temp_c
+  }
+  return lv
 }
 
-export function useHotspots(c: CrewDetail | null): Hotspot[] {
-  const t = useT()
+export function useHotspots(c: CrewDetail | null, live?: Live): Hotspot[] {
+  const t = useT(); const { lang } = useLang()
   if (!c) return []
-  const lv = bodyLevels(c)
-  return (Object.keys(BP_POS) as BP[]).map(id => ({ id, pos: BP_POS[id], level: lv[id], label: t(BP_LABEL[id]), left: ['lungs', 'eyes', 'bones'].includes(id) }))
+  const lv = bodyLevels(c, live)
+  return (Object.keys(BP_POS) as BP[]).map(id => ({ id, pos: BP_POS[id], level: lv[id], label: id === 'skin' ? SKIN_LABEL[lang] : t(BP_LABEL[id]), left: ['lungs', 'eyes', 'bones'].includes(id) }))
 }
 
+const SKIN_LABEL = { en: 'Skin temperature', es: 'Temperatura de la piel' }
 const COPY = {
-  en: { close: 'Close details', measurements: 'Your measurements', trend: 'Recent trend', latest: 'Latest', days: 'days', measured: 'Measured by', risk: 'Related NASA HRP risk', status: { ok: 'In range', watch: 'Attention', alarm: 'Urgent', nodata: 'Not measured' }, source: { heart: 'Onboard ECG sensor shirt', lungs: 'Cabin CO₂ monitor', brain: 'Wrist actigraphy and sleep diary', ear: 'No vital-sign sensor', eyes: 'Scheduled eye examinations', bones: 'Exercise log and bone scans', muscle: 'Exercise log and scheduled assessments' } },
-  es: { close: 'Cerrar detalles', measurements: 'Tus medidas', trend: 'Tendencia reciente', latest: 'Actual', days: 'días', measured: 'Medido con', risk: 'Riesgo NASA HRP relacionado', status: { ok: 'En tu banda', watch: 'Atención', alarm: 'Urgente', nodata: 'Sin medir' }, source: { heart: 'Camiseta con sensor ECG de a bordo', lungs: 'Monitor de CO₂ de cabina', brain: 'Actigrafía de muñeca y diario de sueño', ear: 'Sin sensor de constantes', eyes: 'Revisiones oculares programadas', bones: 'Registro de ejercicio y escáneres óseos', muscle: 'Registro de ejercicio y evaluaciones' } },
+  en: { close: 'Close details', measurements: 'Your measurements', trend: 'Recent trend', latest: 'Latest', days: 'days', measured: 'Measured by', risk: 'Related NASA HRP risk', status: { ok: 'In range', watch: 'Attention', alarm: 'Urgent', nodata: 'Not measured' }, source: { heart: 'Onboard ECG sensor shirt', lungs: 'Onboard breathing and oxygen sensors, cabin CO₂ monitor', brain: 'Wrist actigraphy and sleep diary', ear: 'No vital-sign sensor', eyes: 'Scheduled eye examinations', bones: 'Exercise log and bone scans', muscle: 'Shirt or earpiece activity sensor', skin: 'Onboard skin temperature sensor' } },
+  es: { close: 'Cerrar detalles', measurements: 'Tus medidas', trend: 'Tendencia reciente', latest: 'Actual', days: 'días', measured: 'Medido con', risk: 'Riesgo NASA HRP relacionado', status: { ok: 'En tu banda', watch: 'Atención', alarm: 'Urgente', nodata: 'Sin medir' }, source: { heart: 'Camiseta con sensor ECG de a bordo', lungs: 'Sensores de respiración y oxígeno de a bordo, monitor de CO₂ de cabina', brain: 'Actigrafía de muñeca y diario de sueño', ear: 'Sin sensor de constantes', eyes: 'Revisiones oculares programadas', bones: 'Registro de ejercicio y escáneres óseos', muscle: 'Sensor de actividad de la camiseta o del módulo de oído', skin: 'Sensor de temperatura cutánea de a bordo' } },
 }
 
 export default function Body() {
@@ -55,23 +67,30 @@ function CrewBody({ crewId }: { crewId: string }) {
 
 function BodyView({ c, crewId }: { c: CrewDetail; crewId: string }) {
   const t = useT()
+  const { lang } = useLang()
   const [sel, setSel] = useState<BP | null>(null)
   const [trigger, setTrigger] = useState<HTMLElement | null>(null)
   const sex = useCrewSex(crewId)
-  const hs = useHotspots(c).filter(h => h.level !== 'nodata')
+  const live = useLiveVitals(crewId)
+  // Eyes and bones are not measured on board day to day (only occasional ultrasound / pre- and post-flight scans): no hotspot.
+  const hs = useHotspots(c, live).filter(h => h.id !== 'eyes' && h.id !== 'bones')
   useEffect(() => { setSel(null) }, [crewId, sex])
   const closeDetails = useCallback(() => setSel(null), [])
   return (
     <Page title={t('body_title')}>
       <div className={`bodywrap figure${sel ? ' body-panel-open' : ''}`}>
         <BodyModel3D hotspots={hs} selected={sel} onSelect={id => { setTrigger(document.activeElement instanceof HTMLElement ? document.activeElement : null); setSel(id as BP) }} sex={sex} />
-        {sel && <BodyDetails key={sel} c={c} sel={sel} trigger={trigger} onClose={closeDetails} />}
+        {hs.some(h => h.level === 'watch' || h.level === 'alarm') && <div className="body-attention-legend">
+          {hs.some(h => h.level === 'watch') && <span><span className="body-legend-dot watch" aria-hidden="true" />{lang === 'es' ? 'Necesita atención' : 'Needs attention'}</span>}
+          {hs.some(h => h.level === 'alarm') && <span><span className="body-legend-dot alarm" aria-hidden="true" />{lang === 'es' ? 'Urgente' : 'Urgent'}</span>}
+        </div>}
+        {sel && <BodyDetails key={sel} live={live} c={c} sel={sel} trigger={trigger} onClose={closeDetails} />}
       </div>
     </Page>
   )
 }
 
-function BodyDetails({ c, sel, trigger, onClose }: { c: CrewDetail; sel: BP; trigger: HTMLElement | null; onClose: () => void }) {
+function BodyDetails({ c, live, sel, trigger, onClose }: { c: CrewDetail; live: Live; sel: BP; trigger: HTMLElement | null; onClose: () => void }) {
   const t = useT()
   const { lang } = useLang()
   const panel = useRef<HTMLDivElement>(null)
@@ -130,26 +149,31 @@ function BodyDetails({ c, sel, trigger, onClose }: { c: CrewDetail; sel: BP; tri
       if (trigger?.isConnected) trigger.focus({ preventScroll: true })
     }
   }, [onClose, trigger])
-  const lv = bodyLevels(c)
+  const lv = bodyLevels(c, live)
   const today = c.days[c.days.length - 1]
   const copy = COPY[lang]
   const metrics = BP_METRICS[sel]
   const primary = metrics[0]
+  const hasLive = live.online && live.crew?.id === c.id
+  const liveKeys = sel === 'heart' ? ['hr_bpm'] as const : sel === 'lungs' ? ['rr_brpm', 'spo2_pct'] as const : sel === 'skin' ? ['temp_c'] as const : sel === 'muscle' && live.exercising ? ['hr_bpm'] as const : []
+  const label = sel === 'skin' ? SKIN_LABEL[lang] : t(BP_LABEL[sel])
   const icons = { resting_hr_bpm: Heart, hrv_ms: Activity, sleep_h: Moon, co2_night_peak_mmhg: Wind }
   return <>
     <svg ref={connector} className="body-panel-connector" aria-hidden="true">
       <path ref={curve} fill="none" stroke="#07173F" strokeOpacity=".24" strokeWidth="1.5" />
       <circle ref={endpoint} r="4" fill="#07173F" fillOpacity=".5" />
     </svg>
-    <div ref={panel} className="body-panel" role="dialog" aria-label={t(BP_LABEL[sel])} tabIndex={-1}>
+    <div ref={panel} className="body-panel" role="dialog" aria-label={label} tabIndex={-1}>
       <header className="body-panel-header">
-        <h2>{t(BP_LABEL[sel])}</h2>
+        <h2>{label}</h2>
         <span className={`body-panel-status status-${lv[sel]}`}>{copy.status[lv[sel]]}</span>
         <button type="button" className="body-panel-close" aria-label={copy.close} onClick={onClose}>×</button>
       </header>
-      {metrics.length > 0 ? <>
+      {metrics.length > 0 || hasLive && (liveKeys.length > 0 || sel === 'muscle') ? <>
         <h3 className="body-panel-section">{copy.measurements}</h3>
         <div className="body-panel-metrics">
+          {hasLive && sel === 'muscle' && <article className="body-metric-tile body-activity"><h4>{LIVE_COPY[lang].activity}</h4><span className="live-chip exercising">{live.exercising ? LIVE_COPY[lang].exercisingNow : LIVE_COPY[lang].resting}</span></article>}
+          {hasLive && liveKeys.map(k => <LiveTile key={k} live={live} signal={k} />)}
           {metrics.map((m, i) => {
             const Icon = icons[m as keyof typeof icons] ?? Activity
             return <article className={`body-metric-tile${i === 0 ? ' primary' : ''}`} key={m}>
@@ -170,7 +194,7 @@ function BodyDetails({ c, sel, trigger, onClose }: { c: CrewDetail; sel: BP; tri
         </article>}
       </> : <p className="body-panel-pill body-panel-empty">{t('not_measured')}{sel === 'ear' && <span>{t('link_ok')}, {t('worn')}</span>}</p>}
       <div className="body-panel-pill"><span className="body-panel-caption">{copy.measured}</span><p>{copy.source[sel]}</p></div>
-      <div className="body-panel-pill"><span className="body-panel-caption">{copy.risk}</span><p>{t(`hrp_${sel}`)}</p></div>
+      {sel !== 'skin' && <div className="body-panel-pill"><span className="body-panel-caption">{copy.risk}</span><p>{t(`hrp_${sel}`)}</p></div>}
       <IndicatorSheet indicator={sel} collapsible />
     </div>
   </>

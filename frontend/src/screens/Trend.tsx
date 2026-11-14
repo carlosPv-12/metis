@@ -1,5 +1,7 @@
 // Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026
 // "Trends": 30 days vs. personal band + reference lines; real OSDR blood panel.
+import { LIVE_KEYS, useLiveVitals } from '../vitals'
+import { LIVE_COPY, LiveTile } from './Greeting'
 import { useState } from 'react'
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api, type Metric, type Threshold } from '../api'
@@ -29,13 +31,17 @@ export function ThresholdLabel({ th, color = 'var(--warn)' }: { th: Threshold; c
 }
 
 export default function Trend() {
-  const t = useT(); const { crewId } = useCrew()
+  const t = useT(); const { crewId } = useCrew(); const { lang } = useLang()
+  const live = useLiveVitals(crewId)
   const { data: c } = useLoad(() => api.crewOne(crewId), [crewId])
   const { data: ths } = useLoad(api.thresholds)
   if (!c) return <Loading />
   const today = c.days[c.days.length - 1]
   return (
     <Page title={t('trends_title')}>
+      {live.online && live.crew?.id === crewId && <Card className="live-session" title={<span className="live-heading"><span className="live-dot" />{LIVE_COPY[lang].session}</span>} right={live.exercising ? <span className="live-chip exercising">{LIVE_COPY[lang].exercising}</span> : undefined}>
+        <div className="live-grid">{LIVE_KEYS.map(k => <LiveTile key={k} live={live} signal={k} detailed />)}</div>
+      </Card>}
       <div className="grid g2">
         {([...METRICS, 'mood_1_5'] as Metric[]).map(m => {
           const b = c.baseline[m]

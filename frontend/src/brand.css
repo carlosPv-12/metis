@@ -236,9 +236,10 @@ input.field::placeholder { color: #4A5468 }
   --figure-height: max(680px, calc(100dvh - 275px));
   height: var(--figure-height); overflow: hidden; isolation: isolate;
   background:
-    radial-gradient(ellipse at 58% 29%, #EAFE0726, transparent 40%),
-    radial-gradient(ellipse at 77% 54%, #F5C9DB45, transparent 48%),
-    radial-gradient(ellipse at 30% 67%, #2E96F514, transparent 46%), #FFFFFF;
+    radial-gradient(ellipse at 47% 22%, #EAFE071A 0%, transparent 42%),
+    radial-gradient(ellipse at 61% 48%, #F6C8D833 0%, transparent 47%),
+    radial-gradient(ellipse at 48% 76%, #2E96F51C 0%, transparent 48%),
+    #FFFFFF;
 }
 .body-figure { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; touch-action: none; overflow: hidden }
 .body-figure.pannable { cursor: grab }
@@ -341,10 +342,6 @@ input.field::placeholder { color: #4A5468 }
 .top .day.day-inline b { font-weight: 600; color: var(--deep) }
 .crew-avatar.has-photo { background: #EEF2F8; overflow: hidden; box-shadow: 0 0 0 2px white, 0 0 0 3px #07173F22 }
 .crew-avatar.has-photo img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 50% }
-
-/* body labels: no status dot — the whole pill carries the status colour (white text ≥ 5:1) */
-.figure-label.lvl-alarm { background: #C42F00; color: white; border-color: transparent; font-weight: 600; box-shadow: 0 6px 18px #C42F0033 }
-.figure-label.lvl-watch { background: #B45309; color: white; border-color: transparent; font-weight: 600; box-shadow: 0 6px 18px #B4530933 }
 
 /* 3D body panel: full bleed to the right, top and bottom of the content area; only the left keeps its margin */
 .bodywrap.figure:has(.body-model) {

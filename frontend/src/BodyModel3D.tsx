@@ -24,7 +24,8 @@ const COPY = {
   es: { figure: 'Cuerpo completo interactivo. Arrastra para girar; usa la rueda o pellizca para ampliar.', zoomIn: 'Acercar', zoomOut: 'Alejar', reset: 'Restablecer vista', controls: 'Controles del cuerpo', loading: 'Cargando cuerpo…', level: { ok: 'normal', watch: 'atención', alarm: 'urgente', nodata: 'sin medir' } },
 }
 const clamp = THREE.MathUtils.clamp
-type Model = { group: THREE.Group; heart: THREE.Group; height: number; points: Record<string, THREE.Vector3>; opacity: number; target: number; materials: Map<THREE.Material, number>; glows: Map<string, THREE.Sprite> }
+type StatusMaterial = { material: THREE.MeshStandardMaterial; color: THREE.Color; opacity: number }
+type Model = { group: THREE.Group; heart: THREE.Group; height: number; points: Record<string, THREE.Vector3>; opacity: number; target: number; materials: Map<THREE.Material, number>; glows: Map<string, THREE.Sprite>; statusMaterials: Map<string, StatusMaterial[]> }
 function dispose(group: THREE.Object3D) {
   const geometries = new Set<THREE.BufferGeometry>(), materials = new Set<THREE.Material>()
   group.traverse(o => { if (o instanceof THREE.Mesh || o instanceof THREE.Sprite) { if (o instanceof THREE.Mesh) geometries.add(o.geometry); for (const m of Array.isArray(o.material) ? o.material : [o.material]) materials.add(m) } })
@@ -55,10 +56,10 @@ function build(source: GLTF, sex: Sex): Model {
     front.renderOrder = 3; edge.renderOrder = 4; mesh.add(front, edge)
   }
   group.add(shell, anatomy)
-  const pink = new THREE.MeshPhysicalMaterial({ color: '#E07A8F', roughness: .4, metalness: .05, clearcoat: .6, transparent: true, opacity: .85 })
-  const vessel = new THREE.MeshStandardMaterial({ color: '#E69AAD', roughness: .6, transparent: true, opacity: .57, depthWrite: false })
-  const pale = new THREE.MeshStandardMaterial({ color: '#DEE4EB', transparent: true, opacity: .23, depthWrite: false, roughness: .65 })
-  const tube = (coords: number[][], radius = .0016, material: THREE.Material = vessel) => {
+  const pink = new THREE.MeshPhysicalMaterial({ color: '#CE929F', roughness: .4, metalness: .05, clearcoat: .6, transparent: true, opacity: .85 })
+  const vessel = new THREE.MeshStandardMaterial({ color: '#E69AAD', roughness: .6, transparent: true, opacity: .34, depthWrite: false })
+  const pale = new THREE.MeshStandardMaterial({ color: '#DEE4EB', transparent: true, opacity: .14, depthWrite: false, roughness: .65 })
+  const tube = (coords: number[][], radius = .0014, material: THREE.Material = vessel) => {
     const curve = new THREE.CatmullRomCurve3(coords.map(([x, y, z]) => p(x, y, z)))
     const mesh = new THREE.Mesh(new THREE.TubeGeometry(curve, Math.max(16, coords.length * 9), radius * h, 6, false), material)
     mesh.renderOrder = 1; anatomy.add(mesh)
@@ -71,11 +72,18 @@ function build(source: GLTF, sex: Sex): Model {
   shape.bezierCurveTo(.05, .057, .014, .052, 0, .025)
   const heartMesh = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: .035, bevelEnabled: true, bevelSize: .014, bevelThickness: .014, bevelSegments: 4, steps: 1, curveSegments: 16 }), pink)
   heartMesh.scale.setScalar(h * .62); heartMesh.position.z = -.02; heart.add(heartMesh); anatomy.add(heart)
-  const softPink = pink.clone(); softPink.color.set('#F2B6C3')
+  const softPink = pink.clone(); softPink.color.set('#E8C1CA')
+  const lungMaterial = pale.clone()
+  const statusMaterials = new Map<string, StatusMaterial[]>()
+  const trackStatus = (id: string, ...materials: THREE.MeshStandardMaterial[]) => {
+    statusMaterials.set(id, materials.map(material => ({ material, color: material.color.clone(), opacity: material.opacity })))
+  }
+  trackStatus('heart', pink, softPink)
+  trackStatus('lungs', lungMaterial)
   for (const s of [-1, 1]) {
     const atrium = new THREE.Mesh(new THREE.SphereGeometry(h * .019, 20, 16), softPink)
     atrium.position.set(s * h * .018, h * .019, 0); atrium.scale.set(1, .85, .8); heart.add(atrium)
-    const lung = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 20), pale)
+    const lung = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 20), lungMaterial)
     lung.position.copy(p(s * .095, .745, .01)); lung.scale.set(w * .068, h * .075, d * .22); lung.rotation.z = s * -.13; anatomy.add(lung)
     // Major arteries follow the A-pose, then split into smaller branches and fingers/toes.
     tube([[.04,.73,.12],[0,.77,.1],[s*.027,.85,.04],[s*.035,.91,.02],[s*.04,.97,.02]])
@@ -83,26 +91,25 @@ function build(source: GLTF, sex: Sex): Model {
     tube([[.03,.73,.08],[0,.64,0],[0,.55,0],[s*(male?.12:.1),.47,.03],[s*(male?.14:.124),.31,-.05],[s*legX,.15,-.24],[s*footX,.035,-.1]], .0022)
     for (let i = 0; i < 5; i++) {
       const y = .88 + i * .017
-      tube([[s*.032,y,.03],[s*(.045+i*.003),y+.012,.1],[s*(.064-i*.006),y+.025,.12]], .00065)
-      tube([[s*.46,.48,.18],[s*(.455+i*.009),.455,.18],[s*(.455+i*.01),.425+i*.003,.17]], .0006)
-      tube([[s*footX,.04,-.1],[s*(footX-.025+i*.012),.017,.27]], .00065)
+      tube([[s*.032,y,.03],[s*(.045+i*.003),y+.012,.1],[s*(.064-i*.006),y+.025,.12]], .0005)
+      tube([[s*.46,.48,.18],[s*(.455+i*.009),.455,.18],[s*(.455+i*.01),.425+i*.003,.17]], .00045)
+      tube([[s*footX,.04,-.1],[s*(footX-.025+i*.012),.017,.27]], .0005)
     }
     for (let i = 0; i < 8; i++) {
       const y = .77 - i * .025
-      tube([[0,y,-.1],[s*.095,y+.015,-.12],[s*.17,y,.01],[s*.14,y-.025,.26],[s*.025,y-.032,.31]], .002, pale)
-      tube([[0,y,.06],[s*.07,y-.025,.2],[s*.13,y-.05,.17]], .0007)
+      tube([[0,y,-.1],[s*.095,y+.015,-.12],[s*.17,y,.01],[s*.14,y-.025,.26],[s*.025,y-.032,.31]], .0015, pale)
+      if (i % 2 === 0) tube([[0,y,.06],[s*.07,y-.025,.2],[s*.13,y-.05,.17]], .0005)
     }
     for (const [x,y] of [[.27,.7],[.34,.63],[.09,.43],[.11,.27],[.105,.15]]) {
-      tube([[s*x,y,.05],[s*(x+.025),y-.045,.13],[s*(x+.022),y-.09,.09]], .00065)
-      tube([[s*x,y,.05],[s*(x-.025),y-.035,.1],[s*(x-.02),y-.07,.09]], .00065)
+      tube([[s*x,y,.05],[s*(x+.025),y-.045,.13],[s*(x+.022),y-.09,.09]], .0005)
     }
   }
   tube([[0,.51,-.2],[0,.66,-.23],[0,.81,-.18],[0,.88,-.12]], .003, pale)
   tube([[.04,.73,.18],[.055,.78,.1],[.018,.8,.04],[0,.765,.06]], .006, softPink)
-  const points = { heart: heart.position.clone(), lungs: p(-.095,.75,.24), brain: p(0,.974,.12), eyes: p(-.035,.941,.42), ear: p(.105,.925,.01), bones: p(-(male?.14:.124),.31,.12), muscle: p(male?.13:.11,.435,.25) }
+  const points = { skin: p(-.36,.585,.12), heart: heart.position.clone(), lungs: p(-.095,.75,.24), brain: p(0,.974,.12), eyes: p(-.035,.941,.42), ear: p(.105,.925,.01), bones: p(-(male?.14:.124),.31,.12), muscle: p(male?.13:.11,.435,.25) }
   const materials = new Map<THREE.Material, number>()
   group.traverse(o => { if (o instanceof THREE.Mesh) for (const m of Array.isArray(o.material) ? o.material : [o.material]) { materials.set(m, m.opacity); m.transparent = true } })
-  return { group, heart, height: h, points, opacity: 0, target: 1, materials, glows: new Map() }
+  return { group, heart, height: h, points, opacity: 0, target: 1, materials, glows: new Map(), statusMaterials }
 }
 
 type Props = { hotspots: Hotspot[]; selected?: string | null; onSelect: (id: string) => void; sex: Sex }
@@ -125,11 +132,9 @@ export default function BodyModel3D(props: Props) {
     scene.add(new THREE.HemisphereLight(0xffffff, 0xa8b2c8, 2.4))
     for (const [x,y,z,power] of [[-2,3,4,3],[2,2,-3,2],[0,1,4,1]]) { const light = new THREE.DirectionalLight(0xffffff,power); light.position.set(x,y,z); scene.add(light) }
     const pivot = new THREE.Group(); scene.add(pivot)
-    const floor = new THREE.Mesh(new THREE.RingGeometry(.19,.195,96), new THREE.MeshBasicMaterial({ color: '#ADB8CA', transparent: true, opacity: .22, side: THREE.DoubleSide, depthWrite: false }))
-    floor.rotation.x = -Math.PI/2; floor.position.y = -.005; scene.add(floor)
     const shadowCanvas = document.createElement('canvas'); shadowCanvas.width = shadowCanvas.height = 128
     const ctx = shadowCanvas.getContext('2d')!
-    const gradient = ctx.createRadialGradient(64,64,0,64,64,64); gradient.addColorStop(0,'rgba(72,88,112,.2)'); gradient.addColorStop(1,'rgba(72,88,112,0)'); ctx.fillStyle=gradient; ctx.fillRect(0,0,128,128)
+    const gradient = ctx.createRadialGradient(64,64,0,64,64,64); gradient.addColorStop(0,'rgba(72,88,112,.11)'); gradient.addColorStop(1,'rgba(72,88,112,0)'); ctx.fillStyle=gradient; ctx.fillRect(0,0,128,128)
     const shadowTexture = new THREE.CanvasTexture(shadowCanvas)
     const shadow = new THREE.Mesh(new THREE.PlaneGeometry(.85,.55),new THREE.MeshBasicMaterial({ map: shadowTexture, transparent: true, depthWrite: false }))
     shadow.rotation.x=-Math.PI/2; shadow.position.y=-.006; scene.add(shadow)
@@ -138,7 +143,8 @@ export default function BodyModel3D(props: Props) {
     const glowContext = glowCanvas.getContext('2d')!
     const glowGradient = glowContext.createRadialGradient(64,64,0,64,64,64)
     glowGradient.addColorStop(0, 'rgba(255,255,255,1)')
-    glowGradient.addColorStop(.35, 'rgba(255,255,255,.65)')
+    glowGradient.addColorStop(.38, 'rgba(255,255,255,.85)')
+    glowGradient.addColorStop(.7, 'rgba(255,255,255,.3)')
     glowGradient.addColorStop(1, 'rgba(255,255,255,0)')
     glowContext.fillStyle = glowGradient; glowContext.fillRect(0,0,128,128)
     const glowTexture = new THREE.CanvasTexture(glowCanvas)
@@ -158,9 +164,9 @@ export default function BodyModel3D(props: Props) {
         if (!alive || request !== ticket) return
         const model = build(source,sex)
         for (const [id, point] of Object.entries(model.points)) {
-          const material = new THREE.SpriteMaterial({ map: glowTexture, transparent: true, opacity: 0, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending })
+          const material = new THREE.SpriteMaterial({ map: glowTexture, transparent: true, opacity: 0, depthWrite: false, depthTest: false, blending: THREE.NormalBlending })
           const glow = new THREE.Sprite(material)
-          glow.position.copy(point); glow.scale.setScalar(model.height * .14); glow.renderOrder = 5
+          glow.position.copy(point); glow.scale.setScalar(model.height * .1); glow.renderOrder = 5
           model.group.add(glow); model.glows.set(id, glow)
         }
         visible.forEach(m => { m.target=0 }); visible.push(model); active=model; pivot.add(model.group); setLoading(false)
@@ -216,7 +222,7 @@ export default function BodyModel3D(props: Props) {
         magnification += (focus.mag-magnification)*k; pan += (focus.pan-pan)*k; angle += (focus.angle-angle)*k; panX += (focus.panX-panX)*k
         if (Math.abs(focus.mag-magnification)<.01 && Math.abs(focus.pan-pan)<.002 && Math.abs(focus.angle-angle)<.002 && Math.abs(focus.panX-panX)<.002) { magnification=focus.mag; pan=focus.pan; angle=focus.angle; panX=focus.panX; focus=null; setZoomValue(magnification) }
       }
-      floor.position.set(panX,pan-.005,0); shadow.position.set(panX,pan-.006,0)
+      shadow.position.set(panX,pan-.006,0)
       pivot.position.set(panX,height/2+pan,0); pivot.rotation.set(tilt,angle,0)
       for (const model of visible) {
         model.group.position.y=-height/2
@@ -227,12 +233,28 @@ export default function BodyModel3D(props: Props) {
           glow.visible = level === 'watch' || level === 'alarm'
           if (glow.visible) {
             glow.material.color.set(level === 'alarm' ? '#FF5A36' : '#F59E0B')
-            const pulse = still() ? .5 : (1 + Math.sin(now * Math.PI * 2 / 2400 + [...model.glows.keys()].indexOf(id))) / 2
-            glow.material.opacity = (.35 + .1 * pulse) * model.opacity
-            glow.scale.setScalar(model.height * (.13 + .015 * pulse))
+            const pulse = still() ? .5 : (1 + Math.sin(now * Math.PI * 2 / 4800 + [...model.glows.keys()].indexOf(id))) / 2
+            glow.material.opacity = (.58 + .1 * pulse) * model.opacity
+            // Radius is 14–20% of body height. Shape each wash to its anatomy.
+            const diameter = model.height * (.28 + .025 * pulse)
+            const aspect = id === 'skin' ? .5 : id === 'muscle' ? .65 : 1
+            glow.scale.set(diameter * aspect, diameter, 1)
           }
         }
-        const beat=still()?1:1+.035*Math.pow(Math.max(0,Math.sin(now*.0068)),8); model.heart.scale.setScalar(beat)
+        for (const [id, entries] of model.statusMaterials) {
+          const level = latest.current.hotspots.find(h => h.id === id)?.level
+          const attention = level === 'watch' || level === 'alarm'
+          const pulse = still() ? .5 : (1 + Math.sin(now * Math.PI * 2 / 4800)) / 2
+          for (const { material, color, opacity } of entries) {
+            material.color.copy(attention ? new THREE.Color(level === 'alarm' ? '#C42F00' : '#B45309') : color)
+            material.emissive.set(attention ? level === 'alarm' ? '#FF5A36' : '#F59E0B' : '#000000')
+            material.emissiveIntensity = attention ? .3 + .1 * pulse : 0
+            material.opacity = (attention ? .6 + .1 * pulse : opacity) * model.opacity
+          }
+        }
+        const heartLevel = latest.current.hotspots.find(h => h.id === 'heart')?.level
+        const beat = still() || (heartLevel !== 'watch' && heartLevel !== 'alarm') ? 1 : 1 + .015 * Math.pow(Math.max(0, Math.sin(now * Math.PI * 2 / 4800)), 8)
+        model.heart.scale.setScalar(beat)
       }
       for (let i=visible.length-1;i>=0;i--) if (!visible[i].target && visible[i].opacity<.01) { pivot.remove(visible[i].group); dispose(visible[i].group); visible.splice(i,1) }
       const vfov=THREE.MathUtils.degToRad(camera.fov), fit=Math.max(height*1.18/2/Math.tan(vfov/2),height*.64/2/Math.tan(vfov/2)/camera.aspect)
@@ -244,11 +266,13 @@ export default function BodyModel3D(props: Props) {
         v.copy(point); active.group.localToWorld(v)
         const facing=point.clone().setY(0).normalize().applyEuler(pivot.rotation).z>-.12
         v.project(camera); const x=(v.x+1)*el.clientWidth/2,y=(1-v.y)*el.clientHeight/2
-        button.style.left=`${x}px`; button.style.top=`${y}px`; button.style.opacity=facing?'1':'.25'; button.style.visibility=v.z>1||x<0||x>el.clientWidth||y<0||y>el.clientHeight?'hidden':'visible'
+        button.style.left=`${x}px`; button.style.top=`${y}px`; button.style.setProperty('--hotspot-facing', facing ? '1' : '.6'); button.style.visibility=v.z>1||x<0||x>el.clientWidth||y<0||y>el.clientHeight?'hidden':'visible'
         const label=button.querySelector<HTMLElement>('.figure-label')!
+        // Only revealed labels participate in collision placement.
+        if (getComputedStyle(label).opacity === '0') continue
         const width=label.offsetWidth,height=label.offsetHeight
-        let lx=hotspot.left?x-28-width:x+28
-        if (lx+width>el.clientWidth-8) lx=x-28-width
+        let lx=hotspot.left?x-20-width:x+20
+        if (lx+width>el.clientWidth-8) lx=x-20-width
         lx=clamp(lx,8,Math.max(8,el.clientWidth-width-8))
         let ly=clamp(y-height/2,8,el.clientHeight-height-8)
         for (let attempts=0;attempts<20;attempts++) { const collision=placed.find(r=>lx<r.x+r.w+6&&lx+width+6>r.x&&ly<r.y+r.h+6&&ly+height+6>r.y); if (!collision) break; ly=collision.y+collision.h+8 }
@@ -267,7 +291,7 @@ export default function BodyModel3D(props: Props) {
   }, [fallback])
   useEffect(() => { engine.current?.swap(props.sex) }, [props.sex])
   useEffect(() => { host.current?.querySelector('canvas')?.setAttribute('aria-label',copy.figure) }, [copy.figure,loading])
-  if (fallback) return <BodyFigure {...props} />
+  if (fallback) return <BodyFallback {...props} />
   return <>
     <div ref={host} className="body-figure body-model" aria-label={copy.figure}>
       {loading && <span className="body-model-loading" role="status">{copy.loading}</span>}
@@ -279,4 +303,36 @@ export default function BodyModel3D(props: Props) {
       <button type="button" aria-label={copy.zoomIn} title={copy.zoomIn} disabled={zoom>=3} onClick={()=>engine.current?.zoom(1.2)}>+</button>
     </div>
   </>
+}
+
+// The image fallback owns its camera transform. Track its stage so the added forearm
+// marker follows zoom/pan without changing the shared fallback or its existing zones.
+function BodyFallback(props: Props) {
+  const { lang } = useLang()
+  const host = useRef<HTMLDivElement>(null)
+  const marker = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    let frame = 0
+    const track = () => {
+      const container = host.current, button = marker.current
+      const stage = container?.querySelector('.body-figure-stage')
+      if (container && button && stage) {
+        const bounds = container.getBoundingClientRect(), image = stage.getBoundingClientRect()
+        const x = image.left + image.width * .2 - bounds.left
+        const y = image.top + image.height * .53 - bounds.top
+        button.style.left = `${x}px`; button.style.top = `${y}px`
+        button.style.visibility = x < 0 || y < 0 || x > bounds.width || y > bounds.height ? 'hidden' : 'visible'
+      }
+      frame = requestAnimationFrame(track)
+    }
+    frame = requestAnimationFrame(track)
+    return () => cancelAnimationFrame(frame)
+  }, [])
+  const skin = props.hotspots.find(h => h.id === 'skin')
+  return <div ref={host} className="body-fallback-live">
+    <BodyFigure {...props} hotspots={props.hotspots.filter(h => h.id !== 'skin')} />
+    {skin && <button ref={marker} type="button" className={`figure-hotspot fallback-skin lvl-${skin.level}${props.selected === skin.id ? ' selected' : ''}`} style={{ visibility: 'hidden' }} aria-label={`${skin.label}, ${COPY[lang].level[skin.level]}`} aria-pressed={props.selected === skin.id} aria-haspopup="dialog" onClick={e => { e.currentTarget.focus({ preventScroll: true }); props.onSelect(skin.id) }}>
+      <span className="figure-marker" aria-hidden="true">+</span><span className={`figure-label lvl-${skin.level}`}>{skin.label}</span>
+    </button>}
+  </div>
 }

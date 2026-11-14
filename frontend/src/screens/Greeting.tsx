@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Ear, Orbit, Play, Square, MessageCircle, Siren, BatteryMedium } from 'lucide-react'
 import { api, type Metric } from '../api'
+import { LIVE_KEYS, LIVE_LABEL, useLiveVitals, type Live, type LiveKey } from '../vitals'
+import '../live.css'
 import { IndicatorButton } from '../IndicatorSheet'
 import { fmtLinkDelay, useLink } from '../link'
 import { useLoad, useSpeaker } from '../hooks'
@@ -35,6 +37,7 @@ export default function Greeting() {
   const { data: st } = useLoad(api.station)
   const sp = useSpeaker()
   const link = useLink()
+  const live = useLiveVitals(crewId)
   if (!c) return <Loading />
   const today = c.days[c.days.length - 1]
   const levels = METRICS.map(m => levelOf(m, today[m], c.baseline[m]))
@@ -89,6 +92,11 @@ export default function Greeting() {
         </Card>
       </div>
 
+      {live.online && live.crew?.id === crewId && <section className="live-section" aria-labelledby="right-now">
+        <div className="live-heading-row"><h3 id="right-now" className="live-heading"><span className="live-dot" />{LIVE_COPY[lang].now}</h3>{live.exercising && <span className="live-chip exercising">{LIVE_COPY[lang].exercising}</span>}</div>
+        <div className="live-grid">{LIVE_KEYS.map(k => <LiveTile key={k} live={live} signal={k} />)}</div>
+      </section>}
+
       <h3 className="muted" style={{ fontSize: 13, letterSpacing: '.1em', textTransform: 'uppercase', fontWeight: 500, margin: '26px 0 12px' }}>{t('key_deviations')}</h3>
       <div className="grid metrics-row">
         {([...METRICS, 'mood_1_5'] as Metric[]).map(m => {
@@ -140,4 +148,57 @@ function SleepAirMini({ days }: { days: { mission_day: number; sleep_h: number; 
       <figcaption><span><i className="sa-k sa-k-co2" />{L.co2}</span><span><i className="sa-k sa-k-sleep" />{L.sleep}</span>{nm > 0 && <span><i className="sa-k sa-k-hot" />{L.match}</span>}</figcaption>
     </figure>
   )
+}
+
+// Shared live presentation stays in the Today module so the allowed screens use one visual language.
+export const LIVE_COPY = {
+  en: { now: 'Right now', exercising: 'Exercising', exercisingNow: 'Exercising now', resting: 'Resting', activity: 'Activity', session: 'Live this session', baseline: 'Personal baseline band', start: 'Session start', latest: 'Latest', status: { ok: 'In range', watch: 'Attention', alarm: 'Urgent', nodata: 'No reading', exercising: 'Exercising' } },
+  es: { now: 'Ahora mismo', exercising: 'En ejercicio', exercisingNow: 'Haciendo ejercicio ahora', resting: 'En reposo', activity: 'Actividad', session: 'En directo en esta sesión', baseline: 'Banda personal de referencia', start: 'Inicio de sesión', latest: 'Actual', status: { ok: 'En tu banda', watch: 'Atención', alarm: 'Urgente', nodata: 'Sin lectura', exercising: 'En ejercicio' } },
+}
+
+export function liveStatus(live: Live, signal: LiveKey) {
+  const v = live.crew?.now[signal], mean = live.crew?.baseline?.[signal]?.mean
+  return live.exercising && live.crew?.now.pulse && (signal === 'hr_bpm' || signal === 'rr_brpm') && v != null && (mean == null || v >= mean)
+    ? 'exercising' : live.level[signal]
+}
+
+export function LiveChart({ live, signal, detailed = false }: { live: Live; signal: LiveKey; detailed?: boolean }) {
+  const { lang } = useLang()
+  const label = LIVE_LABEL[signal], copy = LIVE_COPY[lang]
+  const baseline = live.crew?.baseline?.[signal]
+  const band = baseline && Number.isFinite(baseline.mean) && Number.isFinite(baseline.sd) && baseline.sd > 0 ? [baseline.mean - 2 * baseline.sd, baseline.mean + 2 * baseline.sd] : null
+  const values = live.history.map(sample => sample[signal])
+  const valid = values.filter((v): v is number => v != null && Number.isFinite(v))
+  if (!valid.length) return null
+  const low = Math.min(...valid, ...(band ?? [])), high = Math.max(...valid, ...(band ?? []))
+  const pad = Math.max((high - low) * .15, signal === 'temp_c' ? .1 : 1)
+  const min = low - pad, max = high + pad, height = detailed ? 104 : 40
+  const y = (v: number) => 4 + (max - v) / (max - min) * (height - 8)
+  const first = live.history[0]?.t ?? 0, last = live.history.at(-1)?.t ?? first
+  const x = (i: number) => last > first ? 4 + (live.history[i].t - first) / (last - first) * 232 : 120
+  const path = values.map((v, i) => {
+    if (v == null || !Number.isFinite(v)) return ''
+    const previous = values[i - 1]
+    return `${previous != null && Number.isFinite(previous) ? 'L' : 'M'}${x(i)},${y(v)}`
+  }).join(' ')
+  const status = liveStatus(live, signal)
+  return <figure className={`live-chart${detailed ? ' detailed' : ''}`}>
+    <svg viewBox={`0 0 240 ${height}`} role="img" aria-label={`${label[lang]}: ${valid.map(v => fmt(v, label.dec)).join(', ')} ${label.unit}`}>
+      {band && <rect x="0" y={y(band[1])} width="240" height={y(band[0]) - y(band[1])} rx="3" fill="#2E96F5" fillOpacity=".14" />}
+      <path d={path} fill="none" stroke={status === 'alarm' ? '#C42F00' : status === 'watch' ? '#B45309' : '#0960E1'} strokeWidth="2" strokeLinejoin="round" />
+      {values.map((v, i) => v != null && Number.isFinite(v) && <circle key={i} cx={x(i)} cy={y(v)} r={values.length === 1 ? 2.5 : 1} fill="currentColor" />)}
+    </svg>
+    {detailed && <figcaption><span>{fmt(min, label.dec)}–{fmt(max, label.dec)} {label.unit}</span>{band && <span className="live-band-key">{copy.baseline} {fmt(band[0], label.dec)}–{fmt(band[1], label.dec)}</span>}<span>{copy.start} → {copy.latest}</span></figcaption>}
+  </figure>
+}
+
+export function LiveTile({ live, signal, detailed = false }: { live: Live; signal: LiveKey; detailed?: boolean }) {
+  const { lang } = useLang()
+  const label = LIVE_LABEL[signal], status = liveStatus(live, signal)
+  return <article className={`live-tile live-${status}`}>
+    <div className="live-tile-top"><h4>{label[lang]}</h4><span className="live-dot live-pulse" aria-hidden="true" /></div>
+    <div className="live-reading">{fmt(live.crew?.now[signal] ?? undefined, label.dec)}<small>{label.unit}</small></div>
+    <span className={`live-chip ${status}`}>{LIVE_COPY[lang].status[status]}</span>
+    <LiveChart live={live} signal={signal} detailed={detailed} />
+  </article>
 }
