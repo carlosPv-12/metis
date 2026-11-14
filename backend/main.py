@@ -616,7 +616,8 @@ def _wellbeing_viewer(viewer: str | None, crew_id: str):
 
 class CheckInIn(BaseModel):
     crew_id: str
-    answers: dict[str, int]
+    instrument: str = wellbeing.DAILY["id"]     # o wellbeing.PHQ4["id"]
+    answers: dict[str, float]
     tags: list[str] = []
     note: str = ""
     share: bool = False         # enviarlo también al cirujano de vuelo
@@ -638,8 +639,14 @@ def _send_checkin(c: dict, doc: dict):
 
 
 @app.get("/api/wellbeing/instrument")
-def wellbeing_instrument():
-    return {**wellbeing.INSTRUMENT, "tags": list(wellbeing.TAGS), "share_levels": list(wellbeing.SHARE_LEVELS)}
+def wellbeing_instrument(crew_id: str | None = None):
+    """Los dos cuestionarios y, si se dice quién, si le toca el PHQ-4 (cada 14 días)."""
+    out = {"daily": wellbeing.DAILY, "biweekly": wellbeing.PHQ4, "sources": wellbeing.SOURCES,
+           "tags": list(wellbeing.TAGS), "share_levels": list(wellbeing.SHARE_LEVELS)}
+    if crew_id:
+        _crew_or_404(crew_id)
+        out["phq4_due"] = wellbeing.phq4_due(crew_id)
+    return out
 
 
 @app.get("/api/wellbeing/checkins")
@@ -651,13 +658,33 @@ def wellbeing_list(crew_id: str, viewer: str | None = None):
 @app.post("/api/wellbeing/checkins")
 def wellbeing_add(b: CheckInIn):
     doc = _crew_or_404(b.crew_id)
+    answers = {k: (int(v) if float(v).is_integer() else v) for k, v in b.answers.items()}
     try:
-        c = wellbeing.add(b.crew_id, b.answers, b.tags, b.note, b.share, b.share_note)
+        c = wellbeing.add(b.crew_id, answers, b.tags, b.note, b.share, b.share_note, b.instrument)
     except ValueError as e:
         raise HTTPException(400, str(e))
     if c["shared"]:
         _send_checkin(c, doc)
-    return c
+    return {**c, "advice": wellbeing.advice(doc["crew"][b.crew_id], b.crew_id)}
+
+
+@app.get("/api/wellbeing/advice")
+def wellbeing_advice(crew_id: str, viewer: str | None = None):
+    """Consejos de Metis para el propio tripulante (dependen de sus respuestas: solo los ve él)."""
+    doc = _crew_or_404(crew_id)
+    if _wellbeing_viewer(viewer, crew_id) != crew_id:
+        raise HTTPException(403, "los consejos son solo para la propia persona")
+    return wellbeing.advice(doc["crew"][crew_id], crew_id)
+
+
+@app.get("/api/wellbeing/risks")
+def wellbeing_risks(crew_id: str, viewer: str | None = None):
+    """El propio tripulante: señales con sus motivos. Tierra: solo el resumen que esa persona eligió compartir."""
+    doc = _crew_or_404(crew_id)
+    v = _wellbeing_viewer(viewer, crew_id)
+    if v == "ground":
+        return wellbeing.ground_summary(crew_id, doc["crew"][crew_id])
+    return {"crew_id": crew_id, "risks": wellbeing.risks(doc["crew"][crew_id], crew_id)}
 
 
 @app.post("/api/wellbeing/checkins/{checkin_id}/share")

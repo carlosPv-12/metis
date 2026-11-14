@@ -109,3 +109,23 @@
 .wb-recs svg { margin-top: 2px; color: #6F8A00 }
 .wb-talk-offer { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 18px; padding-top: 16px; border-top: 1px solid #DDE8B0; font: 600 15px 'Fira Sans', sans-serif; color: #07173F }
 .wb-grid > .wb-improve { margin: 0 } .wb-grid > .wb-improve .wb-improve-card { margin-top: 12px }
+
+/* Daily check-in (NASA RST-style scales + Samn-Perelli) and the two-week PHQ-4, 14-nov */
+.wb-form { display: grid; gap: 2px; margin-bottom: 26px; padding: 22px 26px }
+.wb-open-form { margin: -8px 0 22px }
+.wb-form .wb-q { grid-template-columns: minmax(170px, 260px) 1fr }
+.wb-scale .wb-dot { min-width: 34px; height: 34px; justify-content: center; padding: 0 6px }
+/* neutral until chosen: tinting the 'bad' options beforehand could steer the answer */
+.wb-scale .wb-dot.warn.on { background: #C42F00 }
+.wb-scale-anchored { display: grid; grid-template-columns: 1fr; gap: 6px }
+.wb-scale-anchored .wb-dot { justify-content: flex-start; height: auto; min-height: 32px; padding: 4px 12px; border-radius: 12px; text-align: left }
+.wb-scale-anchored .wb-dot em { font: 500 12.5px 'Fira Sans', sans-serif; font-style: normal }
+.wb-ends { display: flex; justify-content: space-between; max-width: 460px; margin-top: 4px }
+.wb-hours { display: flex; align-items: center; gap: 12px }
+.wb-hours strong { min-width: 64px; text-align: center; font: 800 20px var(--display, 'Overpass', sans-serif); color: #07173F }
+.wb-advice { margin-bottom: 26px }
+.wb-advice .wb-recs li span { display: inline }
+.wb-src { margin-left: 6px; font: 600 11.5px 'Fira Sans', sans-serif; color: #0042A6; white-space: nowrap }
+.wb-advice .wb-send { margin-left: 8px }
+.wb-phq .wb-scale { gap: 6px }
+@media (max-width: 720px) { .wb-form .wb-q { grid-template-columns: 1fr } .wb-form { padding: 18px 16px } }
