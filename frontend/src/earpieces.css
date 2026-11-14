@@ -1,0 +1,16 @@
+/* Earpiece pair: connected unit first, then the one charging */
+.earpiece-pair { display: grid; gap: 14px; width: 100% }
+.earpiece-unit { display: grid; gap: 6px }
+.earpiece-top { display: flex; justify-content: space-between; align-items: center; gap: 8px }
+.earpiece-name { font-weight: 600; color: #07173F; font-size: 13px }
+.earpiece-value { display: inline-flex; align-items: center; gap: 4px; font: 600 13px/1 var(--sans); color: #07173F }
+.earpiece-bar { height: 6px; border-radius: 999px; background: #E7EDF6; overflow: hidden }
+.earpiece-bar > i { display: block; height: 100%; border-radius: inherit; background: #0A7A52 }
+.earpiece-unit.dock .earpiece-bar > i { background: #0960E1 }
+.earpiece-unit.charging .earpiece-value { color: #0960E1 }
+.earpiece-unit.charging .earpiece-bar > i { background: linear-gradient(90deg, #0960E1, #2E96F5, #0960E1); background-size: 200% 100%; animation: earpiece-charge 2.4s linear infinite }
+.earpiece-link { font-size: 11.5px; color: #0A7A52; font-weight: 600 }
+.earpiece-pair.compact { gap: 10px }
+.earpiece-pair.compact .earpiece-name, .earpiece-pair.compact .earpiece-value { font-size: 12px }
+@keyframes earpiece-charge { to { background-position: -200% 0 } }
+@media (prefers-reduced-motion: reduce) { .earpiece-unit.charging .earpiece-bar > i { animation: none } }

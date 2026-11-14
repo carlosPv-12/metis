@@ -485,3 +485,32 @@ dialog, dialog:focus, dialog:focus-visible,
 
 /* The body stands in front of the colour: a soft shadow around its silhouette */
 .bodywrap.figure:has(.body-model) .body-model > canvas { filter: drop-shadow(0 10px 22px #07173F2E) drop-shadow(0 0 2px #FFFFFF) }
+/* Sleep × Air finding at the top of Trends: a compact, high-contrast strip */
+.sleepair-insight { display: grid; grid-template-columns: auto 1fr; column-gap: 12px; row-gap: 2px; align-items: start;
+  margin: 0 0 20px; padding: 12px 16px; border-radius: 12px; background: #07173F; color: #fff; border-left: 4px solid #EAFE07 }
+.sleepair-insight-icon { grid-row: span 2; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #EAFE07; color: #07173F }
+.sleepair-insight p { margin: 0; font-size: 14.5px; line-height: 1.4 }
+.sleepair-insight p b { color: #EAFE07; font-weight: 700; margin-right: 4px }
+.sleepair-insight .sleepair-insight-action { color: #9CC9FF; font-size: 13.5px }
+.sleepair-r { margin-top: 18px }
+
+/* Alerts everywhere: no red or orange frame or edge, only the tinted background */
+.lvl, .lvl.rojo, .lvl.naranja, .lvl.amarillo, .lvl.verde { border: 0 !important; background-size: 100% 100% }
+.tag.alarm, .tag.watch { border-color: transparent !important }
+.crewcard.alarm, .crewcard.watch { border-color: #E3E9F2 !important; box-shadow: none !important }
+.live-alarm, .live-watch { border-color: transparent !important }
+.ground-crew-row.watch, .ground-crew-row.alarm, .ground-system.watch, .ground-system.alarm, .station-requests li { border-color: transparent !important }
+.ground-meds li, .mr-findings li, .ground-alerts p { box-shadow: none !important }
+/* Trend cards: today's value in the display font, unit small */
+.trend-now { font: 700 17px var(--display, 'Overpass', sans-serif); color: #07173F; white-space: nowrap }
+.trend-now small { font: 500 12px 'Fira Sans', sans-serif; color: #4A5468; margin-left: 2px }
+
+/* Neon accents (brand Neon Yellow, the green-yellow of the body glow) so the pages are less monotone */
+.page-heading .h1::after { content: ''; display: block; width: 72px; height: 6px; margin-top: 12px; border-radius: 999px; background: linear-gradient(90deg, #EAFE07, #C6E600) }
+.section-h::after { content: ''; display: block; width: 48px; height: 5px; margin-top: 8px; border-radius: 999px; background: #EAFE07 }
+.card > h3::before { content: ''; display: inline-block; width: 14px; height: 3px; margin-right: 8px; border-radius: 999px; background: #C6E600; vertical-align: middle }
+.ground-ship { box-shadow: inset 0 4px 0 #EAFE07 }
+.ground-h::before { content: ''; display: inline-block; width: 14px; height: 3px; margin-right: 8px; border-radius: 999px; background: #C6E600; vertical-align: middle }
+.ground-hero { box-shadow: inset 0 -5px 0 #EAFE07 }
+.feature-gradient > h3::before, .mr-head + * h3::before { background: #EAFE07 }
+.sleepair-section + .sleepair-insight { margin: 18px 0 0 }

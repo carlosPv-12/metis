@@ -12,6 +12,7 @@ import { IndicatorSheet } from '../IndicatorSheet'
 import { Activity, Heart, Moon, Wind } from 'lucide-react'
 import { useLiveVitals, type Live } from '../vitals'
 import { LIVE_COPY, LiveTile, liveStatus } from './Greeting'
+import EarpiecePair from '../EarpiecePair'
 import '../body-panel.css'
 
 export type BP = 'heart' | 'ear' | 'lungs' | 'brain' | 'eyes' | 'bones' | 'muscle' | 'skin'
@@ -86,6 +87,7 @@ function BodyView({ c, crewId }: { c: CrewDetail; crewId: string }) {
 }
 
 function BodyDetails({ c, live, sel, trigger, onClose }: { c: CrewDetail; live: Live; sel: BP; trigger: HTMLElement | null; onClose: () => void }) {
+  const { data: station } = useLoad(api.station)
   const t = useT()
   const { lang } = useLang()
   const panel = useRef<HTMLDivElement>(null)
@@ -187,7 +189,7 @@ function BodyDetails({ c, live, sel, trigger, onClose }: { c: CrewDetail; live: 
           <Spark days={c.days} m={primary} b={c.baseline[primary]} h={56} color="#EAFE07" />
           <div className="body-trend-caption"><span>{c.days.length} {copy.days}</span><span>{copy.latest} {fmt(today[primary], DEC[primary])} {t(UNIT[primary])}</span></div>
         </article>}
-      </> : sel === 'ear' ? <p className="body-panel-pill">{t('link_ok')}, {t('worn')}</p> : null}
+      </> : sel === 'ear' ? <div className="body-panel-pill"><EarpiecePair battery={station?.headsets.find(x => x.crew_id === c.id)?.battery_pct} crewId={c.id} /></div> : null}
       {sel !== 'ear' && sel !== 'muscle' && sel !== 'skin' && sel !== 'brain' && <div className="body-panel-pill"><span className="body-panel-caption">{copy.measured}</span><p>{copy.source[sel]}</p></div>}
       {sel !== 'skin' && sel !== 'ear' && sel !== 'muscle' && sel !== 'brain' && <div className="body-panel-pill"><span className="body-panel-caption">{copy.risk}</span><p>{t(`hrp_${sel}`)}</p></div>}
       <IndicatorSheet indicator={sel} collapsible />

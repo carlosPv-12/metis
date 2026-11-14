@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'react'
 // "Today": Metis speaks first, status vs. personal baseline, key deviations, earpiece, Earth delay.
 import { useNavigate } from 'react-router-dom'
-import { Ear, Orbit, Play, Square, MessageCircle, Siren, BatteryMedium } from 'lucide-react'
+import { Ear, Orbit, Play, Square, MessageCircle, Siren } from 'lucide-react'
+import EarpiecePair from '../EarpiecePair'
 import { api, type Metric } from '../api'
 import { LIVE_KEYS, LIVE_LABEL, useLiveVitals, type Live, type LiveKey } from '../vitals'
 import '../live.css'
@@ -67,9 +68,7 @@ export default function Greeting() {
         </Card>
         <div className="today-side">
           <Card title={<><Ear size={15} />{t('earpiece')}</>}>
-            <div className="row between earpiece-row"><span className="muted">{t('battery')}</span>{hs?.battery_pct != null && <span className="mono"><BatteryMedium size={15} style={{ verticalAlign: -3 }} /> {hs.battery_pct}%</span>}</div>
-            <div className="bar" style={{ margin: '8px 0 14px' }}><i style={{ width: `${hs?.battery_pct ?? 0}%`, background: (hs?.battery_pct ?? 0) < 30 ? 'var(--warn)' : 'var(--ok)' }} /></div>
-            <div className="row between earpiece-row"><span className="muted">{t('link')}</span><span className="tag ok" title={t('link_ok')}><Shape level="ok" />{lang === 'es' ? 'Conectado' : 'Connected'}</span></div>
+            <EarpiecePair battery={hs?.battery_pct} crewId={crewId} compact />
           </Card>
           <Card title={<><Orbit size={15} />{t('earth_delay')}</>}>
             <div className="stat"><div className="val">{fmtLinkDelay(link.delayS, lang)}</div></div>

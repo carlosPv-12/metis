@@ -34,7 +34,7 @@ export function LevelTag({ level }: { level: Level }) {
 export function Shape({ level, size = 9 }: { level: Level; size?: number }) {
   const s = size
   if (level === 'alarm') return <svg width={s} height={s} viewBox="0 0 10 10" aria-hidden><path d="M5 0.5 L9.5 9.5 L0.5 9.5Z" fill="currentColor" /></svg>
-  if (level === 'watch') return <svg width={s} height={s} viewBox="0 0 10 10" aria-hidden><rect x="1.5" y="1.5" width="7" height="7" transform="rotate(45 5 5)" fill="currentColor" /></svg>
+  if (level === 'watch') return <svg width={s} height={s} viewBox="0 0 10 10" aria-hidden><rect x="3.7" y="0.4" width="2.6" height="6.2" rx="1.2" fill="currentColor" /><circle cx="5" cy="8.7" r="1.3" fill="currentColor" /></svg>
   if (level === 'nodata') return <svg width={s} height={s} viewBox="0 0 10 10" aria-hidden><circle cx="5" cy="5" r="4" fill="none" stroke="currentColor" strokeWidth="1.5" /></svg>
   return <svg width={s} height={s} viewBox="0 0 10 10" aria-hidden><circle cx="5" cy="5" r="4.2" fill="currentColor" /></svg>
 }

@@ -1,6 +1,7 @@
 // Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026
 // Director mode: the 30-second story on autopilot. Everything on screen is a pure function of `t` (ms),
 // so `#/demo?capture=1` + window.__metisDemo.seek(ms) gives an exact, repeatable frame.
+import { demoBattery } from '../earpieces'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import { useLocation } from 'react-router-dom'
@@ -9,8 +10,7 @@ import { localCrew, type CrewDetail } from '../api'
 import { DEMO_LINES, DEMO_UI, useLang, useT, placeL } from '../i18n'
 import { fmt, Shape, type Level } from '../ui'
 import Body3D from '../Body3D'
-import { FALLBACK_STATION } from '../fallback'
-const LENA_BATT = FALLBACK_STATION.headsets.find(h => h.crew_id === 'lena')?.battery_pct ?? 78
+const LENA_BATT = demoBattery('lena')
 import { BP_POS, bodyLevels } from './Body'
 
 const DURATION = 30000

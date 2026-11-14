@@ -59,7 +59,7 @@ export const FALLBACK_GRAPH: Graph = {
     { id: 'metis_marco', type: 'metis', label_en: 'Marco’s Metis', label_es: 'Metis de Marco' },
     { id: 'metis_noor', type: 'metis', label_en: 'Noor’s Metis', label_es: 'Metis de Noor' },
     { id: 'metis_kenji', type: 'metis', label_en: 'Kenji’s Metis', label_es: 'Metis de Kenji' },
-    { id: 'console', type: 'station', label_en: 'Station console', label_es: 'Centralita' },
+    { id: 'console', type: 'station', label_en: 'Station control', label_es: 'Centralita' },
     { id: 'triage', type: 'knowledge', label_en: 'Triage tree', label_es: 'Árbol de triaje' },
     { id: 'baseline', type: 'knowledge', label_en: 'Personal baselines', label_es: 'Líneas base personales' },
     { id: 'hrp', type: 'nasa', label_en: 'NASA HRP risks', label_es: 'Riesgos HRP de NASA' },

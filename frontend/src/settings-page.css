@@ -101,3 +101,11 @@
   .settings-body-row .seg { max-width: 100%; }
   .settings-body-row .seg button { padding-inline: 16px; }
 }
+
+/* Editable roles under the crew cards */
+.settings-roles { margin-top: 32px; display: grid; gap: 12px; max-width: 720px }
+.settings-roles h3 { margin: 0 0 4px; font: 700 16px/1.2 var(--display); color: #07173F }
+.settings-role-row { display: grid; grid-template-columns: 36px 96px minmax(0, 1fr); align-items: center; gap: 16px; padding: 12px 16px; border-radius: 20px; background: #FFFFFF; border: 1px solid #E3E9F2 }
+.settings-role-name { font-weight: 600; color: #07173F }
+.settings-role-row input { font: inherit; color: #07173F; padding: 10px 14px; border-radius: 12px; border: 1px solid #D5DEEA; background: #F7F9FC; min-width: 0 }
+.settings-role-row input:focus-visible { outline: 2px solid #0960E1; outline-offset: 1px; background: #FFFFFF }

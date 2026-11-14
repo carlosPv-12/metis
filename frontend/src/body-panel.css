@@ -232,3 +232,12 @@
 .bodywrap.figure .figure-hotspot.lvl-watch::before { background: #F0643A33 !important; border-color: #F0643A66 !important }
 .bodywrap.figure .figure-hotspot.lvl-alarm::before { background: #FF5A3633 !important; border-color: #FF5A3670 !important }
 .bodywrap.figure .figure-hotspot:is(.lvl-watch, .lvl-alarm) .figure-marker::after { border-color: #F0643A !important; opacity: .45 !important }
+
+/* Smaller points and names */
+.bodywrap.figure .figure-hotspot { width: 28px !important; height: 28px !important }
+.bodywrap.figure .figure-marker { width: 28px !important; height: 28px !important }
+.bodywrap.figure .figure-marker svg { width: 14px !important; height: 14px !important }
+.bodywrap.figure .figure-hotspot::before { width: 38px !important; height: 38px !important }
+.bodywrap.figure .figure-hotspot.selected::before { width: 48px !important; height: 48px !important }
+.bodywrap.figure .figure-label { padding: 5px 10px !important; font-size: 11.5px !important; gap: 6px !important }
+.bodywrap.figure .figure-label > .figure-label-dot { width: 6px !important; height: 6px !important }

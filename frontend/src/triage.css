@@ -161,3 +161,11 @@
 @media (prefers-reduced-motion: reduce) {
   .triage-run *, .triage-run *::before, .triage-run *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* Triage on a plain white background (hub and runner); cards and lists keep a light grey line to separate them */
+.triage-run, .triage-hub, .page:has(.triage-run), .page:has(.triage-hub), .triage-run .card, .triage-run .opt, .triage-run .triage-flow-grid { background: #FFFFFF !important }
+.triage-run .triage-orbit span::after { background: #FFFFFF }
+.triage-run .card { border-color: #E3E9F2 }
+.triage-run .triage-flow-grid, .triage-run .card:has(.tq) .opt { border: 1px solid #E3E9F2 }
+.triage-run .triage-flow:hover, .triage-run .opt:hover { background: #F5F8FC !important }
+.triage-run .card:has(.tq)::after { display: none }

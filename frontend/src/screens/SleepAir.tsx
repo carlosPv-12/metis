@@ -5,10 +5,24 @@ import { Lightbulb } from 'lucide-react'
 import { api } from '../api'
 import { useLoad } from '../hooks'
 import { useT } from '../i18n'
-import { Card, Loading, MetisLine, fmt, useCrew } from '../ui'
+import { Card, Loading, fmt, useCrew } from '../ui'
 import { findThr, numVal } from '../thresholds'
 import { ThresholdLabel } from './Trend'
 import { matchN, insightText } from './Greeting'
+
+/** The Metis Sleep × Air finding, shown big at the top of Trends so it is the first thing read. */
+export function SleepAirInsight() {
+  const t = useT(); const { crewId } = useCrew()
+  const { data: c } = useLoad(() => api.crewOne(crewId), [crewId])
+  if (!c) return null
+  return (
+    <div className="sleepair-insight" role="note">
+      <span className="sleepair-insight-icon"><Lightbulb size={16} aria-hidden /></span>
+      <p><b>Metis</b> {insightText(t, matchN(c.days))}</p>
+      <p className="sleepair-insight-action">{t('sleepair_action').replace(/^(Suggested|Sugerencia|Sugerido):\s*/i, '').replace(/^./, ch => ch.toUpperCase())}</p>
+    </div>
+  )
+}
 
 export default function SleepAir() {
   const t = useT(); const { crewId } = useCrew()
@@ -40,25 +54,20 @@ export default function SleepAir() {
               </Bar>
               {Number.isFinite(numVal(co2)) && <ReferenceLine yAxisId="c" y={numVal(co2)} stroke="#B45309" strokeDasharray="5 4" />}
               {Number.isFinite(numVal(sleepRef)) && <ReferenceLine yAxisId="s" y={numVal(sleepRef)} stroke="#0960E1" strokeDasharray="2 4" strokeOpacity={0.6} />}
-              <Line yAxisId="c" dataKey="co2" name={t('m_co2_night_peak_mmhg')} stroke="#0960E1" strokeWidth={2.4} dot={{ r: 2.5, fill: '#0960E1' }} isAnimationActive={false} />
+              <Line yAxisId="c" dataKey="co2" name={t('m_co2_night_peak_mmhg')} stroke="#9CBF00" strokeWidth={2.8} dot={{ r: 2.5, fill: '#9CBF00' }} isAnimationActive={false} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
         <div className="row wrap" style={{ gap: 18, marginTop: 10 }}>
           <span className="small" style={{ color: 'var(--info)' }}>■ {t('m_sleep_h')} ({t('u_h')})</span>
-          <span className="small" style={{ color: 'var(--info)' }}>● {t('m_co2_night_peak_mmhg')}</span>
+          <span className="small" style={{ color: '#6F8A00' }}>● {t('m_co2_night_peak_mmhg')}</span>
           {co2 && <ThresholdLabel th={co2} />}{sleepRef && <ThresholdLabel th={sleepRef} color="var(--info)" />}
         </div>
       </Card>
-      <div className="grid g2" style={{ marginTop: 18 }}>
-        <Card className="feature feature-gradient" title={<><Lightbulb size={14} />Metis</>}>
-          <MetisLine><p className="quote" style={{ margin: 0 }}>{insightText(t, nm)}</p><p className="muted" style={{ marginBottom: 0 }}>{t('sleepair_action')}</p></MetisLine>
-        </Card>
-        <Card title={t('r_title')}>
-          <div className="stat"><div className="val">{fmt(r, 2)}</div></div>
-          <div className="small muted">{t('pearson_note').replace('{n}', String(n))}</div>
-        </Card>
-      </div>
+      <Card className="sleepair-r" title={t('r_title')}>
+        <div className="row" style={{ gap: 14, alignItems: 'baseline' }}><div className="stat"><div className="val">{fmt(r, 2)}</div></div>
+          <div className="small muted">{t('pearson_note').replace('{n}', String(n))}</div></div>
+      </Card>
     </section>
   )
 }

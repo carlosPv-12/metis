@@ -5,14 +5,15 @@ import { LIVE_COPY, LiveTile } from './Greeting'
 import { useState } from 'react'
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api, type Metric, type Threshold } from '../api'
-import SleepAir from './SleepAir'
+import SleepAir, { SleepAirInsight } from './SleepAir'
+import ShipPanel from '../ShipPanel'
 import { useLoad } from '../hooks'
 import { useLang, useT, pick, unitL } from '../i18n'
 import { Card, DEC, LevelTag, Loading, METRICS, Page, UNIT, fmt, levelOf, useCrew } from '../ui'
 import { findThr, numVal } from '../thresholds'
 import { IndicatorButton } from '../IndicatorSheet'
 
-const REF: Record<Metric, [string, RegExp][]> = {
+export const REF: Record<Metric, [string, RegExp][]> = {
   resting_hr_bpm: [['hr_inflight', /^hr|heart/]],
   hrv_ms: [],
   sleep_h: [['sleep_inflight', /sleep_in|sleep_avg|sleep_mean/], ['sleep_recommended', /sleep_rec/]],
@@ -25,7 +26,7 @@ export function ThresholdLabel({ th, color = 'var(--warn)' }: { th: Threshold; c
   return (
     <span className="small" style={{ color }}>
       <svg width="18" height="6" style={{ marginRight: 6 }}><line x1="0" y1="3" x2="18" y2="3" stroke={color} strokeWidth="2" strokeDasharray="4 3" /></svg>
-      {pick(th as never, 'label', lang)}: <span className="mono">{String(th.value)} {unitL(th.unit, lang)}</span>
+      {pick(th as never, 'label', lang)}: <b style={{ fontWeight: 600 }}>{String(th.value)} {unitL(th.unit, lang)}</b>
     </span>
   )
 }
@@ -39,6 +40,7 @@ export default function Trend() {
   const today = c.days[c.days.length - 1]
   return (
     <Page title={t('trends_title')}>
+      <ShipPanel />
       {live.online && live.crew?.id === crewId && <Card className="live-session" title={<span className="live-heading"><span className="live-dot" />{LIVE_COPY[lang].session}</span>} right={live.exercising ? <span className="live-chip exercising">{LIVE_COPY[lang].exercising}</span> : undefined}>
         <div className="live-grid">{LIVE_KEYS.map(k => <LiveTile key={k} live={live} signal={k} detailed />)}</div>
       </Card>}
@@ -52,7 +54,7 @@ export default function Trend() {
           const lvl = levelOf(m, today[m], b)
           const col = '#0960E1'
           return (
-            <Card key={m} title={t(`m_${m}`)} right={<span className="row"><span className="mono" style={{ fontSize: 15 }}>{fmt(today[m], DEC[m])} {t(UNIT[m])}</span><LevelTag level={lvl} /></span>}>
+            <Card key={m} title={t(`m_${m}`)} right={<span className="row"><span className="trend-now">{fmt(today[m], DEC[m])} <small>{m === 'mood_1_5' ? '/5' : t(UNIT[m])}</small></span><LevelTag level={lvl} /></span>}>
               <div style={{ height: 230 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: -8 }}>
@@ -77,7 +79,7 @@ export default function Trend() {
         })}
       </div>
       <SleepAir />
-      <BloodPanel />
+      <SleepAirInsight />
     </Page>
   )
 }

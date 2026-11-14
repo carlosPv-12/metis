@@ -11,16 +11,23 @@ import { useLoad } from '../hooks'
 import { useLang, useT } from '../i18n'
 import { useCrew } from '../ui'
 import References from './References'
-import { DEFAULT_SEX, SETTINGS_LABEL, setEnv, setMarsDelayMin, resetSettings, setCrewSex, sexOf, useSettings, type Sex } from '../settings'
+import ViewSwitch from '../ViewSwitch'
+import { DEFAULT_SEX, SETTINGS_LABEL, setEnv, setMarsDelayMin, resetSettings, setCrewSex, sexOf, useSettings, type Sex, roleOf, setCrewRole } from '../settings'
 import '../settings-page.css'
 
 const TABS = ['crew', 'connection', 'environment', 'bodies', 'mockup', 'references'] as const
 type Tab = typeof TABS[number]
 
+const ROLE_TXT = {
+  en: { title: 'Roles', field: 'Role of' },
+  es: { title: 'Roles', field: 'Rol de' },
+}
+
 const COPY = {
   en: {
-    tabs: { crew: 'Crew member', connection: 'Connection and voice', environment: 'Mission environment', bodies: 'Body figures', mockup: 'Mockup simulation', references: 'References' },
+    tabs: { view: 'View', crew: 'Crew member', connection: 'Connection and voice', environment: 'Mission environment', bodies: 'Body figures', mockup: 'Mockup simulation', references: 'References' },
     descriptions: {
+      view: 'Choose whether you are on the ship or on Ground (flight surgeon). The same switch is at the top of every screen.',
       crew: 'Choose who is using Metis now.',
       connection: 'Check the connection and manage hands-free voice.',
       environment: 'Choose the mission environment and its delay to Earth.',
@@ -35,8 +42,9 @@ const COPY = {
     mockupNote: 'Only for the mockup. These buttons simulate situations in the live vitals so you can show the demo; a real mission would not have them.',
   },
   es: {
-    tabs: { crew: 'Tripulante', connection: 'Conexión y voz', environment: 'Entorno de la misión', bodies: 'Figuras del cuerpo', mockup: 'Simulación del mockup', references: 'Referencias' },
+    tabs: { view: 'Vista', crew: 'Tripulante', connection: 'Conexión y voz', environment: 'Entorno de la misión', bodies: 'Figuras del cuerpo', mockup: 'Simulación del mockup', references: 'Referencias' },
     descriptions: {
+      view: 'Elige si estás en la nave o en Tierra (cirujano de vuelo). El mismo interruptor está arriba en todas las pantallas.',
       crew: 'Elige quién está usando Metis ahora.',
       connection: 'Consulta la conexión y controla la voz manos libres.',
       environment: 'Elige el entorno de la misión y su retraso con la Tierra.',
@@ -93,6 +101,7 @@ export default function Settings() {
   return (
     <div className="page settings-page">
       <h1 className="h1">{SETTINGS_LABEL[lang]}</h1>
+      <div className="settings-view-switch"><ViewSwitch large /></div>
       <div className="seg settings-tabs" role="tablist" aria-label={SETTINGS_LABEL[lang]}>
         {TABS.map(tab => (
           <button key={tab} ref={node => { tabButtons.current[tab] = node }} type="button" role="tab"
@@ -116,9 +125,18 @@ export default function Settings() {
             {crew.map(c => <button key={c.id} type="button" className={`settings-crew-card ${crewId === c.id ? 'is-selected' : ''}`}
               aria-pressed={crewId === c.id} onClick={() => setCrewId(c.id)}>
               <CrewAvatar id={c.id} name={c.name} size={80} />
-              <span className="settings-crew-copy"><strong>{c.name}</strong><span>{lang === 'es' ? c.role_es : c.role_en}</span></span>
+              <span className="settings-crew-copy"><strong>{c.name}</strong><span>{roleOf(settings, c, lang)}</span></span>
               {crewId === c.id && <span className="settings-selected"><span aria-hidden="true">✓ </span>{s.selected}</span>}
             </button>)}
+          </div>}
+          {tab === 'crew' && <div className="settings-roles">
+            <h3>{ROLE_TXT[lang].title}</h3>
+            {crew.map(c => <label key={c.id} className="settings-role-row">
+              <CrewAvatar id={c.id} name={c.name} size={36} />
+              <span className="settings-role-name">{c.name}</span>
+              <input type="text" value={roleOf(settings, c, lang)} maxLength={60} aria-label={`${ROLE_TXT[lang].field} ${c.name}`}
+                onChange={e => setCrewRole(c.id, e.target.value)} />
+            </label>)}
           </div>}
 
           {tab === 'connection' && <div className="settings-control-list">
