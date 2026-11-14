@@ -67,23 +67,18 @@ function CrewBody({ crewId }: { crewId: string }) {
 
 function BodyView({ c, crewId }: { c: CrewDetail; crewId: string }) {
   const t = useT()
-  const { lang } = useLang()
   const [sel, setSel] = useState<BP | null>(null)
   const [trigger, setTrigger] = useState<HTMLElement | null>(null)
   const sex = useCrewSex(crewId)
   const live = useLiveVitals(crewId)
   // Eyes and bones are not measured on board day to day (only occasional ultrasound / pre- and post-flight scans): no hotspot.
-  const hs = useHotspots(c, live).filter(h => h.id !== 'eyes' && h.id !== 'bones')
+  const hs = useHotspots(c, live).filter(h => h.id !== 'eyes' && h.id !== 'bones' && h.level !== 'nodata')
   useEffect(() => { setSel(null) }, [crewId, sex])
   const closeDetails = useCallback(() => setSel(null), [])
   return (
     <Page title={t('body_title')}>
       <div className={`bodywrap figure${sel ? ' body-panel-open' : ''}`}>
         <BodyModel3D hotspots={hs} selected={sel} onSelect={id => { setTrigger(document.activeElement instanceof HTMLElement ? document.activeElement : null); setSel(id as BP) }} sex={sex} />
-        {hs.some(h => h.level === 'watch' || h.level === 'alarm') && <div className="body-attention-legend">
-          {hs.some(h => h.level === 'watch') && <span><span className="body-legend-dot watch" aria-hidden="true" />{lang === 'es' ? 'Necesita atención' : 'Needs attention'}</span>}
-          {hs.some(h => h.level === 'alarm') && <span><span className="body-legend-dot alarm" aria-hidden="true" />{lang === 'es' ? 'Urgente' : 'Urgent'}</span>}
-        </div>}
         {sel && <BodyDetails key={sel} live={live} c={c} sel={sel} trigger={trigger} onClose={closeDetails} />}
       </div>
     </Page>
@@ -192,9 +187,9 @@ function BodyDetails({ c, live, sel, trigger, onClose }: { c: CrewDetail; live: 
           <Spark days={c.days} m={primary} b={c.baseline[primary]} h={56} color="#EAFE07" />
           <div className="body-trend-caption"><span>{c.days.length} {copy.days}</span><span>{copy.latest} {fmt(today[primary], DEC[primary])} {t(UNIT[primary])}</span></div>
         </article>}
-      </> : <p className="body-panel-pill body-panel-empty">{t('not_measured')}{sel === 'ear' && <span>{t('link_ok')}, {t('worn')}</span>}</p>}
-      <div className="body-panel-pill"><span className="body-panel-caption">{copy.measured}</span><p>{copy.source[sel]}</p></div>
-      {sel !== 'skin' && <div className="body-panel-pill"><span className="body-panel-caption">{copy.risk}</span><p>{t(`hrp_${sel}`)}</p></div>}
+      </> : sel === 'ear' ? <p className="body-panel-pill">{t('link_ok')}, {t('worn')}</p> : null}
+      {sel !== 'ear' && sel !== 'muscle' && sel !== 'skin' && sel !== 'brain' && <div className="body-panel-pill"><span className="body-panel-caption">{copy.measured}</span><p>{copy.source[sel]}</p></div>}
+      {sel !== 'skin' && sel !== 'ear' && sel !== 'muscle' && sel !== 'brain' && <div className="body-panel-pill"><span className="body-panel-caption">{copy.risk}</span><p>{t(`hrp_${sel}`)}</p></div>}
       <IndicatorSheet indicator={sel} collapsible />
     </div>
   </>

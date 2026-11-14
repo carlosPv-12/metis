@@ -86,17 +86,17 @@ export default function Station() {
           return (
             <div key={c.id} className={`crewcard ${l}`}>
               <div className="row between"><div className="row"><CrewAvatar id={c.id} name={c.name} size={44} /><div style={{ fontSize: 20, fontWeight: 600 }}>{c.name}</div></div>
-                <span className={`tag ${l}`}><Shape level={l} />{l === 'ok' ? s.fit : l === 'watch' ? s.limited : l === 'nodata' ? s.unknown : s.unfit}</span></div>
+                {l !== 'nodata' && <span className={`tag ${l}`}><Shape level={l} />{l === 'ok' ? s.fit : l === 'watch' ? s.limited : s.unfit}</span>}</div>
               <div className="small muted">{pick(c as never, 'role', lang) || c.role}</div>
-              <div className="row between" style={{ marginTop: 14, alignItems: 'baseline' }}>
+              {(c.vitals || c.hr != null) && <div className="row between" style={{ marginTop: 14, alignItems: 'baseline' }}>
                 <span className={`mono ${c.vitals && !c.vitals.pulse ? 's-alarm' : ''}`} style={{ fontSize: 26 }}><Activity size={16} style={{ verticalAlign: -1, marginRight: 6, opacity: .7 }} />
-                  {c.vitals ? (c.vitals.pulse ? Math.round(c.vitals.hr_bpm) : t('no_pulse')) : c.hr ?? '—'} {(!c.vitals || c.vitals.pulse) && <span className="small muted">{t('u_bpm')}</span>}</span>
+                  {c.vitals ? (c.vitals.pulse ? Math.round(c.vitals.hr_bpm) : t('no_pulse')) : c.hr} {(!c.vitals || c.vitals.pulse) && <span className="small muted">{t('u_bpm')}</span>}</span>
                 {hs && <span className="small muted"><Ear size={13} style={{ verticalAlign: -2 }} /> {hs.battery_pct}%</span>}
-              </div>
+              </div>}
               {c.vitals?.pulse && (
                 <div className="row small mono muted" style={{ gap: 12, marginTop: 6 }}>
                   <span><Wind size={12} style={{ verticalAlign: -1 }} /> {Math.round(c.vitals.rr_brpm)} {t('u_brpm')}</span>
-                  <span>SpO₂ {c.vitals.spo2_pct != null ? Math.round(c.vitals.spo2_pct) : '—'}%</span>
+                  {c.vitals.spo2_pct != null && <span>SpO₂ {Math.round(c.vitals.spo2_pct)}%</span>}
                   <span><Thermometer size={12} style={{ verticalAlign: -1 }} />{c.vitals.temp_c.toFixed(1)}°</span>
                   {c.vitals.activity > 0 && <span className="s-ok"><Dumbbell size={12} style={{ verticalAlign: -1 }} /> {t('exercising')}</span>}
                 </div>

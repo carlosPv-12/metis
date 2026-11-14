@@ -67,7 +67,7 @@ export default function Greeting() {
         </Card>
         <div className="today-side">
           <Card title={<><Ear size={15} />{t('earpiece')}</>}>
-            <div className="row between earpiece-row"><span className="muted">{t('battery')}</span><span className="mono"><BatteryMedium size={15} style={{ verticalAlign: -3 }} /> {hs?.battery_pct ?? '—'}%</span></div>
+            <div className="row between earpiece-row"><span className="muted">{t('battery')}</span>{hs?.battery_pct != null && <span className="mono"><BatteryMedium size={15} style={{ verticalAlign: -3 }} /> {hs.battery_pct}%</span>}</div>
             <div className="bar" style={{ margin: '8px 0 14px' }}><i style={{ width: `${hs?.battery_pct ?? 0}%`, background: (hs?.battery_pct ?? 0) < 30 ? 'var(--warn)' : 'var(--ok)' }} /></div>
             <div className="row between earpiece-row"><span className="muted">{t('link')}</span><span className="tag ok" title={t('link_ok')}><Shape level="ok" />{lang === 'es' ? 'Conectado' : 'Connected'}</span></div>
           </Card>

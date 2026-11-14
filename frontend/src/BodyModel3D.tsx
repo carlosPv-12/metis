@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
+import { HeartPulse, Wind, Brain, Ear, Dumbbell, Thermometer, Eye, Bone } from 'lucide-react'
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { Hotspot } from './Body3D'
 import BodyFigure from './BodyFigure'
@@ -56,8 +57,8 @@ function build(source: GLTF, sex: Sex): Model {
     front.renderOrder = 3; edge.renderOrder = 4; mesh.add(front, edge)
   }
   group.add(shell, anatomy)
-  const pink = new THREE.MeshPhysicalMaterial({ color: '#CE929F', roughness: .4, metalness: .05, clearcoat: .6, transparent: true, opacity: .85 })
-  const vessel = new THREE.MeshStandardMaterial({ color: '#E69AAD', roughness: .6, transparent: true, opacity: .34, depthWrite: false })
+  const pink = new THREE.MeshPhysicalMaterial({ color: '#C94B5A', roughness: .38, metalness: .02, clearcoat: .6, clearcoatRoughness: .3, sheen: .4, sheenColor: '#FFB3C0', emissive: '#3A0A12', emissiveIntensity: .08, transparent: true, opacity: .92 })
+  const vessel = new THREE.MeshStandardMaterial({ color: '#E0899E', roughness: .6, transparent: true, opacity: .5, depthWrite: false })
   const pale = new THREE.MeshStandardMaterial({ color: '#DEE4EB', transparent: true, opacity: .14, depthWrite: false, roughness: .65 })
   const tube = (coords: number[][], radius = .0014, material: THREE.Material = vessel) => {
     const curve = new THREE.CatmullRomCurve3(coords.map(([x, y, z]) => p(x, y, z)))
@@ -65,24 +66,68 @@ function build(source: GLTF, sex: Sex): Model {
     mesh.renderOrder = 1; anatomy.add(mesh)
   }
   const heart = new THREE.Group(); heart.position.copy(p(.042, sex === 'female' ? .724 : .73, .18)); heart.rotation.z = -.3
-  const shape = new THREE.Shape()
-  shape.moveTo(0, .025); shape.bezierCurveTo(-.055, .065, -.075, .004, -.038, -.038)
-  shape.bezierCurveTo(-.024, -.059, .005, -.078, .012, -.091)
-  shape.bezierCurveTo(.022, -.064, .071, -.025, .058, .018)
-  shape.bezierCurveTo(.05, .057, .014, .052, 0, .025)
-  const heartMesh = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: .035, bevelEnabled: true, bevelSize: .014, bevelThickness: .014, bevelSegments: 4, steps: 1, curveSegments: 16 }), pink)
-  heartMesh.scale.setScalar(h * .62); heartMesh.position.z = -.02; heart.add(heartMesh); anatomy.add(heart)
-  const softPink = pink.clone(); softPink.color.set('#E8C1CA')
+  const softPink = pink.clone(); softPink.color.set('#D86C7A')
+  const coronary = pink.clone(); coronary.color.set('#A93749'); coronary.roughness = .45
+  // All coordinates below are local fractions of body height, keeping both models' chest fit.
+  const heartPoint = ([x, y, z]: number[]) => new THREE.Vector3(x * h, y * h, z * h)
+  const heartLobe = (position: number[], scale: number[], material = pink) => {
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 32), material)
+    mesh.position.copy(heartPoint(position)); mesh.scale.copy(heartPoint(scale)); heart.add(mesh)
+    return mesh
+  }
+  // A broad basal shoulder tapers into the left ventricle's rounded, off-centre apex.
+  const ventricleGeometry = new THREE.SphereGeometry(1, 64, 48)
+  const vertices = ventricleGeometry.getAttribute('position')
+  for (let i = 0; i < vertices.count; i++) {
+    const x = vertices.getX(i), y = vertices.getY(i), z = vertices.getZ(i)
+    const lower = Math.max(0, -y)
+    const shoulder = 1 + .12 * y - .3 * lower * lower
+    vertices.setXYZ(i,
+      h * (x * .034 * shoulder - .012 * lower * lower + .003 * y),
+      h * (y * .044 - .015),
+      h * (z * .025 * shoulder - .003 * lower))
+  }
+  ventricleGeometry.computeVertexNormals()
+  heart.add(new THREE.Mesh(ventricleGeometry, pink))
+  // The right ventricle wraps across the anterior surface, ending above the main apex.
+  const rightVentricle = heartLobe([-.013, -.012, .014], [.023, .033, .016])
+  rightVentricle.rotation.z = -.22
+  heartLobe([-.023, .023, -.008], [.019, .017, .016], softPink)
+  heartLobe([.017, .026, -.012], [.018, .015, .015], softPink)
+  const auricle = heartLobe([.028, .021, .007], [.012, .008, .008], softPink)
+  auricle.rotation.z = -.55
+  const heartTube = (coords: number[][], radius: number, material = softPink) => {
+    const curve = new THREE.CatmullRomCurve3(coords.map(heartPoint), false, 'centripetal')
+    const mesh = new THREE.Mesh(new THREE.TubeGeometry(curve, Math.max(48, coords.length * 12), radius * h, 32, false), material)
+    heart.add(mesh)
+    return curve
+  }
+  // Ascending aorta, arch and descending root, with three distinct superior branches.
+  heartTube([[.005,.014,-.001],[.009,.035,-.002],[.007,.054,-.005],[-.004,.062,-.009],[-.019,.057,-.015],[-.026,.043,-.02],[-.025,.022,-.022]], .007)
+  heartTube([[.003,.055,-.005],[.002,.066,-.004],[-.003,.074,-.004]], .0035)
+  heartTube([[-.007,.06,-.009],[-.009,.069,-.009],[-.008,.078,-.01]], .0027)
+  heartTube([[-.017,.056,-.014],[-.023,.065,-.014],[-.028,.071,-.017]], .003)
+  // Pulmonary trunk sits in front of the aortic root and divides toward both lungs.
+  heartTube([[-.009,.002,.022],[-.012,.022,.023],[-.009,.039,.016],[-.003,.044,.007]], .0065)
+  heartTube([[-.006,.042,.011],[-.019,.045,.001],[-.035,.042,-.008]], .0045)
+  heartTube([[-.003,.044,.007],[.014,.046,-.001],[.031,.038,-.01]], .0045)
+  // Short caval stubs enter the posterior right atrium from above and below.
+  heartTube([[-.026,.023,-.015],[-.03,.04,-.016],[-.029,.054,-.018]], .0055)
+  heartTube([[-.023,.02,-.019],[-.028,.003,-.021],[-.025,-.014,-.022]], .006)
+  // Fine coronary arteries follow the anterior groove and curve around the basal shoulder.
+  heartTube([[.006,.022,.023],[.008,.006,.027],[.004,-.014,.03],[-.002,-.035,.022],[-.01,-.05,.012]], .0011, coronary)
+  heartTube([[.006,.018,.024],[-.01,.016,.029],[-.026,.007,.025],[-.031,-.007,.015]], .0012, coronary)
+  heartTube([[.004,-.013,.03],[.018,-.02,.024],[.025,-.031,.014]], .00065, coronary)
+  heartTube([[0,-.029,.025],[-.013,-.028,.029],[-.024,-.035,.018]], .00065, coronary)
+  anatomy.add(heart)
   const lungMaterial = pale.clone()
   const statusMaterials = new Map<string, StatusMaterial[]>()
   const trackStatus = (id: string, ...materials: THREE.MeshStandardMaterial[]) => {
     statusMaterials.set(id, materials.map(material => ({ material, color: material.color.clone(), opacity: material.opacity })))
   }
-  trackStatus('heart', pink, softPink)
+  trackStatus('heart', pink, softPink, coronary)
   trackStatus('lungs', lungMaterial)
   for (const s of [-1, 1]) {
-    const atrium = new THREE.Mesh(new THREE.SphereGeometry(h * .019, 20, 16), softPink)
-    atrium.position.set(s * h * .018, h * .019, 0); atrium.scale.set(1, .85, .8); heart.add(atrium)
     const lung = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 20), lungMaterial)
     lung.position.copy(p(s * .095, .745, .01)); lung.scale.set(w * .068, h * .075, d * .22); lung.rotation.z = s * -.13; anatomy.add(lung)
     // Major arteries follow the A-pose, then split into smaller branches and fingers/toes.
@@ -103,13 +148,72 @@ function build(source: GLTF, sex: Sex): Model {
     for (const [x,y] of [[.27,.7],[.34,.63],[.09,.43],[.11,.27],[.105,.15]]) {
       tube([[s*x,y,.05],[s*(x+.025),y-.045,.13],[s*(x+.022),y-.09,.09]], .0005)
     }
+    // Extra veins: neck, arms (forearm network), torso and legs, so the vascular tree reads clearly.
+    tube([[s*.02,.88,.06],[s*.05,.84,.1],[s*.09,.80,.08],[s*.15,.79,.0]], .0012)
+    tube([[s*(male?.3:.27),.70,-.06],[s*(male?.33:.30),.64,.04],[s*(male?.37:.34),.58,.08],[s*.41,.53,.14]], .0011)
+    tube([[s*(male?.33:.30),.64,-.08],[s*(male?.36:.33),.60,-.02],[s*.39,.55,.06],[s*.43,.50,.10]], .0008)
+    for (let i = 0; i < 4; i++) tube([[s*(.36+i*.012),.6-i*.02,.02],[s*(.38+i*.012),.57-i*.02,.08],[s*(.40+i*.01),.54-i*.02,.12]], .0005)
+    tube([[s*.03,.70,.12],[s*.07,.66,.16],[s*.1,.6,.17],[s*.11,.53,.15],[s*.1,.47,.1]], .0009)
+    tube([[s*.05,.62,.14],[s*.09,.58,.18],[s*.12,.55,.16]], .0006)
+    tube([[s*(male?.12:.1),.45,.06],[s*(male?.13:.115),.38,.1],[s*(male?.135:.12),.3,.06],[s*legX,.2,-.08],[s*legX,.1,-.1]], .0012)
+    tube([[s*(male?.13:.115),.40,.0],[s*(male?.15:.135),.34,-.08],[s*(male?.145:.13),.26,-.12],[s*legX,.16,-.2]], .0008)
+    for (let i = 0; i < 3; i++) tube([[s*(male?.13:.115),.36-i*.06,.06],[s*(male?.15:.135),.34-i*.06,.1],[s*(male?.16:.145),.31-i*.06,.05]], .0005)
   }
   tube([[0,.51,-.2],[0,.66,-.23],[0,.81,-.18],[0,.88,-.12]], .003, pale)
-  tube([[.04,.73,.18],[.055,.78,.1],[.018,.8,.04],[0,.765,.06]], .006, softPink)
   const points = { skin: p(-.36,.585,.12), heart: heart.position.clone(), lungs: p(-.095,.75,.24), brain: p(0,.974,.12), eyes: p(-.035,.941,.42), ear: p(.105,.925,.01), bones: p(-(male?.14:.124),.31,.12), muscle: p(male?.13:.11,.435,.25) }
   const materials = new Map<THREE.Material, number>()
   group.traverse(o => { if (o instanceof THREE.Mesh) for (const m of Array.isArray(o.material) ? o.material : [o.material]) { materials.set(m, m.opacity); m.transparent = true } })
   return { group, heart, height: h, points, opacity: 0, target: 1, materials, glows: new Map(), statusMaterials }
+}
+
+const HOTSPOT_ICONS = { heart: HeartPulse, lungs: Wind, brain: Brain, sleep: Brain, ear: Ear, muscle: Dumbbell, skin: Thermometer, eyes: Eye, bones: Bone }
+function HotspotContents({ hotspot }: { hotspot: Hotspot }) {
+  const Icon = HOTSPOT_ICONS[hotspot.id as keyof typeof HOTSPOT_ICONS] ?? Brain
+  return <>
+    <span className="figure-marker" aria-hidden="true"><Icon size={18} strokeWidth={1.75} /></span>
+    <span className="figure-label-line" aria-hidden="true" />
+    <span className="figure-label" aria-hidden="true"><span className="figure-label-dot" />{hotspot.label}</span>
+  </>
+}
+
+// Labels stay in screen space: choose the outward side, then separate visible pills
+// vertically without moving the anatomical marker or the detail-panel anchor.
+function layoutHotspotNames(buttons: (HTMLButtonElement | null | undefined)[], width: number, height: number, centerX: number) {
+  const sides: { button: HTMLButtonElement; x: number; y: number; radius: number; reach: number; labelHeight: number }[][] = [[], []]
+  for (const button of buttons) {
+    if (!button || button.style.visibility === 'hidden') continue
+    const x = parseFloat(button.style.left), y = parseFloat(button.style.top)
+    const label = button.querySelector<HTMLElement>('.figure-label')
+    if (!label) continue
+    const radius = button.classList.contains('selected') ? 44 : 32
+    const reach = radius + 24
+    let left = x < centerX || (Math.abs(x - centerX) < 8 && button.dataset.preferLeft === 'true')
+    const needed = reach + label.offsetWidth + 8
+    if (left && x < needed && width - x > x) left = false
+    else if (!left && width - x < needed && x > width - x) left = true
+    button.classList.toggle('label-left', left)
+    button.style.setProperty('--label-x', `${left ? -reach : reach}px`)
+    button.style.setProperty('--label-anchor', left ? '-100%' : '0%')
+    const show = button.matches('.lvl-watch, .lvl-alarm, .selected, :hover, :focus-visible')
+    if (show) sides[left ? 0 : 1].push({ button, x, y, radius, reach, labelHeight: label.offsetHeight })
+  }
+  for (const [side, entries] of sides.entries()) {
+    entries.sort((a, b) => a.y - b.y)
+    const rows: number[] = []
+    entries.forEach((entry, i) => {
+      const half = entry.labelHeight / 2
+      rows[i] = Math.max(8 + half, Math.min(entry.y, height - 8 - half), i ? rows[i - 1] + (entries[i - 1].labelHeight + entry.labelHeight) / 2 + 8 : 0)
+    })
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const entry = entries[i], half = entry.labelHeight / 2
+      rows[i] = Math.min(rows[i], height - 8 - half, i < entries.length - 1 ? rows[i + 1] - (entries[i + 1].labelHeight + entry.labelHeight) / 2 - 8 : height)
+      const dy = rows[i] - entry.y, dx = (side === 0 ? -1 : 1) * (entry.reach - entry.radius)
+      entry.button.style.setProperty('--label-y', `${dy}px`)
+      entry.button.style.setProperty('--label-line-start', `${side === 0 ? -entry.radius : entry.radius}px`)
+      entry.button.style.setProperty('--label-line-length', `${Math.hypot(dx, dy)}px`)
+      entry.button.style.setProperty('--label-line-angle', `${Math.atan2(dy, dx)}rad`)
+    }
+  }
 }
 
 type Props = { hotspots: Hotspot[]; selected?: string | null; onSelect: (id: string) => void; sex: Sex }
@@ -151,7 +255,8 @@ export default function BodyModel3D(props: Props) {
     let alive = true, ticket = 0, raf = 0, previous = 0, active: Model | undefined
     const visible: Model[] = []
     let angle = 0, tilt = 0, velocity = 0, magnification = 1, pan = 0, panX = 0, lastInteraction = 0, opened = false
-    let focus: { mag: number; pan: number; angle: number; panX: number } | null = null
+    let focus: { mag: number; pan: number; angle: number; panX: number; speed?: number } | null = null
+    let introDone = false
     const limY = () => Math.max(.35, (magnification-1)*.9), limX = () => Math.max(.3, (magnification-1)*.5)
     const clampPan = () => { pan=clamp(pan,-limY(),limY()); panX=clamp(panX,-limX(),limX()) }
     const motion = matchMedia('(prefers-reduced-motion: reduce)')
@@ -170,6 +275,9 @@ export default function BodyModel3D(props: Props) {
           model.group.add(glow); model.glows.set(id, glow)
         }
         visible.forEach(m => { m.target=0 }); visible.push(model); active=model; pivot.add(model.group); setLoading(false)
+        // Opening shot: start on the whole body, then glide in to a half-body view (waist up), centred on the chest.
+        if (!introDone) { introDone = true; magnification = 1; pan = 0; panX = 0; setZoomValue(1)
+          focus = { mag: 1.85, pan: model.height * (.51 - .74), angle, panX: 0, speed: 1.6 }; interact() }
       }).catch(() => { if (alive && request === ticket) setFallback(true) })
     }
     const focusOn = (id: string, side?: 'left' | 'right') => {
@@ -215,10 +323,10 @@ export default function BodyModel3D(props: Props) {
       if (!alive) return
       const dt=Math.min((now-previous)/1000 || .016,.05); previous=now
       if (latest.current.selected) opened=true
-      if (!pointers.size && !still()) { angle+=velocity*dt*60; velocity*=Math.exp(-dt*5); if (!opened && now-lastInteraction>5000) angle+=dt*.045 }
+      if (!pointers.size && !still()) { angle+=velocity*dt*60; velocity*=Math.exp(-dt*5); if (!opened && now-lastInteraction>2500) angle+=dt*.16 }
       const height=active?.height??1.65
       if (focus) {
-        const k = still() ? 1 : 1 - Math.exp(-dt*6)
+        const k = still() ? 1 : 1 - Math.exp(-dt*(focus.speed ?? 6))
         magnification += (focus.mag-magnification)*k; pan += (focus.pan-pan)*k; angle += (focus.angle-angle)*k; panX += (focus.panX-panX)*k
         if (Math.abs(focus.mag-magnification)<.01 && Math.abs(focus.pan-pan)<.002 && Math.abs(focus.angle-angle)<.002 && Math.abs(focus.panX-panX)<.002) { magnification=focus.mag; pan=focus.pan; angle=focus.angle; panX=focus.panX; focus=null; setZoomValue(magnification) }
       }
@@ -230,7 +338,7 @@ export default function BodyModel3D(props: Props) {
         for (const [material,base] of model.materials) { material.opacity=base*model.opacity; if (material instanceof THREE.ShaderMaterial) material.uniforms.opacity.value=model.opacity }
         for (const [id, glow] of model.glows) {
           const level = latest.current.hotspots.find(h => h.id === id)?.level
-          glow.visible = (level === 'watch' || level === 'alarm') && !model.statusMaterials.has(id)
+          glow.visible = false  // no orange on the body: status lives on the points only
           if (glow.visible) {
             glow.material.color.set(level === 'alarm' ? '#FF5A36' : '#F59E0B')
             const pulse = still() ? .5 : (1 + Math.sin(now * Math.PI * 2 / 4800 + [...model.glows.keys()].indexOf(id))) / 2
@@ -243,7 +351,8 @@ export default function BodyModel3D(props: Props) {
         }
         for (const [id, entries] of model.statusMaterials) {
           const level = latest.current.hotspots.find(h => h.id === id)?.level
-          const attention = level === 'watch' || level === 'alarm'
+          // Organs keep their normal colour (user request): status shows on the points, not on the anatomy.
+          const attention = false && (level === 'watch' || level === 'alarm')
           const pulse = still() ? .5 : (1 + Math.sin(now * Math.PI * 2 / 4800)) / 2
           for (const { material, color, opacity } of entries) {
             material.color.copy(attention ? new THREE.Color(level === 'alarm' ? '#E8532E' : '#F28C28') : color)
@@ -266,8 +375,9 @@ export default function BodyModel3D(props: Props) {
         const facing=point.clone().setY(0).normalize().applyEuler(pivot.rotation).z>-.12
         v.project(camera); const x=(v.x+1)*el.clientWidth/2,y=(1-v.y)*el.clientHeight/2
         button.style.left=`${x}px`; button.style.top=`${y}px`; button.style.setProperty('--hotspot-facing', facing ? '1' : '.6'); button.style.visibility=v.z>1||x<0||x>el.clientWidth||y<0||y>el.clientHeight?'hidden':'visible'
-        // No text on the body: each point is only a coloured dot with a halo (the name is in the aria-label and the panel).
       }
+      v.copy(pivot.position).project(camera)
+      layoutHotspotNames(Object.values(buttons.current), el.clientWidth, el.clientHeight, (v.x + 1) * el.clientWidth / 2)
       renderer.render(scene,camera); raf=requestAnimationFrame(frame)
     }
     const visibility = () => { cancelAnimationFrame(raf); pointers.clear(); velocity=0; if (!document.hidden) { previous=performance.now(); raf=requestAnimationFrame(frame) } }
@@ -284,7 +394,7 @@ export default function BodyModel3D(props: Props) {
   return <>
     <div ref={host} className="body-figure body-model" aria-label={copy.figure}>
       {loading && <span className="body-model-loading" role="status">{copy.loading}</span>}
-      {props.hotspots.map(h => <button key={h.id} ref={el=>{buttons.current[h.id]=el}} type="button" aria-label={`${h.label}, ${copy.level[h.level]}`} aria-pressed={props.selected===h.id} aria-haspopup="dialog" className={`figure-hotspot lvl-${h.level}${props.selected===h.id?' selected':''}`} style={{visibility:loading?'hidden':undefined}} onClick={e=>{e.currentTarget.focus({preventScroll:true});const r=e.currentTarget.getBoundingClientRect(),hb=host.current?.getBoundingClientRect();const side:'left'|'right'=hb&&r.left+r.width/2-hb.left<hb.width/2?'left':'right';if(host.current)host.current.dataset.panelSide=side;engine.current?.focus(h.id,side);props.onSelect(h.id)}}><span className="figure-marker" aria-hidden="true" /></button>)}
+      {props.hotspots.map(h => <button key={h.id} ref={el=>{buttons.current[h.id]=el}} type="button" data-prefer-left={h.left} aria-label={`${h.label}, ${copy.level[h.level]}`} aria-pressed={props.selected===h.id} aria-haspopup="dialog" className={`figure-hotspot lvl-${h.level}${props.selected===h.id?' selected':''}`} style={{visibility:loading?'hidden':undefined}} onClick={e=>{e.currentTarget.focus({preventScroll:true});const r=e.currentTarget.getBoundingClientRect(),hb=host.current?.getBoundingClientRect();const side:'left'|'right'=hb&&r.left+r.width/2-hb.left<hb.width/2?'left':'right';if(host.current)host.current.dataset.panelSide=side;engine.current?.focus(h.id,side);props.onSelect(h.id)}}><HotspotContents hotspot={h} /></button>)}
     </div>
     <div className="figure-zoom" role="group" aria-label={copy.controls}>
       <button type="button" aria-label={copy.zoomOut} title={copy.zoomOut} disabled={zoom<=.8} onClick={()=>engine.current?.zoom(1/1.2)}>−</button>
@@ -294,34 +404,48 @@ export default function BodyModel3D(props: Props) {
   </>
 }
 
-// The image fallback owns its camera transform. Track its stage so the added forearm
-// marker follows zoom/pan without changing the shared fallback or its existing zones.
+// The fallback camera remains owned by BodyFigure; project only the hotspot overlay
+// from its transformed image bounds so circles and names retain their screen size.
+const FALLBACK_POINTS: Record<string, [number, number]> = {
+  heart: [63, 57], lungs: [35, 53], brain: [50, 6], eyes: [45, 13],
+  ear: [64, 17], bones: [33, 39], muscle: [84, 48], skin: [20, 53],
+}
 function BodyFallback(props: Props) {
   const { lang } = useLang()
   const host = useRef<HTMLDivElement>(null)
-  const marker = useRef<HTMLButtonElement>(null)
+  const buttons = useRef<Record<string, HTMLButtonElement | null>>({})
   useEffect(() => {
     let frame = 0
     const track = () => {
-      const container = host.current, button = marker.current
+      const container = host.current
       const stage = container?.querySelector('.body-figure-stage')
-      if (container && button && stage) {
+      if (container && stage) {
         const bounds = container.getBoundingClientRect(), image = stage.getBoundingClientRect()
-        const x = image.left + image.width * .2 - bounds.left
-        const y = image.top + image.height * .53 - bounds.top
-        button.style.left = `${x}px`; button.style.top = `${y}px`
-        button.style.visibility = x < 0 || y < 0 || x > bounds.width || y > bounds.height ? 'hidden' : 'visible'
+        for (const [id, button] of Object.entries(buttons.current)) {
+          if (!button) continue
+          const point = props.sex === 'male'
+            ? ({ heart: [62, 56], lungs: [35, 52], eyes: [47, 13], bones: [31, 39], muscle: [85, 47] } as Record<string, number[]>)[id] ?? FALLBACK_POINTS[id]
+            : FALLBACK_POINTS[id]
+          if (!point) continue
+          const x = image.left + image.width * point[0] / 100 - bounds.left
+          const y = image.top + image.height * point[1] / 100 - bounds.top
+          button.style.left = `${x}px`; button.style.top = `${y}px`
+          button.style.visibility = x < 0 || y < 0 || x > bounds.width || y > bounds.height ? 'hidden' : 'visible'
+        }
+        layoutHotspotNames(Object.values(buttons.current), bounds.width, bounds.height, image.left + image.width / 2 - bounds.left)
       }
       frame = requestAnimationFrame(track)
     }
     frame = requestAnimationFrame(track)
     return () => cancelAnimationFrame(frame)
-  }, [])
-  const skin = props.hotspots.find(h => h.id === 'skin')
+  }, [props.sex])
   return <div ref={host} className="body-fallback-live">
-    <BodyFigure {...props} hotspots={props.hotspots.filter(h => h.id !== 'skin')} />
-    {skin && <button ref={marker} type="button" className={`figure-hotspot fallback-skin lvl-${skin.level}${props.selected === skin.id ? ' selected' : ''}`} style={{ visibility: 'hidden' }} aria-label={`${skin.label}, ${COPY[lang].level[skin.level]}`} aria-pressed={props.selected === skin.id} aria-haspopup="dialog" onClick={e => { e.currentTarget.focus({ preventScroll: true }); props.onSelect(skin.id) }}>
-      <span className="figure-marker" aria-hidden="true" />
-    </button>}
+    <BodyFigure {...props} hotspots={[]} />
+    {props.hotspots.map(h => <button key={h.id} ref={el => { buttons.current[h.id] = el }} type="button" data-prefer-left={h.left}
+      className={`figure-hotspot lvl-${h.level}${props.selected === h.id ? ' selected' : ''}`} style={{ visibility: 'hidden' }}
+      aria-label={`${h.label}, ${COPY[lang].level[h.level]}`} aria-pressed={props.selected === h.id} aria-haspopup="dialog"
+      onClick={e => { e.currentTarget.focus({ preventScroll: true }); props.onSelect(h.id) }}>
+      <HotspotContents hotspot={h} />
+    </button>)}
   </div>
 }

@@ -26,7 +26,8 @@ export const fmt = (v: number | undefined, d = 1) => (v == null || Number.isNaN(
 export function LevelTag({ level }: { level: Level }) {
   const t = useT()
   const k: Record<Level, Key> = { ok: 'st_nominal', watch: 'st_watch', alarm: 'st_alarm', nodata: 'st_nodata' }
-  const cls = level === 'nodata' ? 'sim' : level
+  if (level === 'nodata') return null  // no data: show nothing instead of a "No data" tag
+  const cls = level
   return <span className={`tag ${cls}`}><Shape level={level} />{t(k[level])}</span>
 }
 /** Colour is never the only cue: each level also has a shape. */

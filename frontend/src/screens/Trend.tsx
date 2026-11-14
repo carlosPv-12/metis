@@ -121,7 +121,7 @@ export function BloodPanel({ compact }: { compact?: boolean; refNote?: boolean }
                 <td>{nice(r.analyte, lang)} <span className="dim small">{niceUnit(r.unit, lang)}</span></td>
                 <td className="n">{fmt(r.baseline_mean, 1)}</td>
                 <td className={`n ${r.outside_reference_range ? 's-alarm' : r.outside_personal_band ? 's-watch' : ''}`}>{fmt(r.r_plus_1, 1)}</td>
-                <td className="n dim">{r.ref_min ?? '—'}–{r.ref_max ?? '—'}</td>
+                <td className="n dim">{r.ref_min != null && r.ref_max != null ? `${r.ref_min}–${r.ref_max}` : ''}</td>
                 <td>{r.outside_reference_range ? <span className="tag alarm" title={t('outside_ref')}>{t('outside_ref')}</span> : r.outside_personal_band ? <span className="tag watch" title={t('outside_band')}>{t('outside_band')}</span> : null}</td>
               </tr>
             ))}

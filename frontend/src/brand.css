@@ -474,3 +474,14 @@ dialog, dialog:focus, dialog:focus-visible,
           mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
   border: 0 !important;
 }
+
+/* Body: the background of the first 3D design (white with soft Neon Yellow / pale pink / Blue Yonder washes) */
+.bodywrap.figure:has(.body-model) {
+  background:
+    radial-gradient(ellipse at 56% 26%, #EAFE073D, transparent 40%),
+    radial-gradient(ellipse at 76% 40%, #2E96F52E, transparent 34%), #FFFFFF !important;
+}
+.bodywrap.figure:has(.body-model)::before, .bodywrap.figure:has(.body-model)::after { display: none !important }
+
+/* The body stands in front of the colour: a soft shadow around its silhouette */
+.bodywrap.figure:has(.body-model) .body-model > canvas { filter: drop-shadow(0 10px 22px #07173F2E) drop-shadow(0 0 2px #FFFFFF) }
