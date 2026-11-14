@@ -16,7 +16,7 @@ import { useLoad } from '../hooks'
 import { useLang, useT } from '../i18n'
 import { Card, DEC, Loading, MetisLine, Page, Spark, UNIT, fmt, levelOf, useCrew } from '../ui'
 import { DAILY_ID, PHQ4_ID, PHQ4_QUESTIONS, QUESTIONS, RANGE, TAGS, WB_TXT, SHARE_TXT, addCheckIn, concerning, fmtAnswer, isDaily, setShareLevel, shareCheckIn,
-  useCheckIns, useShareLevel, type CheckIn, type PhqQuestion, type Question, type ShareLevel } from '../wellbeing'
+  phq4Scores, useCheckIns, useShareLevel, type CheckIn, type PhqQuestion, type Question, type ShareLevel } from '../wellbeing'
 import { TONES, VOICE_TXT, toneCounts, voiceMoments, type Tone } from '../voiceTone'
 import '../wellbeing.css'
 
@@ -224,7 +224,8 @@ export default function Wellbeing() {
   const top = risks.find(r => r.level !== 'low')
   const attention = risks.filter(r => r.level !== 'low')
   const recs = (attention.length ? attention : risks.slice(0, 1)).flatMap(r => x.risk[r.id].help.slice(0, 2)).slice(0, 4)
-  const saved = (a: WbAdvice[] | null) => { setAdvice(a ?? localAdvice(computeRisks(c, history), lang)); setFormOpen(false) }
+  // Without a backend the advice is computed here, including the check-in just saved (history is still the old one).
+  const saved = (a: WbAdvice[] | null, ci: CheckIn) => { setAdvice(a ?? localAdvice(withVoice(computeRisks(c, [ci, ...history]), c.id), lang)); setFormOpen(false) }
 
   return (
     <Page title={x.title}>
@@ -241,7 +242,7 @@ export default function Wellbeing() {
       {!advice && (formOpen
         ? <DailyCheckIn crewId={crewId} name={c.name} onSaved={saved} onCancel={() => setFormOpen(false)} />
         : <div className="wb-open-form"><button type="button" className="btn primary" onClick={() => setFormOpen(true)}><Check size={16} />{WB_TXT[lang].today}</button></div>)}
-      {showPhq && !formOpen && <Phq4 crewId={crewId} name={c.name} onSaved={a => { setPhqDue(false); saved(a) }} onLater={() => setPhqDismissed(true)} />}
+      {showPhq && !formOpen && <Phq4 crewId={crewId} name={c.name} onSaved={(a, ci) => { setPhqDue(false); saved(a, ci) }} onLater={() => setPhqDismissed(true)} />}
 
       <Card title={x.glance} className="wb-glance">
         <div className="wb-signals" aria-label={x.signals}>
@@ -328,7 +329,7 @@ function Scale({ q, value, onPick, labels }: { q: string; value: number | undefi
   )
 }
 
-function DailyCheckIn({ crewId, name, onSaved, onCancel }: { crewId: string; name: string; onSaved: (a: WbAdvice[] | null) => void; onCancel: () => void }) {
+function DailyCheckIn({ crewId, name, onSaved, onCancel }: { crewId: string; name: string; onSaved: (a: WbAdvice[] | null, ci: CheckIn) => void; onCancel: () => void }) {
   const { lang } = useLang(); const s = WB_TXT[lang]
   const [a, setA] = useState<Draft>({})
   const [tags, setTags] = useState<string[]>([])
@@ -344,7 +345,7 @@ function DailyCheckIn({ crewId, name, onSaved, onCancel }: { crewId: string; nam
     if (!complete || busy) return
     setBusy(true)
     const ci: CheckIn = { id: `${Date.now()}`, ts: Date.now(), crewId, instrument: DAILY_ID, answers: a as Record<string, number>, tags, note, shared: share, noteShared: share && shareNote }
-    onSaved(await addCheckIn(ci, name))
+    onSaved(await addCheckIn(ci, name), ci)
   }
   return (
     <section className="card wb-form" aria-label={s.today}>
@@ -381,7 +382,7 @@ function DailyCheckIn({ crewId, name, onSaved, onCancel }: { crewId: string; nam
   )
 }
 
-function Phq4({ crewId, name, onSaved, onLater }: { crewId: string; name: string; onSaved: (a: WbAdvice[] | null) => void; onLater: () => void }) {
+function Phq4({ crewId, name, onSaved, onLater }: { crewId: string; name: string; onSaved: (a: WbAdvice[] | null, ci: CheckIn) => void; onLater: () => void }) {
   const { lang } = useLang(); const s = WB_TXT[lang]
   const [a, setA] = useState<Partial<Record<PhqQuestion, number>>>({})
   const [busy, setBusy] = useState(false)
@@ -389,7 +390,8 @@ function Phq4({ crewId, name, onSaved, onLater }: { crewId: string; name: string
   const save = async () => {
     if (!complete || busy) return
     setBusy(true)
-    onSaved(await addCheckIn({ id: `${Date.now()}`, ts: Date.now(), crewId, instrument: PHQ4_ID, answers: a as Record<string, number>, tags: [], note: '', shared: false, noteShared: false }, name))
+    const ci: CheckIn = { id: `${Date.now()}`, ts: Date.now(), crewId, instrument: PHQ4_ID, answers: a as Record<string, number>, tags: [], note: '', shared: false, noteShared: false, scores: phq4Scores(a as Record<string, number>) }
+    onSaved(await addCheckIn(ci, name), ci)
   }
   return (
     <section className="card wb-form wb-phq" aria-label={s.phqTitle}>
