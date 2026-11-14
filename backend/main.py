@@ -10,7 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse
 from pydantic import BaseModel
 
-import llm, station, voice_answer, voice_engine
+import re
+import llm, station, vitals, voice_answer, voice_engine
 
 HERE = pathlib.Path(__file__).parent
 DATA = HERE.parent / "data"
@@ -223,6 +224,10 @@ class ChatIn(BaseModel):
     history: list[dict] | None = None  # [{role: user|assistant, content}]
 
 
+# «How is the crew?», «how is Marco?», «status report»: lo contesta una regla con las cifras de los sensores, no la IA.
+CREW_STATUS = re.compile(r"\bhow(\'s| is| are)? (the )?(crew|everyone|everybody|team)\b|\bcrew (status|vitals)\b|\bstatus report\b|"
+                         r"\bhow(\'s| is| are)? (marco|lena|noor|kenji)( doing)?\b|\b(marco|lena|noor|kenji)\'?s? (status|vitals)\b|"
+                         r"\bcómo (está|esta|están|estan) (la tripulación|el equipo|todos|marco|lena|noor|kenji)\b", re.I)
 COMPANION = __import__("re").compile(r"\b(he|she|they|crewmate|marco|lena|noor|kenji|compañer|él|ella|se ha|se desplom)\b", __import__("re").I)
 
 
@@ -238,6 +243,11 @@ def chat(b: ChatIn):
         flow = "companion_collapse" if COMPANION.search(b.message) else "self_chest_pressure"
         return {"text": fb("escalate", k), "source": "rule", "latency_ms": int((time.time() - t0) * 1000), "safety": "escalated",
                 "suggest_flow": flow, "lang": k, "ai_generated": False}
+    st_m = CREW_STATUS.search(b.message or "")
+    if st_m:
+        who = next((n for n in ("lena", "marco", "noor", "kenji") if re.search(rf"\b{n}\b", b.message, re.I)), None)
+        return {"text": vitals.status_text(crew_doc(), who, k), "source": "rule", "latency_ms": int((time.time() - t0) * 1000),
+                "safety": "ok", "lang": k, "ai_generated": False, "note": "crew status is read from the sensors, never generated"}
     if llm.MEDQ.search(b.message or ""):
         return {"text": fb("medication", k), "source": "rule", "latency_ms": int((time.time() - t0) * 1000), "safety": "ok",
                 "lang": k, "ai_generated": False, "note": "medication questions are never answered by the model"}
@@ -313,25 +323,89 @@ def tts(b: TTSIn):
 
 
 @app.post("/api/voice/stt")
-async def stt(audio: UploadFile = File(...), lang: str = Form("auto")):
+async def stt(audio: UploadFile = File(...), lang: str = Form("auto"), hint: str = Form("")):
     data = await audio.read()
     t0 = time.time()
     try:
         from starlette.concurrency import run_in_threadpool
-        text, detected = await run_in_threadpool(voice_engine.stt, data, lang)
+        text, detected = await run_in_threadpool(voice_engine.stt, data, lang, hint)
     except Exception as e:
         return JSONResponse({"error": str(e)[:300], "text": ""}, status_code=503)
     text = voice_answer.clean_transcript(text)  # sin [BLANK_AUDIO] ni (music): si no hubo voz, text = ""
+    if hint and voice_answer._norm(text).split() == voice_answer._norm(hint).split():
+        text = ""                                 # whisper ha copiado la pista («Yes. No.»): no es una respuesta
     return {"text": text, "lang": detected, "latency_ms": int((time.time() - t0) * 1000), "engine": "whisper.cpp"}
 
 
 # ---------- centralita y grafo ----------
 @app.get("/api/station")
 def get_station(lang: str | None = None):
-    st = station.station(crew_doc())
+    doc = crew_doc()
+    v = vitals.snapshot(doc)          # antes que station(): así los avisos nuevos ya salen en sus eventos
+    st = station.station(doc)
+    by = {c["id"]: c for c in v["crew"]}
+    for c in st["crew"]:
+        vc = by.get(c["id"])
+        if vc:
+            c["vitals"] = vc["now"]
+            if vc["status"] != "ok":
+                c["status"] = "alarm" if vc["status"] == "alarm" else "watch"
+    st["alerts"] = [{**a, "source": "vitals"} for a in v["alerts"]] + st["alerts"]
+    st["events"] = station.events()[:20]
     _with_lang(st["alerts"], lang); _with_lang(st["events"], lang)
     if st.get("packet"): _with_lang([st["packet"]], lang)
     return st
+
+
+@app.get("/api/vitals")
+def get_vitals(lang: str | None = None, series: bool = False):
+    """Constantes en directo del auricular (simuladas) y avisos tempranos por persona. Ver backend/vitals.py."""
+    v = vitals.snapshot(crew_doc(), with_series=series)
+    _with_lang(v["alerts"], lang)
+    return v
+
+
+@app.get("/api/vitals/{cid}")
+def get_vitals_one(cid: str, lang: str | None = None):
+    v = vitals.snapshot(crew_doc(), with_series=True)
+    c = next((x for x in v["crew"] if x["id"] == cid), None)
+    if not c: raise HTTPException(404, "tripulante no encontrado")
+    return {**c, "alerts": _with_lang([a for a in v["alerts"] if a["crew_id"] == cid], lang), "method": v["method"]}
+
+
+class ScenarioIn(BaseModel):
+    crew_id: str
+    kind: str                 # normal | deterioration | exercise | collapse
+    ramp_s: int = vitals.DEFAULT_RAMP_S
+
+
+@app.post("/api/vitals/scenario")
+def vitals_scenario(b: ScenarioIn):
+    """Para la demo: «Marco empeora» (deterioration), ejercicio, desplome o volver a normal."""
+    if b.kind not in ("normal", "deterioration", "exercise", "collapse"): raise HTTPException(400, "escenario desconocido")
+    if b.crew_id not in vitals.baselines(crew_doc()): raise HTTPException(404, "tripulante no encontrado")
+    vitals.set_scenario(b.crew_id, b.kind, b.ramp_s)
+    return {"ok": True, "crew_id": b.crew_id, "kind": b.kind, "ramp_s": b.ramp_s}
+
+
+class CheckinIn(BaseModel):
+    crew_id: str
+    text: str
+
+
+@app.post("/api/vitals/checkin")
+def vitals_checkin(b: CheckinIn):
+    """Respuesta hablada del afectado a «¿estás bien?». «Help», «alert the crew», «no»… -> se avisa a la tripulación."""
+    r = vitals.checkin(b.crew_id, b.text)
+    if r["answer"] == "help":
+        vitals.snapshot(crew_doc())   # escala ya, sin esperar a la siguiente consulta
+    return r
+
+
+@app.post("/api/vitals/reset")
+def vitals_reset():
+    vitals.reset()
+    return {"ok": True}
 
 
 class EventIn(BaseModel):

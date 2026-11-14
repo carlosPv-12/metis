@@ -119,3 +119,14 @@ def test_wake_endpoint(client):
 def test_end(said, end):
     from voice_answer import match_end
     assert match_end(said) == end
+
+
+@pytest.mark.parametrize("said,want", [("Know.", "no"), ("Now.", "no"), ("Nope", "no"), ("Jess.", "si"), ("Yah.", "si"),
+                                       ("Yeah.", "si"), ("Mhm.", "si"), ("I know what happened yesterday", None)])
+def test_fuzzy_short_answers(said, want):
+    assert match_option(said, YN) == want
+
+
+@pytest.mark.parametrize("said", ["Yes. No.", "yes no", "Sí, no."])
+def test_both_yes_and_no_asks_again(said):
+    assert match_option(said, YN, True) is None

@@ -18,7 +18,7 @@ import Station from './screens/Station'
 import How from './screens/How'
 import NasaData from './screens/NasaData'
 import Demo from './screens/Demo'
-import { EarProvider, EarSwitch } from './voice'
+import { EarProvider, EarSwitch, VitalsBanner } from './voice'
 
 // English only for the demo and the submission (decided by Carlos, 14-nov). The Spanish texts stay in i18n.ts:
 // set this to true to bring back the EN/ES switch.
@@ -82,6 +82,7 @@ function Shell() {
         <div className="foot"><HeartPulse size={13} style={{ verticalAlign: -2, marginRight: 5 }} />{t('simulated_note')}<br /><br />{t('not_diagnosis')}</div>
       </nav>
       <main className="content">
+        <VitalsBanner />
         <Routes>
           <Route path="/" element={<Navigate to="/today" replace />} />
           <Route path="/today" element={<Greeting />} />

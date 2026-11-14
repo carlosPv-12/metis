@@ -26,7 +26,12 @@ export interface Say { text: string; source: 'llm' | 'fallback' | string; latenc
 export interface Chat { text: string; source: string; latency_ms?: number; safety: 'ok' | 'escalated' }
 export interface Status { llm: { ok: boolean; model?: string }; tts: { ok: boolean; engine?: string; voices?: unknown }; stt: { ok: boolean; engine?: string; model?: string }; offline: boolean }
 export interface Threshold { id: string; label_en: string; label_es: string; value: number | string; unit: string; rule?: string; source_title: string; source_url?: string; verified: boolean }
-export interface StationCrew { id: string; name: string; role?: string; role_en?: string; role_es?: string; status: 'ok' | 'watch' | 'alarm' | string; location?: string; hr?: number; alerts?: string[]; note_en?: string; note_es?: string }
+export interface LiveVitals { t: number; hr_bpm: number; rr_brpm: number; spo2_pct: number | null; temp_c: number; activity: number; pulse: boolean }
+export interface VitalsAlert { id: string; crew_id: string; level: 'watch' | 'warning' | 'alarm'; rule: string; metrics: string[]; text_en: string; text_es: string; text?: string }
+export interface VitalsCheck { crew_id: string; name: string; level: 'watch' | 'warning' | 'alarm'; state: 'asking' | 'escalated'; asked_at: number; answer: 'ok' | 'help' | null
+  advice_en: string; advice_es: string; seconds_left: number; reason?: 'no_answer' | 'help' | 'no_pulse'; escalated_at?: number; instructions_en?: string; instructions_es?: string }
+export interface VitalsSnapshot { crew: { id: string; name: string; status: string; now: LiveVitals; scenario: string; trend_hr_bpm_per_min: number }[]; alerts: VitalsAlert[]; checks: VitalsCheck[]; now: number; method: { en: string; es: string } }
+export interface StationCrew { id: string; name: string; role?: string; role_en?: string; role_es?: string; status: 'ok' | 'watch' | 'alarm' | string; location?: string; hr?: number; alerts?: string[]; note_en?: string; note_es?: string; vitals?: LiveVitals }
 export interface StationEvent { id?: string | number; ts?: string; t?: string; type: string; crew_id?: string; payload?: Record<string, unknown>; text_en?: string; text_es?: string }
 export interface Station {
   mission_day: number
@@ -81,6 +86,14 @@ export const api = {
   triageVoice: (flow: FlowId, lang: Lang, node_id: string, text: string) =>
     j<TriageStep & { understood: boolean; heard: string; answer?: string; answer_label?: string; say?: string }>('/api/triage/voice', { flow, node_id, text, lang }, 8000),
   // Spoken orders on the triage result («alert the crew») and yes/no confirmations. Fixed rule, no AI.
+  // Live earpiece vitals (simulated) and early warnings computed by fixed rules against each person's baseline.
+  vitals: () => j<VitalsSnapshot>('/api/vitals', undefined, 4000),
+  vitalsScenario: (crew_id: string, kind: 'normal' | 'deterioration' | 'exercise' | 'collapse') =>
+    j<{ ok: boolean }>('/api/vitals/scenario', { crew_id, kind }, 4000),
+  vitalsReset: () => j<{ ok: boolean }>('/api/vitals/reset', {}, 4000),
+  // The affected person's answer to «are you okay?» (fixed rule): «help», «alert the crew», «no» -> the crew is alerted.
+  vitalsCheckin: (crew_id: string, text: string) =>
+    j<{ answer: 'ok' | 'help' | null; state: string; heard: string; say_en?: string; say_es?: string }>('/api/vitals/checkin', { crew_id, text }, 6000),
   // Always-on ear: was «Metis» said? is it an emergency? (fixed rule, no AI)
   wake: (text: string, lang: Lang) =>
     j<{ heard: string; wake: boolean; command: string; emergency: boolean; end: boolean }>('/api/voice/wake', { text, lang }, 8000),
@@ -102,10 +115,11 @@ export const api = {
     } catch { return null }
   },
   // lang: the EN/ES of the screen. Without it whisper has to guess the language and mishears short phrases.
-  stt: async (audio: Blob, lang?: Lang): Promise<{ text: string; lang?: string; latency_ms?: number } | null> => {
+  // hint: the answers we expect («Yes. No.»). whisper gets short answers right much more often with it.
+  stt: async (audio: Blob, lang?: Lang, hint?: string): Promise<{ text: string; lang?: string; latency_ms?: number } | null> => {
     if (NO_SERVER) return null
     try {
-      const fd = new FormData(); fd.append('audio', audio, 'speech.webm'); if (lang) fd.append('lang', lang)
+      const fd = new FormData(); fd.append('audio', audio, 'speech.webm'); if (lang) fd.append('lang', lang); if (hint) fd.append('hint', hint)
       const r = await fetch('/api/voice/stt', { method: 'POST', body: fd })
       if (!r.ok) return null
       return await r.json()

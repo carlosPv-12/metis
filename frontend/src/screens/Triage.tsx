@@ -41,6 +41,7 @@ export default function Triage() {
   const t = useT(); const { lang } = useLang(); const { crewId } = useCrew()
   const loc = useLocation()
   const qFlow = new URLSearchParams(loc.search).get('flow') as FlowId | null
+  const qPatient = new URLSearchParams(loc.search).get('patient')   // set when Metis escalates someone's vitals
   const [flow, setFlow] = useState<FlowId | null>(qFlow)
   const [hist, setHist] = useState<{ step: TriageStep; answer?: string }[]>([])
   const [t0, setT0] = useState<number | null>(null)
@@ -71,12 +72,14 @@ export default function Triage() {
   const listenQuestion = async (ac: AbortController, s: TriageStep) => {
     if (!flow) return
     while (!ac.signal.aborted) {
+      if (document.hidden) { await new Promise(r => setTimeout(r, 500)); continue }   // another tab has the mic
       setLs('listening')
-      const blob = await listenOnce({ signal: ac.signal, waitMs: 15000, maxMs: 9000 })
+      const blob = await listenOnce({ signal: ac.signal, waitMs: 15000, maxMs: 9000, silenceMs: 700 })   // short answers: don't wait
       if (ac.signal.aborted) return
       if (!blob) continue
       setLs('stt')
-      const r = await api.stt(blob, lang)
+      const hint = s.node.type === 'question' ? s.node.options.map(o => o.label).join('. ') + '.' : ''
+      const r = await api.stt(blob, lang, hint)
       if (ac.signal.aborted) return
       if (!r?.text) continue
       setHeard(r.text)
@@ -119,20 +122,19 @@ export default function Triage() {
   const fire = async (type: string) => {
     if (sentRef.current[type]) return
     sentRef.current[type] = true
-    const patient = flow === 'companion_collapse' ? 'marco' : crewId
+    const patient = flow === 'companion_collapse' ? (qPatient ?? 'marco') : crewId
     try { await api.postEvent(type, patient, { flow, node_id: cur?.node_id, reporter: crewId, level: cur?.node.type === 'result' ? cur.node.level : undefined }) } catch { /* local only */ }
     setSent(s => ({ ...s, [type]: true }))
   }
   const fireMany = async (types: string[]) => { for (const ty of types) await fire(ty) }
   const ACTIONS = ['alert_crew', 'alert_commander', 'send_flight_surgeon']
 
-  /** Result screen. Red (urgent): Metis alerts everyone on its own and says so — no hands needed.
-   *  Orange: Metis asks before alerting. Yellow: nothing is sent, but spoken orders still work. */
+  /** Result screen. Red or orange: Metis alerts everyone on its own and says so — nobody is asked.
+   *  Yellow: nothing is sent, but spoken orders still work. */
   const resultFlow = async (ac: AbortController, s: TriageStep) => {
     if (s.node.type !== 'result') return
-    if (s.node.level === 'rojo') { await sp.speak(t('auto_alerted'), lang); return }  // alerts already sent
+    if (s.node.level === 'rojo' || s.node.level === 'naranja') { await sp.speak(t('auto_alerted'), lang); return }  // already sent
     if (!handsFree) return
-    if (s.node.level === 'naranja') { await sp.speak(t('ask_alert'), lang); if (ac.signal.aborted) return }
     await commandLoop(ac, s.node.level)
   }
   /** Spoken orders on the result screen, for up to a minute; then the always-on ear («Metis») takes over again. */
@@ -140,25 +142,24 @@ export default function Triage() {
     const release = hold()
     try { await listenCommands(ac, level) } finally { release(); if (!ac.signal.aborted) setLs('idle') }
   }
-  const listenCommands = async (ac: AbortController, level: string) => {
+  const listenCommands = async (ac: AbortController, _level: string) => {
     const until = Date.now() + 60000
     for (let attempt = 0; attempt < 2 && Date.now() < until && !ac.signal.aborted;) {
       setLs('listening')
-      const blob = await listenOnce({ signal: ac.signal, waitMs: Math.max(1000, until - Date.now()), maxMs: 9000 })
+      const blob = await listenOnce({ signal: ac.signal, waitMs: Math.max(1000, until - Date.now()), maxMs: 9000, silenceMs: 800 })
       if (ac.signal.aborted) return
       if (!blob) continue
       attempt++
       setLs('stt')
-      const r = await api.stt(blob, lang)
+      const r = await api.stt(blob, lang, 'Alert the crew. Call the commander. Send it to the flight surgeon.')
       if (ac.signal.aborted) return
       if (!r?.text) continue
       setHeard(r.text)
       const c = await api.triageCommand(r.text, lang).catch(() => null)
       if (ac.signal.aborted) return
       setLs('idle')
-      let todo = (c?.actions ?? []).filter(a => !sentRef.current[a])
-      if (!c?.actions?.length && c?.confirm === true && level === 'naranja') todo = ['alert_commander', 'send_flight_surgeon'].filter(a => !sentRef.current[a])
-      if (c?.actions?.length || (c?.confirm === true && level === 'naranja')) {
+      const todo = (c?.actions ?? []).filter(a => !sentRef.current[a])
+      if (c?.actions?.length) {
         await fireMany(todo)
         await sp.speak((c?.actions?.length ? c.actions : todo).map(a => t(('said_' + a) as Key)).join(' ') || t('said_alert_crew'), lang)
         return
@@ -172,7 +173,8 @@ export default function Triage() {
     const n = cur.node, ac = newRound(), s = cur
     setHeard(null)
     // Urgent (red) result: the alerts go out right away, before Metis even finishes reading the result.
-    if (n.type === 'result' && n.level === 'rojo') { fireMany(ACTIONS); setAutoAlerted(true) }
+    // In an emergency nobody is asked: red AND orange results alert everyone straight away.
+    if (n.type === 'result' && (n.level === 'rojo' || n.level === 'naranja')) { fireMany(ACTIONS); setAutoAlerted(true) }
     ;(async () => {
       await sp.speak(cur.say ?? (n.type === 'question' ? n.text : `${n.title}. ${n.steps[0] ?? ''}`), lang)
       if (ac.signal.aborted) return

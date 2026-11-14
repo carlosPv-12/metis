@@ -21,6 +21,10 @@ def _norm(s: str) -> str:
 
 
 # Negaciones primero: "he isn't breathing" contiene "breathing" pero es un no.
+# Cómo escribe whisper un «yes» o un «no» suelto, sobre todo con acento (sin tildes, en minúsculas).
+FUZZY_YES = {"yes", "yeah", "yep", "yup", "ya", "yah", "yea", "yess", "yesh", "jes", "jess", "ies", "yas", "yis", "jah", "mhm",
+             "uhhuh", "affirmative", "correct", "sure", "si", "sip", "vale", "claro"}
+FUZZY_NO = {"no", "nope", "nah", "know", "now", "noh", "nou", "nop", "noo", "nooo", "negative", "not", "nein"}
 UNSURE = re.compile(r" (dont know|not sure|unsure|no idea|maybe|perhaps|i think|no se|no lo se|ni idea|quizas|tal vez|puede que|creo que) ")
 NO = re.compile(r" (no|nope|nah|not|never|negative|isnt|doesnt|dont|cant|wont|arent|hasnt|gasping|nada|nunca|tampoco|ni|boquea|apenas) ")
 YES = re.compile(r" (yes|yeah|yep|yup|sure|correct|affirmative|ok|okay|si|claro|vale|correcto|afirmativo|exacto) ")
@@ -61,12 +65,13 @@ def match_option(text: str, options: list[dict], state_means_yes: bool = False) 
             return "no"          # "he is not breathing", "no responde"
         if state_means_yes and st and not n:
             return "si"          # "he is breathing"
-        if y and n:              # "yes, ..." con una negación dentro: solo vale si no niega el estado
-            first = t.split()[0]
-            if first in ("no", "nope", "nah"):
-                return "no"
-            if first in ("yes", "yeah", "yep", "si") and not re.search(r" (not|no|isnt|doesnt|cant) (breath|respir|respond|contest)", t):
-                return "si"
+        if not y and not n:      # frases cortas mal transcritas: «Know.», «Now.», «Jess.», «Yah.»
+            short = t.split()
+            if len(short) <= 3:
+                fy, fn = any(w in FUZZY_YES for w in short), any(w in FUZZY_NO for w in short)
+                if fy != fn:
+                    return "si" if fy else "no"
+        # «sí» y «no» a la vez («Yes. No.», «yes, he's not breathing»): no se adivina, se vuelve a preguntar.
         return None
     if ids == {"lt10", "gt10"}:
         mins = _minutes(t)
