@@ -10,7 +10,7 @@ import { api, type CrewDetail, type Metric } from '../api'
 import { useLoad } from '../hooks'
 import { useLang, useT } from '../i18n'
 import { Card, DEC, Loading, MetisLine, Page, Spark, UNIT, fmt, levelOf, useCrew } from '../ui'
-import { QUESTIONS, WB_TXT, SHARE_TXT, setShareLevel, useShareLevel, type ShareLevel, addCheckIn, checkInText, shareCheckIn, useCheckIns, type CheckIn, type Score } from '../wellbeing'
+import { QUESTIONS, WB_TXT, SHARE_TXT, setShareLevel, useShareLevel, type ShareLevel, addCheckIn, shareCheckIn, useCheckIns, type CheckIn, type Score } from '../wellbeing'
 import '../wellbeing.css'
 
 export type RiskId = 'stress' | 'mood' | 'fatigue' | 'sleep' | 'isolation' | 'conflict'
@@ -149,7 +149,7 @@ export default function Wellbeing() {
   if (!c) return <Loading />
   const risks = computeRisks(c, history[0], lang)
   const quickSave = (mood: Score, energy: Score, stress: Score, tags: string[]) => {
-    addCheckIn({ id: `${Date.now()}`, ts: Date.now(), crewId, answers: { mood, energy, stress, sleep: 3, connected: 3 }, tags, note: '', shared: false, noteShared: false })
+    void addCheckIn({ id: `${Date.now()}`, ts: Date.now(), crewId, answers: { mood, energy, stress, sleep: 3, connected: 3 }, tags, note: '', shared: false, noteShared: false })
     setReplied(true)
   }
   const today = c.days[c.days.length - 1]
@@ -224,10 +224,9 @@ export default function Wellbeing() {
   )
 }
 
-function sendToGround(ci: CheckIn, withNote: boolean, crewId: string, name: string) {
-  const x = { ...ci, noteShared: withNote }
-  void api.postEvent('send_flight_surgeon', crewId, { kind: 'wellbeing', text_en: checkInText(x, 'en', name), text_es: checkInText(x, 'es', name) })
-  shareCheckIn(ci.id, withNote)
+/** The backend saves it as shared and creates the packet for the flight surgeon (without a backend: a local packet). */
+function sendToGround(ci: CheckIn, withNote: boolean, name: string) {
+  void shareCheckIn(ci, withNote, name)
 }
 
 function History({ c, crewId, title }: { c: CrewDetail; crewId: string; title: string }) {
@@ -242,7 +241,7 @@ function History({ c, crewId, title }: { c: CrewDetail; crewId: string; title: s
           <div className="wb-history-top"><time>{when(h.ts)}</time>
             {h.shared ? <span className="wb-badge shared"><Send size={11} /> {s.shared}</span> : <span className="wb-badge"><Lock size={11} /> {s.private}</span>}</div>
           <div className="wb-bars" aria-hidden>{QUESTIONS.map(q => <span key={q} title={`${s.q[q]} ${h.answers[q]}/5`}><i className={`v${h.answers[q]}`} style={{ height: `${h.answers[q] * 20}%` }} /></span>)}</div>
-          {!h.shared && <button type="button" className="btn ghost wb-send" onClick={() => sendToGround(h, false, crewId, c.name)}><Send size={13} />{s.sendNow}</button>}
+          {!h.shared && <button type="button" className="btn ghost wb-send" onClick={() => sendToGround(h, false, c.name)}><Send size={13} />{s.sendNow}</button>}
         </li>
       ))}</ul>
     </Card>

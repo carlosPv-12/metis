@@ -1,31 +1,74 @@
 // Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026
-// Wellbeing check-ins ("How I feel"): private by default, kept on board (localStorage). The crew member can choose to
-// share one with the flight surgeon; only shared check-ins are visible on Ground.
-import { useSyncExternalStore } from 'react'
+// Wellbeing check-ins ("How I feel"): private by default and kept on board by the backend (backend/wellbeing.py), so
+// they survive a reload or another browser. The crew member can choose to send one to the flight surgeon; ground only
+// ever receives what was sent (the backend filters it). Opened as a local file (no backend): localStorage, as before.
+import { useEffect, useSyncExternalStore } from 'react'
+import { api, NO_SERVER, type ApiCheckIn } from './api'
 
 export type Score = 1 | 2 | 3 | 4 | 5
 export const QUESTIONS = ['mood', 'energy', 'stress', 'sleep', 'connected'] as const
 export type Question = typeof QUESTIONS[number]
 export interface CheckIn { id: string; ts: number; crewId: string; answers: Record<Question, Score>; tags: string[]; note: string; shared: boolean; noteShared: boolean }
 
-const KEY = 'metis.wellbeing'
 const subs = new Set<() => void>()
+const emit = () => subs.forEach(f => f())
+const subscribe = (f: () => void) => { subs.add(f); return () => { subs.delete(f) } }
+
+/* ---------- without a backend (metis-demo.html opened as a file): localStorage ---------- */
+const KEY = 'metis.wellbeing'
 const read = (): CheckIn[] => { try { return JSON.parse(localStorage.getItem(KEY) ?? '[]') as CheckIn[] } catch { return [] } }
-let all: CheckIn[] = read()
-
-function write(next: CheckIn[]) {
-  all = next.slice(-200)
-  try { localStorage.setItem(KEY, JSON.stringify(all)) } catch { /* private mode: keep it in memory */ }
-  subs.forEach(f => f())
+let local: CheckIn[] = NO_SERVER ? read() : []
+function writeLocal(next: CheckIn[]) {
+  local = next.slice(-200)
+  try { localStorage.setItem(KEY, JSON.stringify(local)) } catch { /* private mode: keep it in memory */ }
+  emit()
 }
-if (typeof window !== 'undefined') window.addEventListener('storage', e => { if (e.key === KEY) { all = read(); subs.forEach(f => f()) } })
+if (NO_SERVER && typeof window !== 'undefined') window.addEventListener('storage', e => { if (e.key === KEY) { local = read(); emit() } })
 
-export const addCheckIn = (c: CheckIn) => write([...all, c])
-export const shareCheckIn = (id: string, withNote: boolean) => write(all.map(c => (c.id === id ? { ...c, shared: true, noteShared: withNote } : c)))
+/* ---------- with the backend: one cached list per (crew member, viewer) ---------- */
+const fromApi = (x: ApiCheckIn): CheckIn => ({ id: x.id, ts: x.ts, crewId: x.crew_id, answers: x.answers as Record<Question, Score>, tags: x.tags,
+  note: x.note ?? '', shared: x.shared, noteShared: x.note_shared })
+const cache = new Map<string, CheckIn[]>()
+const EMPTY: CheckIn[] = []
+const key = (crewId: string, viewer: string) => `${crewId}|${viewer}`
+async function refresh(crewId: string, viewer: string) {
+  try { cache.set(key(crewId, viewer), (await api.wbList(crewId, viewer)).map(fromApi)); emit() } catch { /* backend down: keep what we had */ }
+}
+const refreshAll = (crewId: string) => { for (const k of cache.keys()) if (k.startsWith(crewId + '|')) void refresh(crewId, k.slice(crewId.length + 1)) }
 
-/** Check-ins of one crew member, newest first. */
+/** Saves a check-in on board. shared = also send it to the flight surgeon (the backend creates the packet). */
+export async function addCheckIn(c: CheckIn) {
+  if (NO_SERVER) { writeLocal([...local, c]); return }
+  const k = key(c.crewId, c.crewId)
+  cache.set(k, [c, ...(cache.get(k) ?? [])]); emit()            // shown at once, replaced by the saved copy
+  try {
+    const saved = fromApi(await api.wbAdd({ crew_id: c.crewId, answers: c.answers, tags: c.tags, note: c.note, share: c.shared, share_note: c.noteShared }))
+    cache.set(k, [saved, ...(cache.get(k) ?? []).filter(x => x.id !== c.id && x.id !== saved.id)]); emit()
+    refreshAll(c.crewId)
+  } catch (e) { console.warn('[metis] check-in not saved on board:', e) }
+}
+
+/** Sends an earlier, private check-in to the flight surgeon. `name` is only used without a backend (local packet text). */
+export async function shareCheckIn(c: CheckIn, withNote: boolean, name: string) {
+  if (NO_SERVER) {
+    const x = { ...c, shared: true, noteShared: withNote }
+    void api.postEvent('send_flight_surgeon', c.crewId, { kind: 'wellbeing', text_en: checkInText(x, 'en', name), text_es: checkInText(x, 'es', name) })
+    writeLocal(local.map(y => (y.id === c.id ? x : y))); return
+  }
+  try { await api.wbShare(c.id, withNote); refreshAll(c.crewId) } catch (e) { console.warn('[metis] check-in not sent:', e) }
+}
+
+/** Check-ins of one crew member, newest first. onlyShared = what ground sees (only what was sent to it). */
 export function useCheckIns(crewId: string, onlyShared = false): CheckIn[] {
-  const list = useSyncExternalStore(f => { subs.add(f); return () => { subs.delete(f) } }, () => all)
+  const viewer = onlyShared ? 'ground' : crewId
+  useEffect(() => {
+    if (NO_SERVER) return
+    void refresh(crewId, viewer)
+    const id = setInterval(() => void refresh(crewId, viewer), onlyShared ? 5000 : 15000)   // ground: new packets arrive
+    return () => clearInterval(id)
+  }, [crewId, viewer, onlyShared])
+  const list = useSyncExternalStore(subscribe, () => (NO_SERVER ? local : cache.get(key(crewId, viewer)) ?? EMPTY))
+  if (!NO_SERVER) return list
   return list.filter(c => c.crewId === crewId && (!onlyShared || c.shared)).sort((a, b) => b.ts - a.ts)
 }
 
@@ -76,18 +119,28 @@ export function checkInText(c: CheckIn, lang: 'en' | 'es', name: string) {
 /* ---------- What ground can see about how a crew member feels (each crew member chooses) ---------- */
 export type ShareLevel = 'none' | 'summary' | 'signals'
 const SHARE_KEY = 'metis.wellbeing.share'
-/** Defaults differ per character, as each person would choose differently. */
+/** Defaults differ per character, as each person would choose differently (same as backend/wellbeing.py). */
 const SHARE_DEFAULT: Record<string, ShareLevel> = { lena: 'signals', marco: 'summary', noor: 'summary', kenji: 'none' }
 const readShare = (): Record<string, ShareLevel> => { try { return JSON.parse(localStorage.getItem(SHARE_KEY) ?? '{}') } catch { return {} } }
-let share: Record<string, ShareLevel> = readShare()
+// With the backend this is only a cache of what it says; without it (local file), localStorage as before.
+let share: Record<string, ShareLevel> = NO_SERVER ? readShare() : {}
 const shareSubs = new Set<() => void>()
+const shareEmit = () => shareSubs.forEach(f => f())
+const isLevel = (l: string): l is ShareLevel => l === 'none' || l === 'summary' || l === 'signals'
 export function setShareLevel(crewId: string, level: ShareLevel) {
-  share = { ...share, [crewId]: level }
-  try { localStorage.setItem(SHARE_KEY, JSON.stringify(share)) } catch { /* private mode */ }
-  shareSubs.forEach(f => f())
+  share = { ...share, [crewId]: level }; shareEmit()
+  if (NO_SERVER) { try { localStorage.setItem(SHARE_KEY, JSON.stringify(share)) } catch { /* private mode */ } return }
+  api.wbSetShareLevel(crewId, level).catch(e => console.warn('[metis] share level not saved:', e))
 }
-if (typeof window !== 'undefined') window.addEventListener('storage', e => { if (e.key === SHARE_KEY) { share = readShare(); shareSubs.forEach(f => f()) } })
+if (NO_SERVER && typeof window !== 'undefined') window.addEventListener('storage', e => { if (e.key === SHARE_KEY) { share = readShare(); shareEmit() } })
 export function useShareLevel(crewId: string): ShareLevel {
+  useEffect(() => {
+    if (NO_SERVER) return
+    let alive = true
+    const load = () => api.wbShareLevel(crewId).then(r => { if (alive && isLevel(r.level) && share[crewId] !== r.level) { share = { ...share, [crewId]: r.level }; shareEmit() } }).catch(() => {})
+    load(); const id = setInterval(load, 10000)
+    return () => { alive = false; clearInterval(id) }
+  }, [crewId])
   const m = useSyncExternalStore(f => { shareSubs.add(f); return () => { shareSubs.delete(f) } }, () => share)
   return m[crewId] ?? SHARE_DEFAULT[crewId] ?? 'summary'
 }

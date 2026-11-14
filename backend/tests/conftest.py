@@ -4,6 +4,8 @@ import os, pathlib, sys
 
 os.environ["METIS_LLM_URL"] = ""
 os.environ.setdefault("METIS_DELAY_S", "1")
+import tempfile
+os.environ["METIS_STATE_DIR"] = tempfile.mkdtemp(prefix="metis-test-")   # registros de bienestar: nunca los reales
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import pytest
