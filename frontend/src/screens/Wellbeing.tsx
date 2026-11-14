@@ -1,9 +1,11 @@
 // Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026
-// "How I feel": Metis asks how the crew member is; the daily check-in uses the kind of 0-10 scales NASA crews used on
+// "How I feel": Metis asks if there is something to talk about; the daily check-in uses the kind of 0-10 scales NASA crews used on
 // the ISS (Reaction Self Test) plus the Samn-Perelli fatigue scale, and every 14 days the PHQ-4 (free use, Pfizer).
 // Below: the wellbeing signals Metis reads (check-in + sleep, HRV and resting heart rate against the personal band),
 // the possible risks they point to with their reasons, Metis's advice for these answers and a direct check with Metis
 // (the psychological triage flows). Check-ins are private; sending one to ground is optional.
+// Layout (Manuela, 14-nov 23:38): today at a glance (4 signals + voice of the week), only the active signs as cards,
+// how the voice sounded (voiceTone.ts: only the result is kept, never the recording), then three cards.
 // Risks and advice come from the backend (backend/wellbeing.py); computeRisks() below is the same rule set for the
 // single-file demo without a backend.
 import { useEffect, useState } from 'react'
@@ -15,6 +17,7 @@ import { useLang, useT } from '../i18n'
 import { Card, DEC, Loading, MetisLine, Page, Spark, UNIT, fmt, levelOf, useCrew } from '../ui'
 import { DAILY_ID, PHQ4_ID, PHQ4_QUESTIONS, QUESTIONS, RANGE, TAGS, WB_TXT, SHARE_TXT, addCheckIn, concerning, fmtAnswer, isDaily, setShareLevel, shareCheckIn,
   useCheckIns, useShareLevel, type CheckIn, type PhqQuestion, type Question, type ShareLevel } from '../wellbeing'
+import { TONES, VOICE_TXT, toneCounts, voiceMoments, type Tone } from '../voiceTone'
 import '../wellbeing.css'
 
 export type RiskId = WbRiskId
@@ -23,10 +26,12 @@ export type RiskLevel = 'low' | 'watch' | 'high'
 export const WB_RISK_TXT = {
   en: {
     title: 'How I feel',
-    ask: (n: string) => `${n}, how are you feeling today? Is there something on your mind you would like to talk about?`,
+    ask: (n: string) => `${n}, is there something on your mind you would like to talk about?`,
     askAgain: (n: string) => `Thanks, ${n}. I am here whenever you want to talk about anything that is going on.`,
     quick: { good: 'I feel good', tired: 'A bit tired', stressed: 'Stressed', talk: 'I would like to talk' },
     talk: 'Talk to Metis', check: 'Do a check with Metis',
+    glance: 'Today at a glance', examples: 'Examples', noSigns: 'No signs',
+    lowMood: 'Low mood', voiceWeek: 'Voice this week', toneDetails: 'Tone breakdown', showAll: 'Show all', showLess: 'Show less',
     signals: 'What Metis reads about how you feel', risks: 'Possible signs to watch',
     level: { low: 'Low', watch: 'Watch', high: 'High' } as Record<RiskLevel, string>,
     why: 'Why', signs: 'Examples of signs', help: 'What I can do', hide: 'Hide',
@@ -65,10 +70,12 @@ export const WB_RISK_TXT = {
   },
   es: {
     title: 'Cómo me siento',
-    ask: (n: string) => `${n}, ¿qué tal te sientes hoy? ¿Hay algo que te ronde la cabeza y de lo que quieras hablar?`,
+    ask: (n: string) => `${n}, ¿hay algo que te ronde la cabeza y de lo que quieras hablar?`,
     askAgain: (n: string) => `Gracias, ${n}. Aquí estoy cuando quieras hablar de cualquier cosa que te esté pasando.`,
     quick: { good: 'Me siento bien', tired: 'Algo cansado/a', stressed: 'Con estrés', talk: 'Quiero hablar' },
     talk: 'Hablar con Metis', check: 'Hacer un chequeo con Metis',
+    glance: 'Hoy de un vistazo', examples: 'Ejemplos', noSigns: 'Sin señales',
+    lowMood: 'Ánimo bajo', voiceWeek: 'Voz esta semana', toneDetails: 'Detalle de tonos', showAll: 'Mostrar todo', showLess: 'Mostrar menos',
     signals: 'Lo que Metis lee de cómo te sientes', risks: 'Posibles señales a vigilar',
     level: { low: 'Bajo', watch: 'Vigilar', high: 'Alto' } as Record<RiskLevel, string>,
     why: 'Por qué', signs: 'Ejemplos de señales', help: 'Qué puedo hacer', hide: 'Ocultar',
@@ -119,7 +126,22 @@ export function whyText(w: WbWhy, lang: 'en' | 'es') {
     case 'tag': return x.said((wb.tag[w.tag ?? ''] ?? w.tag ?? '').toLowerCase())
     case 'phq2': return x.phq2(w.value ?? 0)
     case 'gad2': return x.gad2(w.value ?? 0)
+    case 'voice': { const v = VOICE_TXT[lang]; return v.reason(v.tone[w.tone as Tone] ?? w.tone ?? '', w.value ?? 1) }
   }
+}
+
+/** How the voice sounded in the last 3 days also counts (Manuela, voiceTone.ts). Demo history kept in the frontend,
+ *  so it is added here on top of the backend's signals; ground's summary does not include it. */
+export function withVoice(risks: WbRisk[], crewId: string): WbRisk[] {
+  const tc = toneCounts(voiceMoments(crewId), 72)
+  const extra: [RiskId, Tone, number][] = [['mood', 'sad', tc.sad], ['stress', 'irritated', tc.irritated], ['stress', 'anxious', tc.anxious], ['fatigue', 'tired', tc.tired >= 2 ? tc.tired : 0]]
+  const lvl = (sc: number): RiskLevel => (sc >= 4 ? 'high' : sc >= 2 ? 'watch' : 'low')
+  return risks.map(r => {
+    const add = extra.filter(([id, , n]) => id === r.id && n > 0)
+    if (!add.length) return r
+    const score = r.score + add.length
+    return { ...r, score, level: lvl(score), why: [...r.why, ...add.map(([, tone, n]): WbWhy => ({ code: 'voice', tone, value: n }))] }
+  }).sort((p, q) => q.score - p.score)
 }
 
 /** Nights in a row, counting back from today, outside the band on the bad side. */
@@ -171,12 +193,6 @@ function localAdvice(risks: WbRisk[], lang: 'en' | 'es'): WbAdvice[] {
 }
 
 type Draft = Partial<Record<Question, number>>
-/** The quick answers at the top only pre-fill the check-in; the person confirms it. */
-const QUICK: Record<'good' | 'tired' | 'stressed', { draft: Draft; tags: string[] }> = {
-  good: { draft: { fatigue: 2, stress: 2, mood: 8 }, tags: [] },
-  tired: { draft: { fatigue: 5 }, tags: ['tired'] },
-  stressed: { draft: { stress: 7 }, tags: ['worried'] },
-}
 
 export default function Wellbeing() {
   const { lang } = useLang(); const t = useT(); const x = WB_RISK_TXT[lang]
@@ -184,9 +200,7 @@ export default function Wellbeing() {
   const { data: c } = useLoad(() => api.crewOne(crewId), [crewId])
   const history = useCheckIns(crewId)
   const nav = useNavigate()
-  const [open, setOpen] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
-  const [prefill, setPrefill] = useState<{ draft: Draft; tags: string[] } | null>(null)
   const [advice, setAdvice] = useState<WbAdvice[] | null>(null)
   const [serverRisks, setServerRisks] = useState<WbRisk[] | null>(null)
   const [phqDue, setPhqDue] = useState<boolean | null>(null)
@@ -199,9 +213,9 @@ export default function Wellbeing() {
     api.wbPhq4Due(crewId).then(d => { if (alive) setPhqDue(d) }).catch(() => {})
     return () => { alive = false }
   }, [crewId, newest])
-  useEffect(() => { setAdvice(null); setFormOpen(false); setPrefill(null); setPhqDismissed(false) }, [crewId])
+  useEffect(() => { setAdvice(null); setFormOpen(false); setPhqDismissed(false) }, [crewId])
   if (!c) return <Loading />
-  const risks = serverRisks ?? computeRisks(c, history)
+  const risks = withVoice(serverRisks ?? computeRisks(c, history), c.id)
   const localPhqDue = !history.some(h => h.instrument === PHQ4_ID && Date.now() - h.ts < 14 * 864e5)
   const showPhq = !phqDismissed && (phqDue ?? localPhqDue)
   const today = c.days[c.days.length - 1]
@@ -210,78 +224,75 @@ export default function Wellbeing() {
   const top = risks.find(r => r.level !== 'low')
   const attention = risks.filter(r => r.level !== 'low')
   const recs = (attention.length ? attention : risks.slice(0, 1)).flatMap(r => x.risk[r.id].help.slice(0, 2)).slice(0, 4)
-  const quick = (k: keyof typeof QUICK) => { setPrefill(QUICK[k]); setFormOpen(true); setAdvice(null) }
-  const saved = (a: WbAdvice[] | null) => { setAdvice(a ?? localAdvice(computeRisks(c, history), lang)); setFormOpen(false); setPrefill(null) }
+  const saved = (a: WbAdvice[] | null) => { setAdvice(a ?? localAdvice(computeRisks(c, history), lang)); setFormOpen(false) }
 
   return (
     <Page title={x.title}>
-      {/* Metis is always the one asking */}
+      {/* Metis is always the one asking: two buttons, talk or check (Manuela) */}
       <section className="card feature feature-gradient wb-ask" aria-live="polite">
         <MetisLine><p className="wb-ask-q">{advice ? x.askAgain(c.name) : x.ask(c.name)}</p></MetisLine>
         <div className="wb-ask-actions">
-          {!advice && !formOpen && <>
-            <button type="button" className="wb-chip" onClick={() => quick('good')}>{x.quick.good}</button>
-            <button type="button" className="wb-chip" onClick={() => quick('tired')}>{x.quick.tired}</button>
-            <button type="button" className="wb-chip" onClick={() => quick('stressed')}>{x.quick.stressed}</button>
-          </>}
           <button type="button" className="btn primary" onClick={() => nav('/talk')}><MessageCircle size={16} />{advice ? x.talk : x.quick.talk}</button>
-          {top && <button type="button" className="btn wb-check" onClick={() => go(x.risk[top.id].flow)}><Stethoscope size={16} />{x.check}</button>}
+          <button type="button" className="btn wb-check" onClick={() => go(x.risk[(top ?? risks[0]).id].flow)}><Stethoscope size={16} />{x.check}</button>
         </div>
       </section>
 
       {advice && <AdviceCard advice={advice} name={c.name} onFlow={go} />}
       {!advice && (formOpen
-        ? <DailyCheckIn key={JSON.stringify(prefill)} crewId={crewId} name={c.name} prefill={prefill} onSaved={saved} onCancel={() => setFormOpen(false)} />
+        ? <DailyCheckIn crewId={crewId} name={c.name} onSaved={saved} onCancel={() => setFormOpen(false)} />
         : <div className="wb-open-form"><button type="button" className="btn primary" onClick={() => setFormOpen(true)}><Check size={16} />{WB_TXT[lang].today}</button></div>)}
       {showPhq && !formOpen && <Phq4 crewId={crewId} name={c.name} onSaved={a => { setPhqDue(false); saved(a) }} onLater={() => setPhqDismissed(true)} />}
 
-      <h2 className="section-h wb-h">{x.signals}</h2>
-      <div className="wb-signals">
-        {SIGNALS.map(m => {
-          const b = c.baseline[m], l = levelOf(m, today[m], b)
-          return <div key={m} className={`wb-signal ${l}`}>
+      <Card title={x.glance} className="wb-glance">
+        <div className="wb-signals" aria-label={x.signals}>
+          {SIGNALS.map(m => <div key={m} className={`wb-signal ${levelOf(m, today[m], c.baseline[m])}`}>
             <span>{t(`m_${m}`)}</span>
             <strong>{fmt(today[m], DEC[m])}<small>{m === 'mood_1_5' ? '/5' : t(UNIT[m])}</small></strong>
-            <Spark days={c.days} m={m} b={b} h={38} color="#9CBF00" />
-          </div>
-        })}
-      </div>
+            <Spark days={c.days} m={m} b={c.baseline[m]} h={26} color="#2E96F5" />
+          </div>)}
+          <VoiceWeek crewId={c.id} />
+        </div>
+      </Card>
 
-      <h2 className="section-h wb-h">{x.risks}</h2>
-      <div className="wb-risks">
-        {risks.map(r => {
-          const k = x.risk[r.id]
-          return <article key={r.id} className={`wb-risk ${r.level}`}>
-            <header><h3>{k.name}</h3><span className={`wb-level ${r.level}`}>{x.level[r.level]}</span></header>
-            <div className="wb-meter" aria-hidden><i style={{ width: `${Math.min(100, 12 + r.score * 18)}%` }} /></div>
-            <p className="wb-why"><b>{x.why}:</b> {r.why.length ? r.why.map(w => whyText(w, lang)).join('; ') : x.noWhy}</p>
-            <p className="wb-signs"><b>{x.signs}:</b> {k.signs.map((g, i) => (i ? g.replace(/^./, ch => ch.toLowerCase()) : g)).join(', ')}</p>
-          </article>
-        })}
-      </div>
+      <section className="wb-signs-section" aria-labelledby="wb-risks-h">
+        <h2 id="wb-risks-h" className="wb-h">{x.risks}</h2>
+        <div className="wb-risks">
+          {attention.map(r => <RiskCard key={r.id} risk={r} lang={lang} />)}
+        </div>
+        <div className="wb-low-risks">
+          {risks.some(r => r.level === 'low') && <span>{x.noSigns}:</span>}
+          {risks.filter(r => r.level === 'low').map(r => <details key={r.id} className="wb-low-risk">
+            <summary>{r.id === 'mood' ? x.lowMood : x.risk[r.id].name}</summary>
+            <RiskCard risk={r} lang={lang} />
+          </details>)}
+        </div>
+      </section>
+
+      <VoiceTone crewId={c.id} />
 
       <div className="wb-grid">
-        {/* "What I can do": Metis's own recommendations for the signs that need attention, and an offer to talk */}
-        <div className="wb-improve">
-          <button type="button" className="btn wb-help-btn" aria-expanded={open} onClick={() => setOpen(v => !v)}>
-            <ChevronDown size={15} style={{ transform: open ? 'rotate(180deg)' : 'none' }} />{open ? x.hide : x.help}
-          </button>
-          {open && <section className="card wb-improve-card">
-            <MetisLine>
-              <p className="wb-rec-title">{x.recTitle(c.name)}</p>
-              <ul className="wb-recs">{recs.map(r => <li key={r}><Check size={15} aria-hidden />{r}</li>)}</ul>
-              <div className="wb-talk-offer"><span>{x.talkOffer}</span>
-                <button type="button" className="btn primary" onClick={() => nav('/talk')}><MessageCircle size={16} />{x.talkYes}</button></div>
-            </MetisLine>
-          </section>}
-        </div>
-        <div className="wb-side">
-          <History c={c} crewId={crewId} title={x.history} />
-          <ShareChoice crewId={crewId} />
-        </div>
+        <Card title={x.help} className="wb-improve-card">
+          <p className="wb-rec-title">{x.recTitle(c.name)}</p>
+          <ul className="wb-recs">{recs.map(r => <li key={r}><Check size={14} aria-hidden />{r}</li>)}</ul>
+        </Card>
+        <History c={c} crewId={crewId} title={x.history} />
+        <ShareChoice crewId={crewId} />
       </div>
     </Page>
   )
+}
+
+function RiskCard({ risk: r, lang }: { risk: WbRisk; lang: 'en' | 'es' }) {
+  const x = WB_RISK_TXT[lang], k = x.risk[r.id]
+  return <article className={`card wb-risk ${r.level}`}>
+    <header><h3>{k.name}</h3><span className={`wb-level ${r.level}`}>{x.level[r.level]}</span></header>
+    <div className="wb-meter" aria-hidden><i style={{ width: `${Math.min(100, 12 + r.score * 18)}%` }} /></div>
+    <p className="wb-why"><b>{x.why}:</b> {r.why.length ? r.why.map(w => whyText(w, lang)).join('; ') : x.noWhy}</p>
+    <details className="wb-examples">
+      <summary>{x.examples}<ChevronDown size={13} aria-hidden /></summary>
+      <p className="wb-signs"><b>{x.signs}:</b> {k.signs.map((g, i) => (i ? g.replace(/^./, ch => ch.toLowerCase()) : g)).join(', ')}</p>
+    </details>
+  </article>
 }
 
 /** Metis's advice for the answers just saved, each with its source and, if it fits, a triage to open. */
@@ -317,10 +328,10 @@ function Scale({ q, value, onPick, labels }: { q: string; value: number | undefi
   )
 }
 
-function DailyCheckIn({ crewId, name, prefill, onSaved, onCancel }: { crewId: string; name: string; prefill: { draft: Draft; tags: string[] } | null; onSaved: (a: WbAdvice[] | null) => void; onCancel: () => void }) {
+function DailyCheckIn({ crewId, name, onSaved, onCancel }: { crewId: string; name: string; onSaved: (a: WbAdvice[] | null) => void; onCancel: () => void }) {
   const { lang } = useLang(); const s = WB_TXT[lang]
-  const [a, setA] = useState<Draft>(prefill?.draft ?? {})
-  const [tags, setTags] = useState<string[]>(prefill?.tags ?? [])
+  const [a, setA] = useState<Draft>({})
+  const [tags, setTags] = useState<string[]>([])
   const [note, setNote] = useState('')
   const [share, setShare] = useState(false)
   const [shareNote, setShareNote] = useState(false)
@@ -440,5 +451,56 @@ function ShareChoice({ crewId }: { crewId: string }) {
       </div>
       <p className="small muted" style={{ margin: '10px 0 0' }}>{s.hint[level]}</p>
     </Card>
+  )
+}
+
+/** Compact weekly overview, kept beside the other wellbeing signals. */
+function VoiceWeek({ crewId }: { crewId: string }) {
+  const { lang } = useLang(); const v = VOICE_TXT[lang], x = WB_RISK_TXT[lang]
+  const moments = voiceMoments(crewId)
+  const counts = toneCounts(moments)
+  const total = TONES.reduce((n, t) => n + counts[t], 0) || 1
+  const ranked = TONES.filter(t => counts[t]).sort((a, b) => counts[b] - counts[a])
+  const others = ranked.slice(1).filter(t => t !== 'neutral' && t !== 'calm' && t !== 'happy').slice(0, 2).map(t => v.tone[t].toLowerCase())
+  const summary = ranked.length ? v.summary(v.tone[ranked[0]].toLowerCase(), others.length ? v.also(others.join(lang === 'es' ? ' y ' : ' and ')) : '') : ''
+  return <div className="wb-voice-week">
+    <span className="wb-stat-label">{x.voiceWeek}</span>
+    <div className="wb-voice-bar" aria-hidden>{TONES.filter(t => counts[t]).map(t => <i key={t} className={`tone-${t}`} style={{ width: `${(counts[t] / total) * 100}%` }} />)}</div>
+    <p className="wb-voice-summary">{summary}</p>
+    <details className="wb-tone-details">
+      <summary>{x.toneDetails}<ChevronDown size={12} aria-hidden /></summary>
+      <p className="wb-stat-label">{v.week}</p>
+      <ul className="wb-voice-legend">{ranked.map(t => <li key={t}><i className={`tone-${t}`} />{v.tone[t]}<b>{counts[t]}</b></li>)}</ul>
+    </details>
+  </div>
+}
+
+/** The most recent voice moments, with the complete history available on demand. */
+function VoiceTone({ crewId }: { crewId: string }) {
+  const { lang } = useLang(); const v = VOICE_TXT[lang], x = WB_RISK_TXT[lang]
+  const [showAll, setShowAll] = useState(false)
+  const moments = voiceMoments(crewId)
+  const day = (ts: number) => {
+    const d = new Date(ts), now = new Date(), y = new Date(now); y.setDate(now.getDate() - 1)
+    const hm = d.toLocaleTimeString(lang === 'es' ? 'es-ES' : 'en-GB', { hour: '2-digit', minute: '2-digit' })
+    const label = d.toDateString() === now.toDateString() ? v.today : d.toDateString() === y.toDateString() ? v.yesterday : d.toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-GB', { weekday: 'short', day: 'numeric' })
+    return `${label} ${hm}`
+  }
+  return (
+    <section className="wb-voice" aria-labelledby="wb-voice-h">
+      <h2 id="wb-voice-h" className="wb-h">{v.title}</h2>
+      <p className="wb-voice-sub">{v.sub}</p>
+      <ol id="wb-voice-moments" className="wb-voice-list">
+        {(showAll ? moments : moments.slice(0, 4)).map(m => <li key={m.id}>
+          <time dateTime={new Date(m.ts).toISOString()}>{day(m.ts)}</time>
+          <span className="wb-voice-ctx">{v.context[m.context]}</span>
+          <span className={`wb-tone tone-${m.tone}`}><i />{v.tone[m.tone as Tone]}</span>
+          <span className="wb-voice-conf" role="meter" aria-label={v.confidence} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(m.confidence * 100)} title={`${Math.round(m.confidence * 100)} % ${v.confidence}`}><i style={{ width: `${m.confidence * 100}%` }} /></span>
+        </li>)}
+      </ol>
+      {moments.length > 4 && <button type="button" className="wb-text-toggle" aria-expanded={showAll} aria-controls="wb-voice-moments" onClick={() => setShowAll(value => !value)}>
+        {showAll ? x.showLess : x.showAll}<ChevronDown size={14} aria-hidden style={{ transform: showAll ? 'rotate(180deg)' : undefined }} />
+      </button>}
+    </section>
   )
 }

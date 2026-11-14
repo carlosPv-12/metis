@@ -56,7 +56,7 @@ export interface ApiCheckIn { id: string; ts: number; crew_id: string; instrumen
 export interface WbAdvice { code: string; en: string; es: string; flow: string | null; source: { title: string; url: string } }
 export type WbRiskId = 'stress' | 'mood' | 'fatigue' | 'sleep' | 'isolation' | 'conflict'
 export type WbLevel = 'low' | 'watch' | 'high'
-export interface WbWhy { code: 'hrv_low' | 'rhr_high' | 'sleep_low' | 'co2' | 'answer' | 'tag' | 'phq2' | 'gad2'; value?: number; nights?: number; q?: string; tag?: string }
+export interface WbWhy { code: 'hrv_low' | 'rhr_high' | 'sleep_low' | 'co2' | 'answer' | 'tag' | 'phq2' | 'gad2' | 'voice'; value?: number; nights?: number; q?: string; tag?: string; tone?: string }
 export interface WbRisk { id: WbRiskId; score: number; level: WbLevel; why: WbWhy[] }
 /** What ground may see about how someone feels, as that person chose (never answers or notes). */
 export interface WbGroundSummary { crew_id: string; share_level: 'none' | 'summary' | 'signals'; severe_flag?: boolean; overall?: 'ok' | 'watch' | 'high'; trend?: 'up' | 'down' | 'flat'; areas?: { id: WbRiskId; level: WbLevel }[] }
