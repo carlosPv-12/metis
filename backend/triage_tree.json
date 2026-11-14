@@ -1,0 +1,636 @@
+{
+ "_nota": "Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026. Árbol determinista bilingüe (EN/ES) con fuentes por nodo. Sin diagnósticos, sin fármacos ni dosis. NO revisado por un médico: ver investigacion/triaje-validado.md.",
+ "sources": {
+  "cpr_microgravity": {
+   "title": "Hinkelbein et al. 2020, CPR in microgravity guideline (DGLRM / ESAM-SMG), Scand J Trauma Resusc Emerg Med 28:108",
+   "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7607644/",
+   "kind": "peer-reviewed guideline"
+  },
+  "acls_iss": {
+   "title": "Hurst et al., Evaluating ACLS algorithms for the ISS (NASA NTRS 20070030123)",
+   "url": "https://ntrs.nasa.gov/citations/20070030123",
+   "kind": "NASA"
+  },
+  "code_blue": {
+   "title": "Bacal & Redmond, Code Blue On Orbit (NASA NTRS 20110011323)",
+   "url": "https://ntrs.nasa.gov/citations/20110011323",
+   "kind": "NASA"
+  },
+  "std3001_v1": {
+   "title": "NASA-STD-3001 Vol. 1 Rev C [V1 3006]: at least two Crew Medical Officers per vehicle",
+   "url": "https://standards.nasa.gov/sites/default/files/standards/NASA/C//nasa-std-3001-vol-1-rev-c-signature.pdf",
+   "kind": "NASA"
+  },
+  "ochmo_tb033": {
+   "title": "NASA OCHMO-TB-033 Rev C, Spaceflight Experience and Medical Care",
+   "url": "https://www.nasa.gov/wp-content/uploads/2023/07/ochmo-tb-033-spaceflight-experience-medical-care-rev-c.pdf",
+   "kind": "NASA"
+  },
+  "hrp_cardiac": {
+   "title": "NASA HRP Evidence Report, Risk of Cardiac Rhythm Problems During Spaceflight (NTRS 20170005625)",
+   "url": "https://ntrs.nasa.gov/citations/20170005625",
+   "kind": "NASA"
+  },
+  "co2_tb004": {
+   "title": "NASA OCHMO-TB-004 Rev D, Carbon Dioxide",
+   "url": "https://www.nasa.gov/wp-content/uploads/2023/12/ochmo-tb-004-carbon-dioxide.pdf",
+   "kind": "NASA"
+  },
+  "sleep_barger": {
+   "title": "Barger et al. 2014, Lancet Neurology: sleep in spaceflight (6.09 h/night on ISS)",
+   "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4188436/",
+   "kind": "peer-reviewed"
+  },
+  "erc_bls_2021": {
+   "title": "Olasveengen et al., European Resuscitation Council Guidelines 2021: Basic Life Support, Resuscitation 161:98-114",
+   "url": "https://doi.org/10.1016/j.resuscitation.2021.02.009",
+   "kind": "peer-reviewed guideline"
+  },
+  "hrp_risks": {
+   "title": "NASA HRP, Risks of Human Spaceflight (Resources tab)",
+   "url": "https://www.nasa.gov/hrp/risks/",
+   "kind": "NASA (challenge resource)"
+  }
+ },
+ "flows": {
+  "companion_collapse": {
+   "title_en": "A crewmate collapses with chest pain",
+   "title_es": "Un compañero se desploma con dolor torácico",
+   "start": "c1",
+   "nodes": {
+    "c1": {
+     "type": "question",
+     "text_en": "Does your crewmate respond when you speak to them or gently shake their shoulders?",
+     "text_es": "¿Tu compañero responde si le hablas o le sacudes suavemente los hombros?",
+     "why_en": "Responsiveness decides the path. Early recognition and calling for help start the chain of survival.",
+     "why_es": "Saber si responde decide el camino. Reconocer pronto y pedir ayuda abre la cadena de supervivencia.",
+     "options": [
+      {
+       "id": "si",
+       "label_en": "Yes",
+       "label_es": "Sí",
+       "next": "c2r"
+      },
+      {
+       "id": "no",
+       "label_en": "No",
+       "label_es": "No",
+       "next": "c2"
+      }
+     ],
+     "say_en": "Does your crewmate respond when you speak to them or gently shake their shoulders?",
+     "say_es": "¿Tu compañero responde si le hablas o le sacudes suavemente los hombros?",
+     "sources": [
+      "cpr_microgravity",
+      "erc_bls_2021"
+     ],
+     "escalate": false
+    },
+    "c2": {
+     "type": "question",
+     "text_en": "Is he breathing normally? Watch his chest for up to 10 seconds.",
+     "text_es": "¿Respira con normalidad? Mírale el pecho hasta 10 segundos.",
+     "why_en": "In basic life support, someone who does not respond and is not breathing normally is treated as cardiac arrest. Occasional gasps are not normal breathing.",
+     "why_es": "En soporte vital básico, quien no responde y no respira con normalidad se trata como parada cardiaca. Las boqueadas no son respiración normal.",
+     "options": [
+      {
+       "id": "si",
+       "label_en": "Yes, normally",
+       "label_es": "Sí, con normalidad",
+       "next": "c3b"
+      },
+      {
+       "id": "no",
+       "label_en": "No, or only gasping",
+       "label_es": "No, o solo boquea",
+       "next": "c3"
+      }
+     ],
+     "say_en": "Is he breathing normally? Watch his chest for up to ten seconds.",
+     "say_es": "¿Respira con normalidad? Mírale el pecho hasta diez segundos.",
+     "sources": [
+      "erc_bls_2021",
+      "cpr_microgravity"
+     ],
+     "escalate": true
+    },
+    "c2r": {
+     "type": "question",
+     "text_en": "Is he breathing normally?",
+     "text_es": "¿Respira con normalidad?",
+     "why_en": "Normal breathing lets you keep assessing; difficulty breathing is an emergency even if he responds.",
+     "why_es": "Si respira con normalidad puedes seguir valorando; si le cuesta respirar es una emergencia aunque responda.",
+     "options": [
+      {
+       "id": "si",
+       "label_en": "Yes",
+       "label_es": "Sí",
+       "next": "c4"
+      },
+      {
+       "id": "no",
+       "label_en": "No, or struggling",
+       "label_es": "No o con dificultad",
+       "next": "c3r"
+      }
+     ],
+     "say_en": "Is he breathing normally?",
+     "say_es": "¿Respira con normalidad?",
+     "sources": [
+      "erc_bls_2021",
+      "ochmo_tb033"
+     ],
+     "escalate": false
+    },
+    "c3b": {
+     "type": "result",
+     "level": "rojo",
+     "title_en": "Unresponsive but breathing: secure him, watch his breathing, call the CMO",
+     "title_es": "No responde pero respira: sujétalo, vigila su respiración y llama al CMO",
+     "steps_en": [
+      "Call out for help now: alert the whole crew and your Crew Medical Officer (CMO).",
+      "Secure him in a stable position with his airway open, using the restraints you trained with.",
+      "Keep watching his breathing. If it stops or becomes gasping, start chest compressions and get the AED.",
+      "Notify the flight surgeon. With a delay of minutes, do not wait for an answer to act."
+     ],
+     "steps_es": [
+      "Pide ayuda ya: avisa a toda la tripulación y a tu oficial médico de tripulación (CMO).",
+      "Sujétalo en una postura estable con la vía aérea abierta, con las sujeciones que entrenaste.",
+      "Vigila su respiración sin parar. Si deja de respirar o solo boquea, empieza las compresiones y trae el DEA.",
+      "Avisa al cirujano de vuelo. Con un retraso de minutos, no esperes su respuesta para actuar."
+     ],
+     "surgeon_summary_en": "Crewmate collapsed, unresponsive, breathing normally. Secured and monitored; CMO called.",
+     "surgeon_summary_es": "Compañero desplomado, sin respuesta, respira con normalidad. Sujeto y vigilado; se avisó al CMO.",
+     "say_en": "He's breathing. Keep him secured and keep watching his chest. I'm calling the medical officer.",
+     "say_es": "Respira. Mantenlo sujeto y no dejes de mirarle el pecho. Aviso al oficial médico.",
+     "sources": [
+      "erc_bls_2021",
+      "cpr_microgravity",
+      "std3001_v1"
+     ],
+     "escalate": true,
+     "warning_en": "Prototype guidance. Steps are anchored to the cited sources but have NOT been reviewed by a physician. Follow your approved onboard medical procedures and your CMO.",
+     "warning_es": "Guía de prototipo. Los pasos se apoyan en las fuentes citadas pero NO los ha revisado un médico. Sigue los procedimientos médicos aprobados de a bordo y a tu CMO."
+    },
+    "c3r": {
+     "type": "result",
+     "level": "rojo",
+     "title_en": "Responsive but struggling to breathe: call the CMO now, AED ready",
+     "title_es": "Responde pero le cuesta respirar: llama ya al CMO, con el DEA preparado",
+     "steps_en": [
+      "Call your Crew Medical Officer (CMO) now and alert the crew.",
+      "Do not start chest compressions: he is responding.",
+      "Bring the AED and the emergency kit next to him, ready in case he stops responding.",
+      "Stay with him and keep watching his breathing. If he stops responding and is not breathing normally, restart this checklist.",
+      "Medication only as directed by your CMO or flight surgeon, from the onboard medical checklist. Metis does not suggest drugs or doses."
+     ],
+     "steps_es": [
+      "Llama ya a tu oficial médico de tripulación (CMO) y avisa a la tripulación.",
+      "No empieces compresiones: está respondiendo.",
+      "Trae el DEA y el botiquín de emergencia a su lado, preparados por si deja de responder.",
+      "Quédate con él y vigila su respiración. Si deja de responder y no respira con normalidad, vuelve a empezar esta lista.",
+      "Medicación solo si la indica tu CMO o el cirujano de vuelo, según la lista médica de a bordo. Metis no propone fármacos ni dosis."
+     ],
+     "surgeon_summary_en": "Crewmate collapsed, responsive, breathing abnormally. CMO called, AED ready, no compressions.",
+     "surgeon_summary_es": "Compañero desplomado, responde, respira con dificultad. Se avisó al CMO, DEA preparado, sin compresiones.",
+     "say_en": "He's responding, so no compressions. I'm calling the medical officer. Keep the AED ready and stay with him.",
+     "say_es": "Responde, así que nada de compresiones. Llamo al oficial médico. Ten el DEA preparado y quédate con él.",
+     "sources": [
+      "erc_bls_2021",
+      "cpr_microgravity",
+      "ochmo_tb033"
+     ],
+     "escalate": true,
+     "warning_en": "Prototype guidance. Steps are anchored to the cited sources but have NOT been reviewed by a physician. Follow your approved onboard medical procedures and your CMO.",
+     "warning_es": "Guía de prototipo. Los pasos se apoyan en las fuentes citadas pero NO los ha revisado un médico. Sigue los procedimientos médicos aprobados de a bordo y a tu CMO."
+    },
+    "c4": {
+     "type": "question",
+     "text_en": "Are they complaining of chest pain or pressure right now?",
+     "text_es": "¿Se queja ahora de dolor u opresión en el pecho?",
+     "why_en": "Active chest pain raises the priority.",
+     "why_es": "El dolor torácico activo sube la prioridad.",
+     "options": [
+      {
+       "id": "si",
+       "label_en": "Yes",
+       "label_es": "Sí",
+       "next": "c5"
+      },
+      {
+       "id": "no",
+       "label_en": "No",
+       "label_es": "No",
+       "next": "c6"
+      }
+     ],
+     "say_en": "Are they complaining of chest pain or pressure right now?",
+     "say_es": "¿Se queja ahora de dolor u opresión en el pecho?",
+     "sources": [
+      "ochmo_tb033"
+     ],
+     "escalate": false
+    },
+    "c5": {
+     "type": "question",
+     "text_en": "Cold sweat, pale skin, or pain spreading to the arm or jaw?",
+     "text_es": "¿Sudor frío, palidez o dolor que se extiende al brazo o a la mandíbula?",
+     "why_en": "Warning signs that are passed on to the CMO and the flight surgeon.",
+     "why_es": "Signos de alarma que se transmiten al CMO y al cirujano de vuelo.",
+     "options": [
+      {
+       "id": "si",
+       "label_en": "Yes",
+       "label_es": "Sí",
+       "next": "c7"
+      },
+      {
+       "id": "no",
+       "label_en": "No",
+       "label_es": "No",
+       "next": "c8"
+      }
+     ],
+     "say_en": "Cold sweat, pale skin, or pain spreading to the arm or jaw?",
+     "say_es": "¿Sudor frío, palidez o dolor que se extiende al brazo o a la mandíbula?",
+     "sources": [
+      "ochmo_tb033"
+     ],
+     "escalate": false
+    },
+    "c6": {
+     "type": "result",
+     "level": "naranja",
+     "title_en": "Rest, monitor and notify the CMO",
+     "title_es": "Reposo, vigilancia y aviso al CMO",
+     "steps_en": [
+      "Have them rest, secured in a comfortable position.",
+      "Recheck pulse and breathing every 5 minutes and log them with the time.",
+      "Stay with him and inform the CMO; Metis queues a summary for the flight surgeon."
+     ],
+     "steps_es": [
+      "Que descanse, sujeto en una postura cómoda.",
+      "Repite pulso y respiración cada 5 minutos y anótalos con la hora.",
+      "Quédate con él e informa al CMO; Metis deja en cola un resumen para el cirujano de vuelo."
+     ],
+     "surgeon_summary_en": "Transient collapse, now without chest pain. Rest and monitoring.",
+     "surgeon_summary_es": "Colapso transitorio, ahora sin dolor torácico. Reposo y vigilancia.",
+     "say_en": "Okay. Let him rest and stay with him. I'm letting the medical officer know.",
+     "say_es": "De acuerdo. Que descanse y quédate con él. Aviso al oficial médico.",
+     "sources": [
+      "ochmo_tb033",
+      "hrp_cardiac"
+     ],
+     "escalate": true,
+     "warning_en": "Prototype guidance. Steps are anchored to the cited sources but have NOT been reviewed by a physician. Follow your approved onboard medical procedures and your CMO.",
+     "warning_es": "Guía de prototipo. Los pasos se apoyan en las fuentes citadas pero NO los ha revisado un médico. Sigue los procedimientos médicos aprobados de a bordo y a tu CMO."
+    },
+    "c7": {
+     "type": "result",
+     "level": "rojo",
+     "title_en": "High priority: full rest and immediate call to the CMO and flight surgeon",
+     "title_es": "Prioridad alta: reposo absoluto y aviso inmediato al CMO y al cirujano de vuelo",
+     "steps_en": [
+      "Full rest, comfortable position, never leave them alone.",
+      "Call the CMO now. Keep the AED and emergency kit next to you.",
+      "Measure pulse and breathing and log them with the time.",
+      "Medication only as directed by your CMO or flight surgeon, from the onboard medical checklist. Metis does not suggest drugs or doses."
+     ],
+     "steps_es": [
+      "Reposo absoluto, postura cómoda, no le dejes solo.",
+      "Llama ya al CMO. Ten a mano el DEA y el botiquín de emergencia.",
+      "Mide pulso y respiración y anótalos con la hora.",
+      "Medicación solo si la indica tu CMO o el cirujano de vuelo, según la lista médica de a bordo. Metis no propone fármacos ni dosis."
+     ],
+     "surgeon_summary_en": "Chest pain with warning signs after a collapse. CMO called; summary sent to the flight surgeon.",
+     "surgeon_summary_es": "Dolor torácico con signos de alarma tras un colapso. Se avisó al CMO; resumen enviado al cirujano de vuelo.",
+     "say_en": "Stay with them. I'm calling the medical officer and sending a summary to the flight surgeon.",
+     "say_es": "Quédate con él. Llamo al oficial médico y envío un resumen al cirujano de vuelo.",
+     "sources": [
+      "ochmo_tb033",
+      "std3001_v1",
+      "cpr_microgravity"
+     ],
+     "escalate": true,
+     "warning_en": "Prototype guidance. Steps are anchored to the cited sources but have NOT been reviewed by a physician. Follow your approved onboard medical procedures and your CMO.",
+     "warning_es": "Guía de prototipo. Los pasos se apoyan en las fuentes citadas pero NO los ha revisado un médico. Sigue los procedimientos médicos aprobados de a bordo y a tu CMO."
+    },
+    "c8": {
+     "type": "result",
+     "level": "naranja",
+     "title_en": "Rest, monitor and notify the flight surgeon",
+     "title_es": "Reposo, vigilancia y aviso al cirujano de vuelo",
+     "steps_en": [
+      "Rest and constant company.",
+      "Recheck pulse and breathing every 5 minutes.",
+      "Inform the CMO; Metis prepares the summary for the flight surgeon.",
+      "Medication only as directed by your CMO or flight surgeon, from the onboard medical checklist. Metis does not suggest drugs or doses."
+     ],
+     "steps_es": [
+      "Reposo y compañía constante.",
+      "Repite pulso y respiración cada 5 minutos.",
+      "Informa al CMO; Metis prepara el resumen para el cirujano de vuelo.",
+      "Medicación solo si la indica tu CMO o el cirujano de vuelo, según la lista médica de a bordo. Metis no propone fármacos ni dosis."
+     ],
+     "surgeon_summary_en": "Chest pain after a collapse, no additional warning signs.",
+     "surgeon_summary_es": "Dolor torácico tras un colapso, sin otros signos de alarma.",
+     "say_en": "Keep them resting and stay close. I'm preparing the summary for the flight surgeon.",
+     "say_es": "Que siga en reposo y quédate cerca. Preparo el resumen para el cirujano de vuelo.",
+     "sources": [
+      "ochmo_tb033",
+      "hrp_cardiac"
+     ],
+     "escalate": true,
+     "warning_en": "Prototype guidance. Steps are anchored to the cited sources but have NOT been reviewed by a physician. Follow your approved onboard medical procedures and your CMO.",
+     "warning_es": "Guía de prototipo. Los pasos se apoyan en las fuentes citadas pero NO los ha revisado un médico. Sigue los procedimientos médicos aprobados de a bordo y a tu CMO."
+    },
+    "c3": {
+     "type": "result",
+     "level": "rojo",
+     "title_en": "Not responding, not breathing normally: start CPR and get the AED",
+     "title_es": "No responde y no respira con normalidad: empieza la RCP y trae el DEA",
+     "steps_en": [
+      "Call out for help now: alert the whole crew and your Crew Medical Officer (CMO).",
+      "Start chest compressions with the method you trained. The microgravity CPR guideline recommends the Evetts-Russomano method for immediate basic life support.",
+      "Have a crewmate bring the AED. Use it only once your crewmate is restrained on an electrically isolated surface (Crew Medical Restraint System).",
+      "Notify the flight surgeon. With a delay of minutes, do not wait for an answer to act."
+     ],
+     "steps_es": [
+      "Pide ayuda ya: avisa a toda la tripulación y a tu oficial médico de tripulación (CMO).",
+      "Empieza compresiones torácicas con el método que entrenaste. La guía de RCP en microgravedad recomienda el método Evetts-Russomano para el soporte vital básico inmediato.",
+      "Que un compañero traiga el desfibrilador (DEA). Úsalo solo cuando tu compañero esté sujeto sobre una superficie aislada eléctricamente (sistema de sujeción médica).",
+      "Avisa al cirujano de vuelo. Con un retraso de minutos, no esperes su respuesta para actuar."
+     ],
+     "surgeon_summary_en": "Crewmate collapsed, unresponsive and not breathing normally. Non-medical crewmember guided step by step by Metis; CPR and AED per onboard procedure.",
+     "surgeon_summary_es": "Compañero desplomado, sin respuesta y sin respiración normal. Metis guio paso a paso a un tripulante no médico; RCP y DEA según el procedimiento de a bordo.",
+     "say_en": "This is an emergency. Call the crew now. Start chest compressions the way you trained. I'm alerting the flight surgeon.",
+     "say_es": "Es una emergencia. Avisa a la tripulación ya. Empieza las compresiones como entrenaste. Aviso al cirujano de vuelo.",
+     "sources": [
+      "cpr_microgravity",
+      "erc_bls_2021",
+      "code_blue",
+      "acls_iss",
+      "std3001_v1"
+     ],
+     "escalate": true,
+     "warning_en": "Prototype guidance. Steps are anchored to the cited sources but have NOT been reviewed by a physician. Follow your approved onboard medical procedures and your CMO.",
+     "warning_es": "Guía de prototipo. Los pasos se apoyan en las fuentes citadas pero NO los ha revisado un médico. Sigue los procedimientos médicos aprobados de a bordo y a tu CMO."
+    }
+   }
+  },
+  "self_chest_pressure": {
+   "title_en": "I feel pressure in my chest",
+   "title_es": "Noto presión en el pecho",
+   "start": "s1",
+   "nodes": {
+    "s1": {
+     "type": "question",
+     "text_en": "Is the pressure strong right now?",
+     "text_es": "¿La presión es intensa ahora mismo?",
+     "why_en": "Current intensity.",
+     "why_es": "Intensidad actual.",
+     "options": [
+      {
+       "id": "si",
+       "label_en": "Yes",
+       "label_es": "Sí",
+       "next": "s2"
+      },
+      {
+       "id": "no",
+       "label_en": "No",
+       "label_es": "No",
+       "next": "s3"
+      }
+     ],
+     "say_en": "Is the pressure strong right now?",
+     "say_es": "¿La presión es intensa ahora mismo?",
+     "sources": [
+      "ochmo_tb033"
+     ],
+     "escalate": false
+    },
+    "s2": {
+     "type": "question",
+     "text_en": "Is it hard to breathe, or do you have a cold sweat?",
+     "text_es": "¿Te cuesta respirar o notas sudor frío?",
+     "why_en": "Warning signs.",
+     "why_es": "Signos de alarma.",
+     "options": [
+      {
+       "id": "si",
+       "label_en": "Yes",
+       "label_es": "Sí",
+       "next": "s6"
+      },
+      {
+       "id": "no",
+       "label_en": "No",
+       "label_es": "No",
+       "next": "s9"
+      }
+     ],
+     "say_en": "Is it hard to breathe, or do you have a cold sweat?",
+     "say_es": "¿Te cuesta respirar o notas sudor frío?",
+     "sources": [
+      "ochmo_tb033"
+     ],
+     "escalate": false
+    },
+    "s3": {
+     "type": "question",
+     "text_en": "How long has it lasted?",
+     "text_es": "¿Cuánto tiempo lleva así?",
+     "why_en": "Duration.",
+     "why_es": "Duración.",
+     "options": [
+      {
+       "id": "lt10",
+       "label_en": "Less than 10 minutes",
+       "label_es": "Menos de 10 minutos",
+       "next": "s4"
+      },
+      {
+       "id": "gt10",
+       "label_en": "More than 10 minutes",
+       "label_es": "Más de 10 minutos",
+       "next": "s5"
+      }
+     ],
+     "say_en": "How long has it lasted?",
+     "say_es": "¿Cuánto tiempo lleva así?",
+     "sources": [
+      "ochmo_tb033"
+     ],
+     "escalate": false
+    },
+    "s4": {
+     "type": "question",
+     "text_en": "Have you slept less than 6 hours the last few nights?",
+     "text_es": "¿Has dormido menos de 6 horas las últimas noches?",
+     "why_en": "Cross-checks with your sleep trend. Average sleep on the ISS is about 6 hours a night.",
+     "why_es": "Se cruza con tu tendencia de sueño. En la ISS se duerme de media unas 6 horas por noche.",
+     "options": [
+      {
+       "id": "si",
+       "label_en": "Yes",
+       "label_es": "Sí",
+       "next": "s7"
+      },
+      {
+       "id": "no",
+       "label_en": "No",
+       "label_es": "No",
+       "next": "s8"
+      }
+     ],
+     "say_en": "Have you slept less than 6 hours the last few nights?",
+     "say_es": "¿Has dormido menos de 6 horas las últimas noches?",
+     "sources": [
+      "sleep_barger"
+     ],
+     "escalate": false
+    },
+    "s5": {
+     "type": "question",
+     "text_en": "Does it spread to your arm, jaw or back?",
+     "text_es": "¿Se extiende al brazo, la mandíbula o la espalda?",
+     "why_en": "Location.",
+     "why_es": "Localización.",
+     "options": [
+      {
+       "id": "si",
+       "label_en": "Yes",
+       "label_es": "Sí",
+       "next": "s6"
+      },
+      {
+       "id": "no",
+       "label_en": "No",
+       "label_es": "No",
+       "next": "s8"
+      }
+     ],
+     "say_en": "Does it spread to your arm, jaw or back?",
+     "say_es": "¿Se extiende al brazo, la mandíbula o la espalda?",
+     "sources": [
+      "ochmo_tb033"
+     ],
+     "escalate": false
+    },
+    "s6": {
+     "type": "result",
+     "level": "rojo",
+     "title_en": "High priority: alert a crewmate and the CMO now",
+     "title_es": "Prioridad alta: avisa ya a un compañero y al CMO",
+     "steps_en": [
+      "Stop what you are doing and rest, secured.",
+      "Alert a crewmate and your CMO now. Metis is calling them too.",
+      "Metis sends a summary to the flight surgeon.",
+      "Medication only as directed by your CMO or flight surgeon, from the onboard medical checklist. Metis does not suggest drugs or doses."
+     ],
+     "steps_es": [
+      "Para lo que estés haciendo y descansa, sujeto.",
+      "Avisa ya a un compañero y a tu CMO. Metis también les avisa.",
+      "Metis envía un resumen al cirujano de vuelo.",
+      "Medicación solo si la indica tu CMO o el cirujano de vuelo, según la lista médica de a bordo. Metis no propone fármacos ni dosis."
+     ],
+     "surgeon_summary_en": "Chest pressure with warning signs, reported by the crewmember.",
+     "surgeon_summary_es": "Presión torácica con signos de alarma referida por el propio tripulante.",
+     "say_en": "Stop and rest. I'm calling your medical officer and a crewmate right now.",
+     "say_es": "Para y descansa. Aviso ahora mismo a tu oficial médico y a un compañero.",
+     "sources": [
+      "ochmo_tb033",
+      "std3001_v1"
+     ],
+     "escalate": true,
+     "warning_en": "Prototype guidance. Steps are anchored to the cited sources but have NOT been reviewed by a physician. Follow your approved onboard medical procedures and your CMO.",
+     "warning_es": "Guía de prototipo. Los pasos se apoyan en las fuentes citadas pero NO los ha revisado un médico. Sigue los procedimientos médicos aprobados de a bordo y a tu CMO."
+    },
+    "s9": {
+     "type": "result",
+     "level": "naranja",
+     "title_en": "Strong chest pressure: stop, rest and call your CMO now",
+     "title_es": "Presión torácica intensa: para, descansa y llama ya a tu CMO",
+     "steps_en": [
+      "Stop what you are doing and rest, secured.",
+      "Call your CMO now and tell a crewmate. Metis is alerting them too.",
+      "If it gets worse, you feel short of breath or a cold sweat, say so: Metis raises the priority.",
+      "Medication only as directed by your CMO or flight surgeon, from the onboard medical checklist. Metis does not suggest drugs or doses."
+     ],
+     "steps_es": [
+      "Para lo que estés haciendo y descansa, sujeto.",
+      "Llama ya a tu CMO y avisa a un compañero. Metis también les avisa.",
+      "Si empeora, te falta el aire o notas sudor frío, dilo: Metis sube la prioridad.",
+      "Medicación solo si la indica tu CMO o el cirujano de vuelo, según la lista médica de a bordo. Metis no propone fármacos ni dosis."
+     ],
+     "surgeon_summary_en": "Strong chest pressure without breathing difficulty or cold sweat, reported by the crewmember. CMO alerted.",
+     "surgeon_summary_es": "Presión torácica intensa sin dificultad respiratoria ni sudor frío, referida por el tripulante. Se avisó al CMO.",
+     "say_en": "Strong pressure needs your medical officer now. Stop and rest; I'm calling them.",
+     "say_es": "Una presión intensa necesita a tu oficial médico ya. Para y descansa; le aviso.",
+     "sources": [
+      "ochmo_tb033",
+      "std3001_v1"
+     ],
+     "escalate": true,
+     "warning_en": "Prototype guidance. Steps are anchored to the cited sources but have NOT been reviewed by a physician. Follow your approved onboard medical procedures and your CMO.",
+     "warning_es": "Guía de prototipo. Los pasos se apoyan en las fuentes citadas pero NO los ha revisado un médico. Sigue los procedimientos médicos aprobados de a bordo y a tu CMO."
+    },
+    "s7": {
+     "type": "result",
+     "level": "amarillo",
+     "title_en": "Possible link to sleep and cabin air: rest and recheck",
+     "title_es": "Posible relación con el sueño y el aire de cabina: descansa y repite medidas",
+     "steps_en": [
+      "Rest 10 minutes and recheck your pulse.",
+      "Review your sleep and CO2 trend with Metis.",
+      "If it gets worse, restart the triage or call your CMO."
+     ],
+     "steps_es": [
+      "Descansa 10 minutos y vuelve a tomarte el pulso.",
+      "Revisa con Metis tu tendencia de sueño y CO2.",
+      "Si empeora, repite el triaje o llama a tu CMO."
+     ],
+     "surgeon_summary_en": "Mild chest pressure with reduced sleep and elevated night-time CO2 (simulated data).",
+     "surgeon_summary_es": "Presión torácica leve con sueño reducido y CO2 nocturno elevado (datos simulados).",
+     "say_en": "Let's rest for ten minutes and check again. Your short nights and the bunk air may be part of this.",
+     "say_es": "Descansemos diez minutos y volvemos a medir. Tus noches cortas y el aire de la litera pueden influir.",
+     "sources": [
+      "sleep_barger",
+      "co2_tb004"
+     ],
+     "escalate": false,
+     "warning_en": "Prototype guidance. Steps are anchored to the cited sources but have NOT been reviewed by a physician. Follow your approved onboard medical procedures and your CMO.",
+     "warning_es": "Guía de prototipo. Los pasos se apoyan en las fuentes citadas pero NO los ha revisado un médico. Sigue los procedimientos médicos aprobados de a bordo y a tu CMO."
+    },
+    "s8": {
+     "type": "result",
+     "level": "naranja",
+     "title_en": "Rest, monitor and scheduled note to the flight surgeon",
+     "title_es": "Reposo, vigilancia y aviso programado al cirujano de vuelo",
+     "steps_en": [
+      "Rest and recheck in 15 minutes.",
+      "Log your symptoms with the time.",
+      "Inform your CMO; Metis queues the summary for the flight surgeon."
+     ],
+     "steps_es": [
+      "Descansa y repite medidas en 15 minutos.",
+      "Anota tus síntomas con la hora.",
+      "Informa a tu CMO; Metis deja en cola el resumen para el cirujano de vuelo."
+     ],
+     "surgeon_summary_en": "Chest pressure without reported warning signs.",
+     "surgeon_summary_es": "Presión torácica sin signos de alarma referidos.",
+     "say_en": "Rest for now. I'll check on you in fifteen minutes and let the flight surgeon know.",
+     "say_es": "Descansa de momento. Te pregunto en quince minutos y aviso al cirujano de vuelo.",
+     "sources": [
+      "ochmo_tb033",
+      "hrp_cardiac"
+     ],
+     "escalate": true,
+     "warning_en": "Prototype guidance. Steps are anchored to the cited sources but have NOT been reviewed by a physician. Follow your approved onboard medical procedures and your CMO.",
+     "warning_es": "Guía de prototipo. Los pasos se apoyan en las fuentes citadas pero NO los ha revisado un médico. Sigue los procedimientos médicos aprobados de a bordo y a tu CMO."
+    }
+   }
+  }
+ }
+}

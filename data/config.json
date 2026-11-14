@@ -1,0 +1,230 @@
+{
+  "_nota": "Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026. Parámetros de los datos SIMULADOS anclados a valores publicados. Cada valor lleva su fuente; los que no tienen fuente están marcados como supuesto (verified:false en 'catalog'). Fuente de las cifras: investigacion/umbrales-nasa-verificados.md.",
+  "seed": 20261114,
+  "days": 30,
+  "start_date": "2026-10-14",
+  "mission_day_last": 112,
+  "drift_nights": 3,
+  "crew": {
+    "lena": {
+      "name": "Lena",
+      "role": "Ingeniera de vuelo (ficticia)",
+      "fictional": true,
+      "resting_hr_bpm": {
+        "mean": 58,
+        "sd": 2.0,
+        "drift": 9,
+        "source": "Anclado a Hughson et al. 2017 (PMC5792103), FC en vuelo 60.0 ± 10.6 lpm, supina pre-vuelo 55.2 ± 8.4 (n=9). La media individual es simulada."
+      },
+      "hrv_ms": {
+        "mean": 62,
+        "sd": 5.0,
+        "drift": -14,
+        "source": "SUPUESTO: no hay valor de HRV en ms de astronautas en fuente abierta verificada; serie sintética."
+      },
+      "sleep_h": {
+        "mean": 6.1,
+        "sd": 0.35,
+        "drift": -1.2,
+        "source": "Anclado a Barger et al. 2014 (PMC4188436), sueño en ISS 6.09 ± 0.67 h/noche. La media individual es simulada."
+      },
+      "co2_night_peak_mmhg": {
+        "mean": 2.1,
+        "sd": 0.25,
+        "drift": 1.0,
+        "source": "Anclado a OCHMO-TB-004 Rev D: límite de diseño 3 mmHg (media 1 h, NASA-STD-3001 Vol. 2 [V2 6004]); media 7 d < 2.5 mmHg para riesgo de cefalea < 1 %. El pico nocturno de la litera es simulado."
+      },
+      "mood_1_5": {
+        "mean": 3.8,
+        "sd": 0.5,
+        "drift": -1.3,
+        "source": "supuesto del prototipo"
+      },
+      "role_en": "Flight engineer (fictional)"
+    },
+    "marco": {
+      "name": "Marco",
+      "role": "Tripulante no médico (ficticio)",
+      "fictional": true,
+      "resting_hr_bpm": {
+        "mean": 62,
+        "sd": 2.5,
+        "drift": 0,
+        "source": "Anclado a Hughson et al. 2017 (PMC5792103), FC en vuelo 60.0 ± 10.6 lpm, supina pre-vuelo 55.2 ± 8.4 (n=9). La media individual es simulada."
+      },
+      "hrv_ms": {
+        "mean": 55,
+        "sd": 5.0,
+        "drift": 0,
+        "source": "SUPUESTO: no hay valor de HRV en ms de astronautas en fuente abierta verificada; serie sintética."
+      },
+      "sleep_h": {
+        "mean": 6.4,
+        "sd": 0.4,
+        "drift": 0,
+        "source": "Anclado a Barger et al. 2014 (PMC4188436), sueño en ISS 6.09 ± 0.67 h/noche. La media individual es simulada."
+      },
+      "co2_night_peak_mmhg": {
+        "mean": 1.9,
+        "sd": 0.25,
+        "drift": 0,
+        "source": "Anclado a OCHMO-TB-004 Rev D: límite de diseño 3 mmHg (media 1 h, NASA-STD-3001 Vol. 2 [V2 6004]); media 7 d < 2.5 mmHg para riesgo de cefalea < 1 %. El pico nocturno de la litera es simulado."
+      },
+      "mood_1_5": {
+        "mean": 4.0,
+        "sd": 0.5,
+        "drift": 0,
+        "source": "supuesto del prototipo"
+      },
+      "role_en": "Non-medical crewmember (fictional)"
+    }
+  },
+  "thresholds": {
+    "co2_limit_mmhg_1h_avg": {
+      "value": 3.0,
+      "source": "NASA-STD-3001 Vol. 2 Rev D [V2 6004], citado en NASA OCHMO-TB-004 Rev D (págs. 5, 6, 13): media de 1 h <= 3 mmHg. Verificado 2026-11-14."
+    },
+    "baseline_band_sd": {
+      "value": 2.0,
+      "source": "supuesto del prototipo: banda personal = media +/- 2 SD de los primeros 21 días"
+    },
+    "baseline_days": {
+      "value": 21,
+      "source": "supuesto del prototipo"
+    }
+  },
+  "catalog": [
+    {
+      "id": "co2_1h_limit",
+      "label_en": "Cabin CO2 design limit (1-hour average)",
+      "label_es": "Límite de diseño de CO2 en cabina (media de 1 h)",
+      "value": 3.0,
+      "unit": "mmHg",
+      "rule": "1-h average ppCO2 <= 3 mmHg (vehicle design limit, not an individual clinical threshold)",
+      "source_title": "NASA OCHMO-TB-004 Rev D, Carbon Dioxide (cites NASA-STD-3001 Vol. 2 Rev D [V2 6004])",
+      "source_url": "https://www.nasa.gov/wp-content/uploads/2023/12/ochmo-tb-004-carbon-dioxide.pdf",
+      "verified": true
+    },
+    {
+      "id": "co2_24h_iss_rule",
+      "label_en": "ISS flight rule (24-hour average)",
+      "label_es": "Regla de vuelo de la ISS (media de 24 h)",
+      "value": 3.0,
+      "unit": "mmHg",
+      "rule": "ISS has kept the 24-h average at or below 3.00 mmHg since the 2016 flight rule",
+      "source_title": "NASA OCHMO-TB-004 Rev D, Carbon Dioxide (cites NASA-STD-3001 Vol. 2 Rev D [V2 6004])",
+      "source_url": "https://www.nasa.gov/wp-content/uploads/2023/12/ochmo-tb-004-carbon-dioxide.pdf",
+      "verified": true
+    },
+    {
+      "id": "co2_7d_headache",
+      "label_en": "Early warning: 7-day average for <1% headache risk",
+      "label_es": "Aviso temprano: media de 7 días para riesgo de cefalea < 1 %",
+      "value": 2.5,
+      "unit": "mmHg",
+      "rule": "7-day average below 2.5 mmHg keeps headache risk below 1%",
+      "source_title": "NASA OCHMO-TB-004 Rev D, Carbon Dioxide (cites NASA-STD-3001 Vol. 2 Rev D [V2 6004])",
+      "source_url": "https://www.nasa.gov/wp-content/uploads/2023/12/ochmo-tb-004-carbon-dioxide.pdf",
+      "verified": true
+    },
+    {
+      "id": "co2_symptoms",
+      "label_en": "Symptoms reported (fatigue, malaise, decreased sleep, nausea)",
+      "label_es": "Síntomas descritos (fatiga, malestar, peor sueño, náuseas)",
+      "value": 4.5,
+      "unit": "mmHg",
+      "rule": "reported above 4.5 mmHg",
+      "source_title": "NASA OCHMO-TB-004 Rev D, Carbon Dioxide (cites NASA-STD-3001 Vol. 2 Rev D [V2 6004])",
+      "source_url": "https://www.nasa.gov/wp-content/uploads/2023/12/ochmo-tb-004-carbon-dioxide.pdf",
+      "verified": true
+    },
+    {
+      "id": "sleep_inflight_mean",
+      "label_en": "Average sleep on the ISS",
+      "label_es": "Sueño medio en la ISS",
+      "value": 6.09,
+      "unit": "h/night",
+      "rule": "6.09 ± 0.67 h (actigraphy, 21 ISS crewmembers)",
+      "source_title": "Barger et al. 2014, Lancet Neurology (PMC4188436)",
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4188436/",
+      "verified": true
+    },
+    {
+      "id": "sleep_recommended",
+      "label_en": "Recommended sleep",
+      "label_es": "Sueño recomendado",
+      "value": "7-9",
+      "unit": "h/night",
+      "rule": "recommended 7-9 h; astronauts average about 6 h in space",
+      "source_title": "NASA OCHMO-TB-041 Rev A, Sleep Accommodations",
+      "source_url": "https://www.nasa.gov/wp-content/uploads/2023/03/sleep-accomodations-technical-brief-ochmo.pdf",
+      "verified": true
+    },
+    {
+      "id": "hr_inflight",
+      "label_en": "Resting heart rate in flight (reference group)",
+      "label_es": "Pulso en reposo en vuelo (grupo de referencia)",
+      "value": 60.0,
+      "unit": "bpm",
+      "rule": "60.0 ± 10.6 bpm in flight; 55.2 ± 8.4 supine pre-flight; no pre vs in-flight difference (n=9)",
+      "source_title": "Hughson et al. 2017, J Appl Physiol, Table 1 (PMC5792103)",
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5792103/",
+      "verified": true
+    },
+    {
+      "id": "arrhythmia_confirm",
+      "label_en": "Arrhythmia confirmation needs ECG",
+      "label_es": "Confirmar una arritmia requiere ECG",
+      "value": "ECG",
+      "unit": "",
+      "rule": "heart-rate sensors can screen abnormal R-R intervals; confirmation requires ECG",
+      "source_title": "NASA HRP Evidence Report, Risk of Cardiac Rhythm Problems During Spaceflight (2017)",
+      "source_url": "https://ntrs.nasa.gov/citations/20170005625",
+      "verified": true
+    },
+    {
+      "id": "cmo_min",
+      "label_en": "Crew Medical Officers per vehicle (minimum)",
+      "label_es": "Oficiales médicos de tripulación por vehículo (mínimo)",
+      "value": 2,
+      "unit": "CMOs",
+      "rule": "train a minimum of two crewmembers per vehicle as CMOs",
+      "source_title": "NASA-STD-3001 Vol. 1 Rev C [V1 3006]",
+      "source_url": "https://standards.nasa.gov/sites/default/files/standards/NASA/C//nasa-std-3001-vol-1-rev-c-signature.pdf",
+      "verified": true
+    },
+    {
+      "id": "hrv_band",
+      "label_en": "Heart-rate variability band",
+      "label_es": "Banda de variabilidad cardiaca (HRV)",
+      "value": "synthetic",
+      "unit": "ms",
+      "rule": "no verified open in-flight HRV value; personal band only",
+      "source_title": "Metis prototype assumption (no published source)",
+      "source_url": "",
+      "verified": false
+    },
+    {
+      "id": "baseline_band_sd",
+      "label_en": "Personal baseline band",
+      "label_es": "Banda de la línea base personal",
+      "value": 2.0,
+      "unit": "SD",
+      "rule": "personal mean ± 2 SD of the first 21 days",
+      "source_title": "Metis prototype assumption (no published source)",
+      "source_url": "",
+      "verified": false
+    },
+    {
+      "id": "baseline_days",
+      "label_en": "Days to learn the personal baseline",
+      "label_es": "Días para aprender la línea base",
+      "value": 21,
+      "unit": "days",
+      "rule": "prototype choice",
+      "source_title": "Metis prototype assumption (no published source)",
+      "source_url": "",
+      "verified": false
+    }
+  ]
+}

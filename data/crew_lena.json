@@ -1,0 +1,677 @@
+{
+ "_note": "Datos SIMULADOS (tripulantes ficticios), semilla fija; ver config.json para fuentes de cada valor.",
+ "seed": 20261114,
+ "baseline_window": {
+  "start_day": 83,
+  "end_day": 103,
+  "days": 21,
+  "start_date": "2026-10-14",
+  "end_date": "2026-11-03",
+  "rule": "personal mean ± 2 SD over these days"
+ },
+ "co2_limit_mmhg": {
+  "value": 3.0,
+  "source": "NASA-STD-3001 Vol. 2 Rev D [V2 6004], citado en NASA OCHMO-TB-004 Rev D (págs. 5, 6, 13): media de 1 h <= 3 mmHg. Verificado 2026-11-14."
+ },
+ "crew": {
+  "lena": {
+   "id": "lena",
+   "name": "Lena",
+   "role": "Ingeniera de vuelo (ficticia)",
+   "role_en": "Flight engineer (fictional)",
+   "fictional": true,
+   "baseline": {
+    "resting_hr_bpm": {
+     "mean": 58.24,
+     "sd": 1.48,
+     "band_low": 55.28,
+     "band_high": 61.19
+    },
+    "hrv_ms": {
+     "mean": 63.1,
+     "sd": 3.22,
+     "band_low": 56.65,
+     "band_high": 69.54
+    },
+    "sleep_h": {
+     "mean": 6.05,
+     "sd": 0.39,
+     "band_low": 5.26,
+     "band_high": 6.83
+    },
+    "co2_night_peak_mmhg": {
+     "mean": 2.08,
+     "sd": 0.21,
+     "band_low": 1.66,
+     "band_high": 2.5
+    },
+    "mood_1_5": {
+     "mean": 3.86,
+     "sd": 0.47,
+     "band_low": 2.92,
+     "band_high": 4.79
+    }
+   },
+   "days": [
+    {
+     "date": "2026-10-14",
+     "mission_day": 83,
+     "resting_hr_bpm": 60.0,
+     "hrv_ms": 60.0,
+     "sleep_h": 7.3,
+     "co2_night_peak_mmhg": 2.1,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-15",
+     "mission_day": 84,
+     "resting_hr_bpm": 59.0,
+     "hrv_ms": 64.0,
+     "sleep_h": 5.8,
+     "co2_night_peak_mmhg": 2.06,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-16",
+     "mission_day": 85,
+     "resting_hr_bpm": 60.0,
+     "hrv_ms": 59.0,
+     "sleep_h": 5.9,
+     "co2_night_peak_mmhg": 1.68,
+     "mood_1_5": 3
+    },
+    {
+     "date": "2026-10-17",
+     "mission_day": 86,
+     "resting_hr_bpm": 57.0,
+     "hrv_ms": 58.0,
+     "sleep_h": 6.1,
+     "co2_night_peak_mmhg": 2.39,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-18",
+     "mission_day": 87,
+     "resting_hr_bpm": 58.0,
+     "hrv_ms": 64.0,
+     "sleep_h": 5.9,
+     "co2_night_peak_mmhg": 1.95,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-19",
+     "mission_day": 88,
+     "resting_hr_bpm": 58.0,
+     "hrv_ms": 60.0,
+     "sleep_h": 6.1,
+     "co2_night_peak_mmhg": 1.88,
+     "mood_1_5": 3
+    },
+    {
+     "date": "2026-10-20",
+     "mission_day": 89,
+     "resting_hr_bpm": 58.0,
+     "hrv_ms": 65.0,
+     "sleep_h": 5.9,
+     "co2_night_peak_mmhg": 2.23,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-21",
+     "mission_day": 90,
+     "resting_hr_bpm": 57.0,
+     "hrv_ms": 64.0,
+     "sleep_h": 5.6,
+     "co2_night_peak_mmhg": 2.23,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-22",
+     "mission_day": 91,
+     "resting_hr_bpm": 59.0,
+     "hrv_ms": 67.0,
+     "sleep_h": 6.1,
+     "co2_night_peak_mmhg": 2.3,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-23",
+     "mission_day": 92,
+     "resting_hr_bpm": 58.0,
+     "hrv_ms": 66.0,
+     "sleep_h": 5.7,
+     "co2_night_peak_mmhg": 1.88,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-24",
+     "mission_day": 93,
+     "resting_hr_bpm": 60.0,
+     "hrv_ms": 66.0,
+     "sleep_h": 6.1,
+     "co2_night_peak_mmhg": 2.08,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-25",
+     "mission_day": 94,
+     "resting_hr_bpm": 55.0,
+     "hrv_ms": 61.0,
+     "sleep_h": 5.7,
+     "co2_night_peak_mmhg": 1.8,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-26",
+     "mission_day": 95,
+     "resting_hr_bpm": 57.0,
+     "hrv_ms": 64.0,
+     "sleep_h": 6.1,
+     "co2_night_peak_mmhg": 2.34,
+     "mood_1_5": 3
+    },
+    {
+     "date": "2026-10-27",
+     "mission_day": 96,
+     "resting_hr_bpm": 56.0,
+     "hrv_ms": 61.0,
+     "sleep_h": 6.6,
+     "co2_night_peak_mmhg": 1.79,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-28",
+     "mission_day": 97,
+     "resting_hr_bpm": 57.0,
+     "hrv_ms": 63.0,
+     "sleep_h": 5.6,
+     "co2_night_peak_mmhg": 2.02,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-29",
+     "mission_day": 98,
+     "resting_hr_bpm": 59.0,
+     "hrv_ms": 58.0,
+     "sleep_h": 6.1,
+     "co2_night_peak_mmhg": 2.5,
+     "mood_1_5": 3
+    },
+    {
+     "date": "2026-10-30",
+     "mission_day": 99,
+     "resting_hr_bpm": 58.0,
+     "hrv_ms": 67.0,
+     "sleep_h": 6.6,
+     "co2_night_peak_mmhg": 2.11,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-31",
+     "mission_day": 100,
+     "resting_hr_bpm": 59.0,
+     "hrv_ms": 69.0,
+     "sleep_h": 5.9,
+     "co2_night_peak_mmhg": 1.9,
+     "mood_1_5": 5
+    },
+    {
+     "date": "2026-11-01",
+     "mission_day": 101,
+     "resting_hr_bpm": 60.0,
+     "hrv_ms": 63.0,
+     "sleep_h": 6.3,
+     "co2_night_peak_mmhg": 2.2,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-11-02",
+     "mission_day": 102,
+     "resting_hr_bpm": 57.0,
+     "hrv_ms": 59.0,
+     "sleep_h": 5.6,
+     "co2_night_peak_mmhg": 2.09,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-11-03",
+     "mission_day": 103,
+     "resting_hr_bpm": 61.0,
+     "hrv_ms": 67.0,
+     "sleep_h": 6.0,
+     "co2_night_peak_mmhg": 2.14,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-11-04",
+     "mission_day": 104,
+     "resting_hr_bpm": 55.0,
+     "hrv_ms": 64.0,
+     "sleep_h": 5.8,
+     "co2_night_peak_mmhg": 2.06,
+     "mood_1_5": 5
+    },
+    {
+     "date": "2026-11-05",
+     "mission_day": 105,
+     "resting_hr_bpm": 60.0,
+     "hrv_ms": 57.0,
+     "sleep_h": 6.5,
+     "co2_night_peak_mmhg": 1.92,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-11-06",
+     "mission_day": 106,
+     "resting_hr_bpm": 57.0,
+     "hrv_ms": 62.0,
+     "sleep_h": 5.8,
+     "co2_night_peak_mmhg": 2.3,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-11-07",
+     "mission_day": 107,
+     "resting_hr_bpm": 55.0,
+     "hrv_ms": 54.0,
+     "sleep_h": 6.3,
+     "co2_night_peak_mmhg": 2.18,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-11-08",
+     "mission_day": 108,
+     "resting_hr_bpm": 58.0,
+     "hrv_ms": 56.0,
+     "sleep_h": 6.1,
+     "co2_night_peak_mmhg": 2.06,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-11-09",
+     "mission_day": 109,
+     "resting_hr_bpm": 58.0,
+     "hrv_ms": 60.0,
+     "sleep_h": 6.4,
+     "co2_night_peak_mmhg": 2.42,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-11-10",
+     "mission_day": 110,
+     "resting_hr_bpm": 58.0,
+     "hrv_ms": 61.0,
+     "sleep_h": 5.6,
+     "co2_night_peak_mmhg": 2.05,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-11-11",
+     "mission_day": 111,
+     "resting_hr_bpm": 69.0,
+     "hrv_ms": 53.0,
+     "sleep_h": 5.4,
+     "co2_night_peak_mmhg": 2.72,
+     "mood_1_5": 2
+    },
+    {
+     "date": "2026-11-12",
+     "mission_day": 112,
+     "resting_hr_bpm": 66.0,
+     "hrv_ms": 39.0,
+     "sleep_h": 4.6,
+     "co2_night_peak_mmhg": 3.55,
+     "mood_1_5": 3
+    }
+   ],
+   "today_out_of_band": [
+    "resting_hr_bpm",
+    "hrv_ms",
+    "sleep_h",
+    "co2_night_peak_mmhg"
+   ],
+   "sources": {
+    "resting_hr_bpm": "Anclado a Hughson et al. 2017 (PMC5792103), FC en vuelo 60.0 ± 10.6 lpm, supina pre-vuelo 55.2 ± 8.4 (n=9). La media individual es simulada.",
+    "hrv_ms": "SUPUESTO: no hay valor de HRV en ms de astronautas en fuente abierta verificada; serie sintética.",
+    "sleep_h": "Anclado a Barger et al. 2014 (PMC4188436), sueño en ISS 6.09 ± 0.67 h/noche. La media individual es simulada.",
+    "co2_night_peak_mmhg": "Anclado a OCHMO-TB-004 Rev D: límite de diseño 3 mmHg (media 1 h, NASA-STD-3001 Vol. 2 [V2 6004]); media 7 d < 2.5 mmHg para riesgo de cefalea < 1 %. El pico nocturno de la litera es simulado.",
+    "mood_1_5": "supuesto del prototipo"
+   },
+   "baseline_window": {
+    "start_day": 83,
+    "end_day": 103,
+    "days": 21,
+    "start_date": "2026-10-14",
+    "end_date": "2026-11-03",
+    "rule": "personal mean ± 2 SD over these days"
+   }
+  },
+  "marco": {
+   "id": "marco",
+   "name": "Marco",
+   "role": "Tripulante no médico (ficticio)",
+   "role_en": "Non-medical crewmember (fictional)",
+   "fictional": true,
+   "baseline": {
+    "resting_hr_bpm": {
+     "mean": 62.1,
+     "sd": 2.22,
+     "band_low": 57.65,
+     "band_high": 66.54
+    },
+    "hrv_ms": {
+     "mean": 56.14,
+     "sd": 4.26,
+     "band_low": 47.63,
+     "band_high": 64.66
+    },
+    "sleep_h": {
+     "mean": 6.5,
+     "sd": 0.43,
+     "band_low": 5.64,
+     "band_high": 7.35
+    },
+    "co2_night_peak_mmhg": {
+     "mean": 1.94,
+     "sd": 0.27,
+     "band_low": 1.4,
+     "band_high": 2.49
+    },
+    "mood_1_5": {
+     "mean": 4.05,
+     "sd": 0.49,
+     "band_low": 3.08,
+     "band_high": 5.02
+    }
+   },
+   "days": [
+    {
+     "date": "2026-10-14",
+     "mission_day": 83,
+     "resting_hr_bpm": 63.0,
+     "hrv_ms": 50.0,
+     "sleep_h": 6.4,
+     "co2_night_peak_mmhg": 2.53,
+     "mood_1_5": 5
+    },
+    {
+     "date": "2026-10-15",
+     "mission_day": 84,
+     "resting_hr_bpm": 62.0,
+     "hrv_ms": 57.0,
+     "sleep_h": 6.6,
+     "co2_night_peak_mmhg": 1.81,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-16",
+     "mission_day": 85,
+     "resting_hr_bpm": 67.0,
+     "hrv_ms": 60.0,
+     "sleep_h": 6.4,
+     "co2_night_peak_mmhg": 2.1,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-17",
+     "mission_day": 86,
+     "resting_hr_bpm": 64.0,
+     "hrv_ms": 55.0,
+     "sleep_h": 6.1,
+     "co2_night_peak_mmhg": 1.78,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-18",
+     "mission_day": 87,
+     "resting_hr_bpm": 61.0,
+     "hrv_ms": 50.0,
+     "sleep_h": 7.0,
+     "co2_night_peak_mmhg": 2.0,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-19",
+     "mission_day": 88,
+     "resting_hr_bpm": 63.0,
+     "hrv_ms": 61.0,
+     "sleep_h": 6.7,
+     "co2_night_peak_mmhg": 1.77,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-20",
+     "mission_day": 89,
+     "resting_hr_bpm": 62.0,
+     "hrv_ms": 57.0,
+     "sleep_h": 6.9,
+     "co2_night_peak_mmhg": 1.91,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-21",
+     "mission_day": 90,
+     "resting_hr_bpm": 66.0,
+     "hrv_ms": 57.0,
+     "sleep_h": 5.7,
+     "co2_night_peak_mmhg": 2.35,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-22",
+     "mission_day": 91,
+     "resting_hr_bpm": 60.0,
+     "hrv_ms": 53.0,
+     "sleep_h": 6.8,
+     "co2_night_peak_mmhg": 1.47,
+     "mood_1_5": 3
+    },
+    {
+     "date": "2026-10-23",
+     "mission_day": 92,
+     "resting_hr_bpm": 61.0,
+     "hrv_ms": 54.0,
+     "sleep_h": 6.6,
+     "co2_night_peak_mmhg": 2.06,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-24",
+     "mission_day": 93,
+     "resting_hr_bpm": 61.0,
+     "hrv_ms": 52.0,
+     "sleep_h": 6.1,
+     "co2_night_peak_mmhg": 1.68,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-25",
+     "mission_day": 94,
+     "resting_hr_bpm": 63.0,
+     "hrv_ms": 52.0,
+     "sleep_h": 7.2,
+     "co2_night_peak_mmhg": 2.24,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-26",
+     "mission_day": 95,
+     "resting_hr_bpm": 61.0,
+     "hrv_ms": 56.0,
+     "sleep_h": 6.0,
+     "co2_night_peak_mmhg": 1.85,
+     "mood_1_5": 5
+    },
+    {
+     "date": "2026-10-27",
+     "mission_day": 96,
+     "resting_hr_bpm": 65.0,
+     "hrv_ms": 50.0,
+     "sleep_h": 6.1,
+     "co2_night_peak_mmhg": 2.1,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-28",
+     "mission_day": 97,
+     "resting_hr_bpm": 60.0,
+     "hrv_ms": 60.0,
+     "sleep_h": 6.2,
+     "co2_night_peak_mmhg": 1.77,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-29",
+     "mission_day": 98,
+     "resting_hr_bpm": 58.0,
+     "hrv_ms": 58.0,
+     "sleep_h": 6.6,
+     "co2_night_peak_mmhg": 1.6,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-30",
+     "mission_day": 99,
+     "resting_hr_bpm": 59.0,
+     "hrv_ms": 66.0,
+     "sleep_h": 6.6,
+     "co2_night_peak_mmhg": 1.81,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-10-31",
+     "mission_day": 100,
+     "resting_hr_bpm": 63.0,
+     "hrv_ms": 55.0,
+     "sleep_h": 6.6,
+     "co2_night_peak_mmhg": 1.67,
+     "mood_1_5": 5
+    },
+    {
+     "date": "2026-11-01",
+     "mission_day": 101,
+     "resting_hr_bpm": 64.0,
+     "hrv_ms": 54.0,
+     "sleep_h": 7.2,
+     "co2_night_peak_mmhg": 2.39,
+     "mood_1_5": 3
+    },
+    {
+     "date": "2026-11-02",
+     "mission_day": 102,
+     "resting_hr_bpm": 60.0,
+     "hrv_ms": 63.0,
+     "sleep_h": 6.9,
+     "co2_night_peak_mmhg": 1.74,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-11-03",
+     "mission_day": 103,
+     "resting_hr_bpm": 61.0,
+     "hrv_ms": 59.0,
+     "sleep_h": 5.7,
+     "co2_night_peak_mmhg": 2.16,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-11-04",
+     "mission_day": 104,
+     "resting_hr_bpm": 63.0,
+     "hrv_ms": 57.0,
+     "sleep_h": 6.6,
+     "co2_night_peak_mmhg": 1.9,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-11-05",
+     "mission_day": 105,
+     "resting_hr_bpm": 63.0,
+     "hrv_ms": 45.0,
+     "sleep_h": 6.0,
+     "co2_night_peak_mmhg": 1.92,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-11-06",
+     "mission_day": 106,
+     "resting_hr_bpm": 66.0,
+     "hrv_ms": 63.0,
+     "sleep_h": 6.7,
+     "co2_night_peak_mmhg": 2.02,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-11-07",
+     "mission_day": 107,
+     "resting_hr_bpm": 59.0,
+     "hrv_ms": 53.0,
+     "sleep_h": 6.9,
+     "co2_night_peak_mmhg": 1.94,
+     "mood_1_5": 5
+    },
+    {
+     "date": "2026-11-08",
+     "mission_day": 108,
+     "resting_hr_bpm": 59.0,
+     "hrv_ms": 62.0,
+     "sleep_h": 6.2,
+     "co2_night_peak_mmhg": 1.82,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-11-09",
+     "mission_day": 109,
+     "resting_hr_bpm": 58.0,
+     "hrv_ms": 60.0,
+     "sleep_h": 6.4,
+     "co2_night_peak_mmhg": 1.53,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-11-10",
+     "mission_day": 110,
+     "resting_hr_bpm": 63.0,
+     "hrv_ms": 52.0,
+     "sleep_h": 5.8,
+     "co2_night_peak_mmhg": 1.96,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-11-11",
+     "mission_day": 111,
+     "resting_hr_bpm": 60.0,
+     "hrv_ms": 55.0,
+     "sleep_h": 6.4,
+     "co2_night_peak_mmhg": 1.92,
+     "mood_1_5": 4
+    },
+    {
+     "date": "2026-11-12",
+     "mission_day": 112,
+     "resting_hr_bpm": 60.0,
+     "hrv_ms": 56.0,
+     "sleep_h": 6.9,
+     "co2_night_peak_mmhg": 2.43,
+     "mood_1_5": 4
+    }
+   ],
+   "today_out_of_band": [],
+   "sources": {
+    "resting_hr_bpm": "Anclado a Hughson et al. 2017 (PMC5792103), FC en vuelo 60.0 ± 10.6 lpm, supina pre-vuelo 55.2 ± 8.4 (n=9). La media individual es simulada.",
+    "hrv_ms": "SUPUESTO: no hay valor de HRV en ms de astronautas en fuente abierta verificada; serie sintética.",
+    "sleep_h": "Anclado a Barger et al. 2014 (PMC4188436), sueño en ISS 6.09 ± 0.67 h/noche. La media individual es simulada.",
+    "co2_night_peak_mmhg": "Anclado a OCHMO-TB-004 Rev D: límite de diseño 3 mmHg (media 1 h, NASA-STD-3001 Vol. 2 [V2 6004]); media 7 d < 2.5 mmHg para riesgo de cefalea < 1 %. El pico nocturno de la litera es simulado.",
+    "mood_1_5": "supuesto del prototipo"
+   },
+   "baseline_window": {
+    "start_day": 83,
+    "end_day": 103,
+    "days": 21,
+    "start_date": "2026-10-14",
+    "end_date": "2026-11-03",
+    "rule": "personal mean ± 2 SD over these days"
+   }
+  }
+ }
+}

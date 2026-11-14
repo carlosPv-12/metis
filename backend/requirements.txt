@@ -1,0 +1,11 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+httpx>=0.27
+python-multipart>=0.0.9
+# Voz (opcional; sin esto el TTS cae a espeak-ng)
+kokoro-onnx>=0.4.7
+soundfile>=0.12
+# Reconocimiento sin compilar (si no hay whisper-cli): whisper.cpp en ruedas precompiladas (MIT)
+pywhispercpp>=1.5.1
+# Decodificar el audio del navegador sin ffmpeg instalado (BSD-3-Clause; trae FFmpeg LGPL dentro de la rueda)
+av>=15
