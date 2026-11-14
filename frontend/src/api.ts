@@ -26,6 +26,36 @@ export interface Say { text: string; source: 'llm' | 'fallback' | string; latenc
 export interface Chat { text: string; source: string; latency_ms?: number; safety: 'ok' | 'escalated' }
 export interface Status { llm: { ok: boolean; model?: string }; tts: { ok: boolean; engine?: string; voices?: unknown }; stt: { ok: boolean; engine?: string; model?: string }; offline: boolean }
 export interface Threshold { id: string; label_en: string; label_es: string; value: number | string; unit: string; rule?: string; source_title: string; source_url?: string; verified: boolean }
+export interface Packet extends StationEvent { direction: 'to_earth' | 'to_ship'; delay_s?: number; sent_ts?: string; arrives_ts?: string
+  arrives_in_s: number | null; reply_in_s?: number | null; status: 'queued_no_link' | 'in_transit' | 'delivered' | 'delivered_awaiting_reply' | 'reply_window_open'
+  name?: string; summary_en?: string }
+export interface GroundView { viewer: { id: 'ground'; role: 'ground' }; realtime_data: true; crew: StationCrew[]; alerts: Station['alerts']
+  vitals: VitalsSnapshot['crew']; checks: VitalsCheck[]; ship: ShipState; mission: Mission
+  inbox: Packet[]; outbox: Packet[]; events: StationEvent[]; note_en: string; note_es: string }
+export interface ShipSystem { id: string; group: 'life_support' | 'power' | 'radiation'; label_en: string; label_es: string; value: number; unit: string
+  nominal: { low: number | null; high: number | null }; status: 'ok' | 'watch' | 'fault'; note_en: string; note_es: string
+  source: string; source_url: string; verified: boolean; simulated: true }
+export interface ShipState { systems: ShipSystem[]; worst_status: 'ok' | 'watch' | 'fault'
+  alerts: { id: string; level: string; source: 'ship'; text_en: string; text_es: string }[]
+  /** Only for who may see that person's health data (themselves, CMO, ground); otherwise null. */
+  co2_sleep_link: { crew_id: string; name: string; nights: number; nights_over_limit: number; high_co2_mmhg: number; r: number
+    sleep_h_over_limit: number | null; sleep_h_other: number | null; text_en: string; text_es: string } | null
+  mission: { day: number; planned_days: number; env: string; link: string } }
+export interface MedKit { inventory: { id: string; category_en: string; category_es: string; qty: number; min: number; low: boolean
+    expires_in_days: number; expires_before_mission_end: boolean; source: string; verified_category: boolean }[]
+  mission_days_left: number; summary_en: string; summary_es: string; context_en: string; context_es: string
+  plans: Record<string, { en: string; es: string; category: string }>; plan_note: { en: string; es: string }; no_doses: true }
+export interface Mission { env: 'iss' | 'eva' | 'moon' | 'mars' | 'blackout'; mars_delay_min: number; one_way_delay_s: number | null
+  round_trip_s: number | null; link: 'realtime' | 'delayed' | 'none'; label_en: string; label_es: string; note_en: string; note_es: string; source: string }
+// ---- Roles (backend/roles.py; contract in API.md, «Roles a bordo y Tierra») ----
+export type CrewRole = 'crew' | 'commander' | 'cmo'
+export type Viewer = string            // a crew id ('lena', 'kenji'…) or 'ground'
+export type Access = 'full' | 'summary'
+export interface Fitness { status: 'fit' | 'limited' | 'unfit'; by: 'default' | 'cmo' | 'ground'; ts: number | null }
+export interface RolesDoc { roles: Record<string, CrewRole>; defaults: Record<string, CrewRole>
+  permissions: Record<CrewRole | 'ground', { self: 'full' | 'summary' | 'none'; others: 'full' | 'summary' | 'none'; ship: boolean }>
+  labels: Record<CrewRole | 'ground', { en: string; es: string }>; summary_fields: string[]; emergency_events: string[] }
+const vq = (viewer?: Viewer) => (viewer ? `?viewer=${encodeURIComponent(viewer)}` : '')
 export interface LiveVitals { t: number; hr_bpm: number; rr_brpm: number; spo2_pct: number | null; temp_c: number; activity: number; pulse: boolean }
 export interface VitalsAlert { id: string; crew_id: string; level: 'watch' | 'warning' | 'alarm'; rule: string; metrics: string[]; text_en: string; text_es: string; text?: string }
 export interface VitalsCheck { crew_id: string; name: string; level: 'watch' | 'warning' | 'alarm'; state: 'asking' | 'escalated'; asked_at: number; answer: 'ok' | 'help' | null
@@ -49,11 +79,11 @@ export interface Graph { nodes: { id: string; type: string; label_en: string; la
  *  (no console noise, no waiting) and go straight to the local fallbacks. Served over http: unchanged. */
 export const NO_SERVER = typeof location !== 'undefined' && location.protocol === 'file:'
 
-async function j<T>(path: string, body?: unknown, timeout = 8000): Promise<T> {
+async function j<T>(path: string, body?: unknown, timeout = 8000, method = 'POST'): Promise<T> {
   if (NO_SERVER) throw new Error('no server (file://)')
   const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), timeout)
   try {
-    const r = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctl.signal } : { signal: ctl.signal })
+    const r = await fetch(path, body ? { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctl.signal } : { signal: ctl.signal })
     if (!r.ok) throw new Error(path + ' -> ' + r.status)
     return await r.json()
   } finally { clearTimeout(tm) }
@@ -73,7 +103,8 @@ export const api = {
   crewOne: (id: string) => withFallback(j<CrewDetail>('/api/crew/' + id), () => ({ ...(CF.crew[id] ?? CF.crew.lena), simulated: true, co2_limit_mmhg: CF.co2_limit_mmhg })),
   blood: () => withFallback(j<Blood>('/api/blood'), () => bloodFile as unknown as Blood),
   thresholds: () => withFallback(j<Threshold[]>('/api/thresholds'), () => FALLBACK_THRESHOLDS).then(r => (Array.isArray(r) ? r : FALLBACK_THRESHOLDS)),
-  station: () => withFallback(j<Station>('/api/station', undefined, 4000), () => FALLBACK_STATION),
+  // viewer (optional): who is looking — a crew id or 'ground'. The backend then applies the roles (see Roles below).
+  station: (viewer?: Viewer) => withFallback(j<Station>('/api/station' + vq(viewer), undefined, 4000), () => FALLBACK_STATION),
   // Events: backend first; if the endpoint is missing, a local store (localStorage) keeps the console working across tabs.
   events: () => j<StationEvent[] | { events: StationEvent[] }>('/api/station/events', undefined, 4000).then(r => (Array.isArray(r) ? r : r.events ?? [])).catch(() => localEvents()),
   postEvent: (type: string, crew_id: string, payload: Record<string, unknown> = {}) => j<unknown>('/api/station/events', { type, crew_id, payload }, 4000).catch(() => {
@@ -87,7 +118,26 @@ export const api = {
     j<TriageStep & { understood: boolean; heard: string; answer?: string; answer_label?: string; say?: string }>('/api/triage/voice', { flow, node_id, text, lang }, 8000),
   // Spoken orders on the triage result («alert the crew») and yes/no confirmations. Fixed rule, no AI.
   // Live earpiece vitals (simulated) and early warnings computed by fixed rules against each person's baseline.
-  vitals: () => j<VitalsSnapshot>('/api/vitals', undefined, 4000),
+  vitals: (viewer?: Viewer) => j<VitalsSnapshot>('/api/vitals' + vq(viewer), undefined, 4000),
+  // Ground view (flight surgeon / mission control): everything live; messages travel with the link delay.
+  ground: () => j<GroundView>('/api/ground', undefined, 5000),
+  groundReply: (b: { crew_id?: string | null; text_en: string; text_es?: string; fitness?: Fitness['status'] | null; packet_id?: number | null }) =>
+    j<StationEvent>('/api/ground/reply', b, 5000),
+  eventsAs: (viewer: Viewer) => j<StationEvent[]>('/api/station/events' + vq(viewer), undefined, 4000),
+  // Ship state (life support, power, radiation) and the medical kit with pre-approved plans. See API.md, «Estado de la nave».
+  ship: (viewer?: Viewer) => j<ShipState>('/api/ship' + vq(viewer), undefined, 4000),
+  meds: () => j<MedKit>('/api/meds', undefined, 4000),
+  // Mission environment (Settings): the backend uses its delay for packets to Earth; «blackout» queues them.
+  mission: () => j<Mission>('/api/mission', undefined, 4000),
+  setMission: (env: Mission['env'], mars_delay_min?: number) => j<Mission & { released: number }>('/api/mission', { env, mars_delay_min }, 4000, 'PUT'),
+  // Roles on board and the Ground view (crew: own data only; commander: main traits of everyone; CMO and ground: all).
+  roles: () => j<RolesDoc>('/api/roles', undefined, 4000),
+  setRole: (crew_id: string, role: CrewRole) => j<RolesDoc>('/api/roles', { crew_id, role }, 4000, 'PUT'),
+  resetRoles: () => j<RolesDoc>('/api/roles/reset', {}, 4000),
+  // Fit / limited / unfit for duty: only the CMO or ground decide it (403 otherwise); the commander sees it.
+  setFitness: (crew_id: string, status: Fitness['status'], viewer: Viewer) =>
+    j<Fitness>(`/api/crew/${crew_id}/fitness`, { status, viewer }, 4000, 'PUT'),
+  crewAs: (id: string, viewer: Viewer) => j<CrewDetail & { access: Access; fitness: Fitness }>(`/api/crew/${id}` + vq(viewer), undefined, 4000),
   vitalsScenario: (crew_id: string, kind: 'normal' | 'deterioration' | 'exercise' | 'collapse') =>
     j<{ ok: boolean }>('/api/vitals/scenario', { crew_id, kind }, 4000),
   vitalsReset: () => j<{ ok: boolean }>('/api/vitals/reset', {}, 4000),

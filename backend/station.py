@@ -3,7 +3,8 @@
 Todo es SIMULADO salvo las fuentes citadas. Sin base de datos: al reiniciar se pierden los eventos."""
 import datetime, itertools, os, random, threading
 
-ONE_WAY_DELAY_S = int(os.environ.get("METIS_DELAY_S", "300"))  # configurable para tests; valor del escenario de hoy (tránsito a Marte, día 112), dentro del rango "up to 20 minutes one way" (NASA HRP)
+import mission
+
 RANGE_MAX_S = 1200
 COMMS_SOURCES = [
     {"title": "NASA HRP, Hazard: Distance from Earth (challenge Resources): communication delay of up to 20 minutes one way",
@@ -95,18 +96,46 @@ def add_event(type_, crew_id=None, payload=None, text_en=None, text_es=None):
     t = _now()
     ev = {"id": next(_ids), "ts": _iso(t), "type": type_, "crew_id": crew_id, "payload": payload,
           "text_en": text_en, "text_es": text_es}
-    if type_ in ("surgeon_notice", "triage_summary", "earth_message"):
-        d = int(payload.get("delay_s", ONE_WAY_DELAY_S))
-        ev["delay_s"] = d
-        ev["arrives_ts"] = _iso(t + datetime.timedelta(seconds=d))
-        ev["reply_earliest_ts"] = _iso(t + datetime.timedelta(seconds=2 * d))
+    if type_ in TO_EARTH or type_ in TO_SHIP:
+        d = payload.get("delay_s", mission.delay_s())     # retraso del entorno elegido; None = sin enlace
+        ev["direction"] = "to_earth" if type_ in TO_EARTH else "to_ship"
+        if d is None:
+            ev["queued"] = True                              # sin enlace: espera en cola hasta que vuelva
+        else:
+            _send(ev, t, float(d))
     with _lock:
         _events.append(ev)
         del _events[:-300]
     return _with_countdown(ev)
 
 
+TO_EARTH = ("surgeon_notice", "triage_summary", "earth_message", "send_flight_surgeon")
+TO_SHIP = ("surgeon_reply", "ground_message")          # de Tierra a la nave: mismo retraso, misma cola sin enlace
+
+
+def _send(ev, t, d):
+    ev["delay_s"] = d
+    ev["sent_ts"] = _iso(t)
+    ev["arrives_ts"] = _iso(t + datetime.timedelta(seconds=d))
+    ev["reply_earliest_ts"] = _iso(t + datetime.timedelta(seconds=2 * d))
+
+
+def release_queued():
+    """Vuelve el enlace: los paquetes en cola salen ahora, con el retraso del nuevo entorno."""
+    d = mission.delay_s()
+    if d is None:
+        return 0
+    t, n = _now(), 0
+    with _lock:
+        for ev in _events:
+            if ev.pop("queued", False):
+                _send(ev, t, d); n += 1
+    return n
+
+
 def _with_countdown(ev):
+    if ev.get("queued"):
+        return {**ev, "status": "queued_no_link", "arrives_in_s": None, "reply_in_s": None}
     if "arrives_ts" not in ev:
         return ev
     now = _now()
@@ -114,8 +143,22 @@ def _with_countdown(ev):
     e = dict(ev)
     e["arrives_in_s"] = max(0, int((a - now).total_seconds()))
     e["reply_in_s"] = max(0, int((r - now).total_seconds()))
+    if ev.get("direction") == "to_ship":
+        e["status"] = "in_transit" if e["arrives_in_s"] > 0 else "delivered"
+        e["reply_in_s"] = None
+        return e
     e["status"] = "in_transit" if e["arrives_in_s"] > 0 else ("delivered_awaiting_reply" if e["reply_in_s"] > 0 else "reply_window_open")
     return e
+
+
+def mark(event_id, **fields):
+    """Anota algo en un evento ya guardado (p. ej. que la aptitud de una respuesta ya se aplicó)."""
+    with _lock:
+        for ev in _events:
+            if ev["id"] == event_id:
+                ev.setdefault("payload", {}).update(fields)
+                return True
+    return False
 
 
 def events():
@@ -171,12 +214,16 @@ def station(crew_doc):
     medkit = [{"id": i, "item_en": en, "item_es": es, "item": en, "qty": q, "min": m, "low": q < m, "source": s, "simulated": True}
               for i, en, es, q, m, s in MEDKIT]
     ev = events()
-    packet = next((e for e in ev if "arrives_ts" in e), None)
+    packet = next((e for e in ev if "arrives_ts" in e or e.get("queued")), None)
+    m = mission.get()
+    d = m["one_way_delay_s"]
     return {"mission_day": lena["days"][-1]["mission_day"] if lena else 112, "simulated": True, "crew": crew, "alerts": alerts,
             "environment": env, "co2_unit_note": "ppm = mmHg / 760 x 1e6, assuming 760 mmHg cabin pressure (our conversion)",
-            "comms": {"one_way_delay_s": ONE_WAY_DELAY_S, "round_trip_s": 2 * ONE_WAY_DELAY_S, "link": "delayed",
-                      "scenario_en": "Mars transit, mission day 112: today's scenario value is 5 minutes one way (NASA HRP: up to 20 minutes one way)",
-                      "scenario_es": "Tránsito a Marte, día 112: el valor del escenario de hoy es 5 minutos por sentido (NASA HRP: hasta 20 minutos por sentido)",
+            # one_way_delay_s sigue siendo un número (0 sin enlace) para no romper pantallas; «link» dice si hay enlace.
+            "comms": {"one_way_delay_s": d if d is not None else 0, "round_trip_s": 2 * d if d is not None else 0, "link": m["link"],
+                      "env": m["env"], "env_label_en": m["label_en"], "env_label_es": m["label_es"],
+                      "scenario_en": f"{m['label_en']}, mission day 112. {m['note_en']} (NASA HRP: up to 20 minutes one way on a Mars mission)",
+                      "scenario_es": f"{m['label_es']}, día 112. {m['note_es']} (NASA HRP: hasta 20 minutos por sentido en una misión a Marte)",
                       "range_max_s": RANGE_MAX_S, "scenario_value": True, "mars_range_min": [3, 23], "sources": COMMS_SOURCES},
             "headsets": headsets, "medkit": medkit, "packet": packet, "events": ev[:20]}
 
@@ -188,7 +235,7 @@ def graph(crew_doc, tree):
     n("station", "hub", "Habitat hub (station console)", "Centralita del hábitat")
     n("earth", "ground", "Earth: flight surgeon", "Tierra: cirujano de vuelo")
     e("station", "earth", "delayed_link")
-    people = [(cid, c["name"]) for cid, c in crew_doc["crew"].items()] + [(k, v["name"]) for k, v in EXTRA_CREW.items()]
+    people = [(cid, c["name"]) for cid, c in crew_doc["crew"].items()] + [(k, v["name"]) for k, v in EXTRA_CREW.items() if k not in crew_doc["crew"]]
     for cid, name in people:
         n(f"crew:{cid}", "crew", name, name)
         n(f"earpiece:{cid}", "device", f"{name}'s Metis earpiece", f"Auricular Metis de {name}")

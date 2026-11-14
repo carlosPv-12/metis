@@ -81,14 +81,14 @@ def test_endpoints(client):
 @pytest.mark.parametrize("msg,who", [("Metis, how is the crew?", None), ("How's Marco doing?", "Marco"), ("status report", None),
                                     ("How is the queue?", None)])
 def test_chat_crew_status_is_a_rule(client, msg, who):
-    d = client.post("/api/metis/chat", json={"message": msg}).json()
+    d = client.post("/api/metis/chat", json={"message": msg, "crew_id": "noor"}).json()   # Noor = CMO: lo ve todo
     assert d["source"] == "rule" and d["ai_generated"] is False
     assert (who or "Lena") in d["text"] and "heart rate" in d["text"]
 
 
 def test_chat_status_reports_warning(client):
     vitals.set_scenario("marco", "collapse")
-    d = client.post("/api/metis/chat", json={"message": "how is Marco?"}).json()
+    d = client.post("/api/metis/chat", json={"message": "how is Marco?", "crew_id": "noor"}).json()
     assert "No pulse" in d["text"]
 
 

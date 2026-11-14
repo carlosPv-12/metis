@@ -41,10 +41,12 @@ W.__metisVoiceQueue ??= Promise.resolve()
 // Across browser TABS too: a Web Lock lets only one tab speak at a time, and a proactive warning that another tab
 // (or an old copy of this one) already said in the last 20 s is not said again. Two tabs open used to say the same
 // emergency at the same time.
-type Lockable = { locks?: { request: (name: string, cb: () => Promise<void>) => Promise<void> } }
+type LockOpts = { signal?: AbortSignal }
 const withVoiceLock = (fn: () => Promise<void>) => {
-  const l = (navigator as unknown as Lockable).locks
-  return l?.request ? l.request('metis-voice', fn) : fn()
+  const l = (navigator as unknown as { locks?: { request: (n: string, o: LockOpts, cb: () => Promise<void>) => Promise<void> } }).locks
+  if (!l?.request) return fn()
+  // Never wait more than 5 s for another tab's turn: if its lock got stuck, speak anyway rather than stay silent.
+  return l.request('metis-voice', { signal: AbortSignal.timeout(5000) }, fn).catch(() => fn())
 }
 const DEDUPE_MS = 20000
 function alreadySaid(text: string): boolean {
@@ -94,8 +96,15 @@ export function useSpeaker() {
         // Never wait forever for the voice: after 8 s use the browser's voice, so the shared queue can't stall.
         const blob = await Promise.race([blobP, new Promise<null>(r => setTimeout(() => r(null), 8000))])
         if (finished) return
-        await new Promise<void>(res => {
-          release = res                           // stop() frees the queue straight away
+        await new Promise<void>(finishPhrase => {
+          // Watchdog: Chrome sometimes never fires «end» (known bug of its built-in voice). Without this the shared
+          // queue stalled and Metis went silent until a reload. Generous: ~12 characters per second plus 6 s.
+          const mine = { audio: null as HTMLAudioElement | null }
+          const guard = setTimeout(() => { try { if (synth.current) window.speechSynthesis?.cancel() } catch { /* ignore */ } mine.audio?.pause(); res() },
+            6000 + Math.ceil(text.length / 12) * 1000)
+          let over = false
+          const res = () => { if (over) return; over = true; clearTimeout(guard); finishPhrase() }
+          release = res                           // stop() frees the queue straight away (and clears the watchdog)
           const viaSynth = () => {
             try {
               const u = new SpeechSynthesisUtterance(text); u.lang = lang === 'es' ? 'es-ES' : 'en-US'
@@ -103,7 +112,7 @@ export function useSpeaker() {
             } catch { res() }
           }
           if (!blob) { viaSynth(); return }
-          const a = new Audio(URL.createObjectURL(blob)); audio.current = a
+          const a = new Audio(URL.createObjectURL(blob)); audio.current = a; mine.audio = a
           a.onended = () => res(); a.onerror = () => res()
           a.play().catch(viaSynth)
         })

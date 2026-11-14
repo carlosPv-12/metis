@@ -105,3 +105,131 @@ POST `{type, crew_id, payload}` → el evento creado. Tipos con texto por defect
 
 ### GET /api/brain/graph
 `{nodes:[{id,type,label_en,label_es}], edges:[{source,target,relation}]}`; 42 nodos y 59 aristas. Tipos: `hub`, `ground`, `crew`, `device` (auricular), `ai` (Metis de cada uno), `symptom`, `protocol`, `equipment`, `medication`, `source`. Relaciones: `wears`, `talks_to`, `learns_baseline_of`, `syncs_with`, `delayed_link`, `is_cmo_for`, `triggers`, `may_cause`, `may_worsen`, `evidence`, `flags`, `stocks`, `uses`, `only_via_flight_surgeon`, `cites`, …
+
+## Roles a bordo y Tierra (14-nov, Carlos)
+
+Decisión: `decisiones/2026-11-14-1630--nave-tierra-roles-y-alcance-del-backend.md` del brain. Código: `backend/roles.py`; toda la política está en `PERMISSIONS` y se puede cambiar si las leyes de protección de datos lo piden.
+
+| Rol | De sí mismo | De los demás | Nave | Avisos |
+|---|---|---|---|---|
+| `crew` (tripulante) | todo | nada | sí | emergencias escaladas de un compañero y de la nave |
+| `commander` | todo | **rasgos principales**: estado, aptitud, pulso, SpO₂, actividad; sin historia, sueño, ánimo ni detalle de avisos | sí | los mismos |
+| `cmo` (oficial médico) | todo | todo | sí | los mismos |
+| `ground` (Tierra) | — | todo, al momento | sí | todo |
+
+Roles por defecto: Kenji `commander`, Noor `cmo`, Lena y Marco `crew`. Se cambian en Ajustes.
+
+**Parámetro `viewer`** (id de tripulante o `ground`) en `GET /api/station`, `/api/station/events`, `/api/crew`, `/api/crew/{id}`, `/api/vitals` y `/api/vitals/{id}`. **Sin `viewer` se devuelve lo de siempre**, así las pantallas que aún no lo envían no se rompen. Con un `viewer` desconocido, 400. Si no tiene acceso, 403.
+
+- Cada tripulante de la lista lleva `access` (`full` | `summary`), `fitness` y `crew_role`.
+- Avisos de un compañero: el CMO y Tierra ven el texto completo. El comandante ve un texto genérico («Marco: watch. The medical officer has the details.»). El tripulante no los ve, **salvo que estén escalados**: entonces le llegan a todos con las instrucciones («Go to Marco now…»).
+- Eventos de emergencia (`crew_alert`, `no_pulse`, `collapse`, `cmo_alert`…): a todos.
+- Chat: «how is the crew?» y «how is Marco?» respetan el rol de quien pregunta (`crew_id`).
+
+| Método y ruta | Cuerpo | Respuesta |
+|---|---|---|
+| GET `/api/roles` | | `{roles, defaults, permissions, labels, summary_fields, emergency_events}` |
+| PUT `/api/roles` | `{crew_id, role}` (`crew`\|`commander`\|`cmo`) | igual que GET |
+| POST `/api/roles/reset` | | igual que GET, con los roles por defecto |
+| PUT `/api/crew/{id}/fitness` | `{status: fit\|limited\|unfit, viewer}` | `{status, by: cmo\|ground, ts}`. Solo el CMO o `ground`; si no, 403. Crea el evento `fitness`. |
+
+Ejemplos reales:
+```json
+// GET /api/station?viewer=kenji  -> crew[marco] (comandante: rasgos principales)
+{"id":"marco","name":"Marco","location":"Lab","status":"ok","vitals":{"t":1794670480,"hr_bpm":63.0,"spo2_pct":97.7,"pulse":true,"activity":0},
+ "note_en":"Fit for duty.","access":"summary","fitness":{"status":"fit","by":"default","ts":null},"crew_role":"crew"}
+// GET /api/station?viewer=lena  -> crew: solo [lena]
+// GET /api/crew/marco?viewer=lena  -> 403 {"detail":"solo puedes ver tu propia información; el oficial médico tiene el resto"}
+// PUT /api/crew/marco/fitness {"status":"limited","viewer":"noor"}  -> {"status":"limited","by":"cmo","ts":1794670480}
+// POST /api/metis/chat {"message":"How is Marco?","crew_id":"lena"}
+{"text":"I can only share your own health data. The medical officer can see your crewmates, and I'll tell you straight away if anyone needs help.","source":"rule"}
+```
+
+En `frontend/src/api.ts`: `api.station(viewer?)`, `api.vitals(viewer?)`, `api.roles()`, `api.setRole(crew_id, role)`, `api.resetRoles()`, `api.setFitness(crew_id, status, viewer)`, `api.crewAs(id, viewer)`, y los tipos `CrewRole`, `Viewer`, `Access`, `Fitness` y `RolesDoc`. El oído (`voice.tsx`) ya pide las constantes como el dueño del auricular.
+
+**Para Manuela (pantallas)**:
+- Ajustes: un selector de rol al lado de cada tripulante (`api.setRole`).
+- Pasar `viewer = crewId` en las pantallas de la nave, y `viewer = 'ground'` en la vista de Tierra.
+- Pintar `access: 'summary'` con menos detalle.
+- Mostrar `fitness` en las tarjetas.
+
+## Entorno de la misión (14-nov, Carlos)
+
+Lo elige Ajustes y lo usa todo el backend (`backend/mission.py`; mismos perfiles que `frontend/src/link.ts`).
+
+| `env` | Retraso de ida | `link` |
+|---|---|---|
+| `iss` | 0,6 s | `realtime` |
+| `eva` | 0,6 s | `realtime` |
+| `moon` | 1,3 s | `realtime` |
+| `mars` | `mars_delay_min` × 60 (5-20 min; 5 por defecto) | `delayed` |
+| `blackout` | — | `none` |
+
+| Método y ruta | Cuerpo | Respuesta |
+|---|---|---|
+| GET `/api/mission` | | `{env, mars_delay_min, one_way_delay_s, round_trip_s, link, label_en/es, note_en/es, source, profiles}` |
+| PUT `/api/mission` | `{env, mars_delay_min?}` | lo mismo más `released`: paquetes en cola que han salido al volver el enlace. Crea el evento `link_change`. |
+
+- **Paquetes hacia Tierra** (`send_flight_surgeon`, `surgeon_notice`, `triage_summary`, `earth_message`): llevan `direction: "to_earth"`, `delay_s`, `sent_ts`, `arrives_ts`, `arrives_in_s`, `reply_in_s` y `status` (`in_transit` → `delivered_awaiting_reply` → `reply_window_open`).
+  - Con `blackout` el `status` es `queued_no_link`, con `arrives_in_s: null`.
+  - Al volver el enlace, el paquete sale con el retraso del nuevo entorno.
+- **`/api/station` → `comms`**: `one_way_delay_s` sigue siendo un número (0 sin enlace, para no romper pantallas). Añade `link`, `env` y `env_label_en/es`.
+- **Lo que dice Metis** al avisar a la tripulación cambia según el entorno:
+  - ISS: «I'm calling the flight surgeon now…»;
+  - Marte: «The report reaches the flight surgeon in about 5 minutes…»;
+  - sin enlace: «There is no link with Earth: the report… waits in the queue.»
+- **Frontend**: `settings.ts` llama a `api.setMission` al cambiar el entorno, y al cargar toma el del backend, para que todas las pestañas y portátiles muestren lo mismo. Para la cuenta atrás del paquete, mejor `packet.arrives_in_s` y `packet.status` del backend.
+
+## Estado de la nave y botiquín (14-nov, Carlos)
+
+Código: `backend/ship.py`. **Simulado**, pero los rangos llevan fuente (`verified: true`). Lo que no tiene fuente sale como supuesto del prototipo (`verified: false`, por ahora solo la energía).
+
+| Sistema (`id`) | Valor de la demo | Rango / límite | Fuente |
+|---|---|---|---|
+| `o2` (ppO₂) | ~160 mmHg | 146-178 | NASA ICES-2015-146 |
+| `pressure` | ~752 mmHg | 724-770,5 | NASA ICES-2015-146 |
+| `co2_quarters` | pico nocturno de la litera de Lena (3,55) | ≤ 3 → **watch** | NASA OCHMO-TB-004 |
+| `co2_cabin` | media del resto de módulos | ≤ 3 | NASA OCHMO-TB-004 |
+| `water` | ~98 % de recuperación | ≥ 95 | NASA 2023 (Brine Processor) |
+| `power` | margen ~4 kW, batería 86 % | ≥ 1 kW | supuesto |
+| `radiation` | 112 días × 1,8 mSv/día = 201,6 mSv | 75 % de 600 mSv | NASA/JPL (RAD de Curiosity); límite de carrera 600 mSv |
+
+- GET `/api/ship?viewer=` → `{systems[], worst_status, alerts[], co2_sleep_link, mission}`.
+  - Los avisos de la nave (`source: "ship"`) **los ven todos**.
+  - `co2_sleep_link` (las noches de CO₂ alto en su litera frente a sus horas de sueño, con la correlación) es **dato de salud de Lena**: solo lo reciben Lena, el CMO y `ground`; los demás reciben `null`.
+- `/api/station` añade `ship: {worst_status, alerts}`, y los avisos de la nave van en `alerts`. Ya no sale el aviso antiguo `co2_crew`.
+- GET `/api/meds` → botiquín **por categorías** (sin fármacos concretos ni dosis): `qty`, `min`, `low`, `expires_in_days` y `expires_before_mission_end` (misión de 960 días; hoy es el día 112). Incluye también `plans` (planes preaprobados de ejemplo) y `plan_note`.
+- Chat:
+  - «what can I take for my headache?» / «…to sleep?» / «…for motion sickness?» / «…for my back pain?» → el **plan preaprobado** del cirujano (`source: "rule"`, `plan`, `note`: «Example plan for this demo…»);
+  - sin un motivo concreto, la regla de siempre («I can't recommend medication…»);
+  - «how is the ship?» → el estado de los sistemas, también durante una emergencia.
+- En `frontend/src/api.ts`: `api.ship(viewer?)` y `api.meds()`, y los tipos `ShipSystem`, `ShipState` y `MedKit`.
+
+**Para Manuela (pantallas)**:
+- en la centralita, una tarjeta «Ship systems» con los 7 sistemas, su estado y su fuente;
+- en el botiquín, las categorías con su caducidad («expires before the end of the mission»);
+- en la ficha de Lena (si tienes acceso), el texto de `co2_sleep_link`.
+
+## Vista de Tierra (14-nov, Carlos)
+
+Código: `backend/ground.py`. Decisión: **Tierra lo ve todo al momento**. Lo que **viaja con el retraso** del entorno son los **mensajes**.
+
+| Método y ruta | Cuerpo | Respuesta |
+|---|---|---|
+| GET `/api/ground` | | `{viewer, realtime_data, crew[], alerts[], vitals[], checks[], ship, mission, inbox[], outbox[], events[], note_en/es}` |
+| POST `/api/ground/reply` | `{crew_id?, text_en, text_es?, fitness?, packet_id?}` | el evento creado (`surgeon_reply`, o `ground_message` si no hay `crew_id`) |
+
+- **`inbox`**: paquetes de la nave hacia Tierra (`direction: "to_earth"`), con `name`, `summary_en` (el resumen del triaje para el cirujano o el de las constantes), `status` y `arrives_in_s`. **Al escalar una emergencia de constantes, Metis manda sola un `surgeon_notice`** con el resumen.
+- **`outbox`**: respuestas hacia la nave (`direction: "to_ship"`): `status` = `queued_no_link` → `in_transit` → `delivered`.
+- **`fitness`** (`fit`, `limited`, `unfit`) en una respuesta: **se aplica a bordo cuando la respuesta llega**, no antes. Queda `by: "ground"`. Sin enlace, espera en cola.
+- **Privacidad a bordo**: una respuesta sobre Marco la ven entera Marco y el CMO. El comandante solo ve un aviso genérico y el resto de la tripulación no la ve. Un `ground_message` sin `crew_id` lo ven todos.
+- **Voz**: cuando llega una respuesta, Metis la lee en voz alta en los auriculares que pueden verla, por ejemplo «Flight surgeon about Marco: Rest today, no EVA. Status: limited duty.».
+- En `frontend/src/api.ts`: `api.ground()`, `api.groundReply({...})`, `api.eventsAs(viewer)`, y los tipos `GroundView` y `Packet`.
+
+**Para Manuela (pantalla de Tierra, con el interruptor Nave / Tierra arriba)**:
+- **bandeja** con los paquetes y su cuenta atrás, y lo que contienen;
+- **tripulación completa** con constantes, avisos y la relación CO₂ ↔ sueño;
+- **sistemas de la nave**;
+- un **formulario de respuesta**: texto y aptitud, con aviso de «llega en X min» o «en cola, sin enlace».
+- **Tierra no tiene Metis, solo notificaciones** (Carlos, 14-nov): en cualquier ruta que empiece por **`/ground`** el oído no escucha y Metis no habla (`voice.tsx`). La pantalla de Tierra va en `/ground` (Manuela).
+- **A bordo, los mensajes de Tierra se ven además de oírse**: aviso verde «From ground» arriba (`VitalsBanner`), que queda hasta que se cierra con la ✕. Se vacía al cambiar de tripulante.

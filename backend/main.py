@@ -11,7 +11,7 @@ from fastapi.responses import Response, JSONResponse
 from pydantic import BaseModel
 
 import re
-import llm, station, vitals, voice_answer, voice_engine
+import ground, llm, mission, roles, ship, station, vitals, voice_answer, voice_engine
 
 HERE = pathlib.Path(__file__).parent
 DATA = HERE.parent / "data"
@@ -37,6 +37,17 @@ def fb(topic, lang):
     return v.get(L(lang), v.get("en")) if isinstance(v, dict) else v
 
 
+def viewer_ok(viewer):
+    """Comprueba `viewer` (id de tripulante o "ground"); None = sin filtro, como antes."""
+    if viewer is None:
+        return None
+    try:
+        roles.role_of(viewer)
+    except KeyError:
+        raise HTTPException(400, "viewer desconocido: usa un id de tripulante o 'ground'")
+    return viewer
+
+
 def crew_doc():
     p = DATA / "crew_lena.json"
     if not p.exists(): raise HTTPException(503, "Falta data/crew_lena.json: ejecuta data/generate_crew.py")
@@ -51,18 +62,26 @@ def health(): return {"status": "ok", "llm_configured": bool(llm.LLM_URL), "offl
 
 
 @app.get("/api/crew")
-def crew():
+def crew(viewer: str | None = None):
     d = crew_doc()
-    return {"co2_limit_mmhg": d["co2_limit_mmhg"], "simulated": True, "baseline_window": d.get("baseline_window"),
-            "crew": [{"id": c["id"], "name": c["name"], "role": c["role"], "role_en": c.get("role_en", c["role"]),
-                      "today_out_of_band": c["today_out_of_band"]} for c in d["crew"].values()]}
+    items = [{"id": c["id"], "name": c["name"], "role": c["role"], "role_en": c.get("role_en", c["role"]),
+              "today_out_of_band": c["today_out_of_band"]} for c in d["crew"].values()]
+    if viewer_ok(viewer):
+        items = roles.filter_crew_items(items, viewer)
+    return {"co2_limit_mmhg": d["co2_limit_mmhg"], "simulated": True, "baseline_window": d.get("baseline_window"), "crew": items}
 
 
 @app.get("/api/crew/{cid}")
-def crew_one(cid: str):
+def crew_one(cid: str, viewer: str | None = None):
     d = crew_doc()
     if cid not in d["crew"]: raise HTTPException(404, "tripulante no encontrado")
-    return {**d["crew"][cid], "simulated": True, "co2_limit_mmhg": d["co2_limit_mmhg"]}
+    item = {**d["crew"][cid], "simulated": True, "co2_limit_mmhg": d["co2_limit_mmhg"]}
+    if not viewer_ok(viewer):
+        return item
+    try:
+        return roles.crew_detail(item, viewer)
+    except roles.Forbidden as e:
+        raise HTTPException(403, str(e))
 
 
 @app.get("/api/blood")
@@ -229,7 +248,19 @@ class ChatIn(BaseModel):
 CREW_STATUS = re.compile(r"\bhow(\'s| is| are)? (the )?(crew|queue|cue|cru|crow|crue|everyone|everybody|team)\b|\b(crew|queue) (status|vitals)\b|\bstatus report\b|"
                          r"\bhow(\'s| is| are)? (marco|lena|noor|kenji)( doing)?\b|\b(marco|lena|noor|kenji)\'?s? (status|vitals)\b|"
                          r"\bcómo (está|esta|están|estan) (la tripulación|el equipo|todos|marco|lena|noor|kenji)\b", re.I)
+SHIP_STATUS = re.compile(r"\bhow(\'s| is)? (the )?(ship|station|habitat|spacecraft|vehicle)\b|\b(ship|station|habitat) (status|systems)\b|"
+                         r"\bcómo (está|esta) la (nave|estación|estacion)\b", re.I)
 COMPANION = __import__("re").compile(r"\b(he|she|they|crewmate|marco|lena|noor|kenji|compañer|él|ella|se ha|se desplom)\b", __import__("re").I)
+
+
+def active_emergency(speaker):
+    """La emergencia escalada más reciente de OTRO tripulante (lo que ve el auricular de `speaker`), o None."""
+    try:
+        snap = roles.filter_vitals(vitals.snapshot(crew_doc()), speaker if speaker in crew_doc()["crew"] else None)
+    except Exception:
+        return None
+    esc = [c for c in snap.get("checks", []) if c.get("state") == "escalated" and c.get("crew_id") != speaker]
+    return max(esc, key=lambda c: c.get("escalated_at") or 0) if esc else None
 
 
 @app.post("/api/metis/chat")
@@ -244,11 +275,28 @@ def chat(b: ChatIn):
         flow = "companion_collapse" if COMPANION.search(b.message) else "self_chest_pressure"
         return {"text": fb("escalate", k), "source": "rule", "latency_ms": int((time.time() - t0) * 1000), "safety": "escalated",
                 "suggest_flow": flow, "lang": k, "ai_generated": False}
+    # Emergencia de un compañero en curso: nada de charla. Se responde con una regla y se abre su lista de emergencia.
+    # (Carlos, 14-nov: «cuando hay una incidencia se mezcla con el chat normal».) Las preguntas de estado siguen valiendo.
+    emerg = active_emergency(b.crew_id)
+    if emerg and not CREW_STATUS.search(b.message or "") and not SHIP_STATUS.search(b.message or ""):
+        n = emerg["name"]
+        text = (f"There's an emergency with {n} right now. Let's go to the checklist: I'll ask you one thing at a time."
+                if k == "en" else f"Hay una emergencia con {n} ahora mismo. Vamos a la lista de emergencia: te pregunto una cosa cada vez.")
+        return {"text": text, "source": "rule", "latency_ms": int((time.time() - t0) * 1000), "safety": "escalated",
+                "suggest_flow": "companion_collapse", "patient": emerg["crew_id"], "lang": k, "ai_generated": False}
+    if SHIP_STATUS.search(b.message or ""):
+        doc = crew_doc()
+        return {"text": ship.status_text(doc, station.station(doc)["environment"], k), "source": "rule",
+                "latency_ms": int((time.time() - t0) * 1000), "safety": "ok", "lang": k, "ai_generated": False}
     st_m = CREW_STATUS.search(b.message or "")
     if st_m:
         who = next((n for n in ("lena", "marco", "noor", "kenji") if re.search(rf"\b{n}\b", b.message, re.I)), None)
-        return {"text": vitals.status_text(crew_doc(), who, k), "source": "rule", "latency_ms": int((time.time() - t0) * 1000),
+        return {"text": vitals.status_text(crew_doc(), who, k, viewer=b.crew_id), "source": "rule", "latency_ms": int((time.time() - t0) * 1000),
                 "safety": "ok", "lang": k, "ai_generated": False, "note": "crew status is read from the sensors, never generated"}
+    if llm.MEDQ.search(b.message or "") and (cond := ship.condition_of(b.message)):
+        plan = ship.PLANS[cond]
+        return {"text": plan[k], "source": "rule", "latency_ms": int((time.time() - t0) * 1000), "safety": "ok", "lang": k,
+                "ai_generated": False, "plan": cond, "note": ship.PLAN_NOTE[k]}
     if llm.MEDQ.search(b.message or ""):
         return {"text": fb("medication", k), "source": "rule", "latency_ms": int((time.time() - t0) * 1000), "safety": "ok",
                 "lang": k, "ai_generated": False, "note": "medication questions are never answered by the model"}
@@ -340,7 +388,8 @@ async def stt(audio: UploadFile = File(...), lang: str = Form("auto"), hint: str
 
 # ---------- centralita y grafo ----------
 @app.get("/api/station")
-def get_station(lang: str | None = None):
+def get_station(lang: str | None = None, viewer: str | None = None):
+    ground.apply_delivered()
     doc = crew_doc()
     v = vitals.snapshot(doc)          # antes que station(): así los avisos nuevos ya salen en sus eventos
     st = station.station(doc)
@@ -351,24 +400,164 @@ def get_station(lang: str | None = None):
             c["vitals"] = vc["now"]
             if vc["status"] != "ok":
                 c["status"] = "alarm" if vc["status"] == "alarm" else "watch"
-    st["alerts"] = [{**a, "source": "vitals"} for a in v["alerts"]] + st["alerts"]
+    sh = ship.ship(doc, st["environment"], viewer_ok(viewer))
+    st["ship"] = {"worst_status": sh["worst_status"], "alerts": sh["alerts"]}
+    # los avisos de CO2 por módulo ya los da la nave (más completos): no se repiten
+    st["alerts"] = [{**a, "source": "vitals"} for a in v["alerts"]] + sh["alerts"] + [a for a in st["alerts"] if not str(a.get("id", "")).startswith("co2_")]
     st["events"] = station.events()[:20]
+    if viewer_ok(viewer):
+        st["crew"] = roles.filter_crew_items(st["crew"], viewer)
+        st["alerts"] = roles.filter_alerts(st["alerts"], viewer)
+        st["events"] = roles.filter_events(st["events"], viewer)
+        st["viewer"] = {"id": viewer, "role": roles.role_of(viewer)}
     _with_lang(st["alerts"], lang); _with_lang(st["events"], lang)
     if st.get("packet"): _with_lang([st["packet"]], lang)
     return st
 
 
+# ---------- vista de Tierra ----------
+@app.get("/api/ground")
+def get_ground(lang: str | None = None):
+    """Todo lo que ve Tierra (cirujano de vuelo y control de misión), al momento: tripulación, constantes, avisos,
+    nave, entorno; más la bandeja de paquetes de la nave y las respuestas en camino. Ver backend/ground.py."""
+    ground.apply_delivered()
+    doc = crew_doc()
+    st = get_station(lang, "ground")
+    v = roles.filter_vitals(vitals.snapshot(doc), "ground")
+    sh = ship.ship(doc, st["environment"], "ground")
+    names = {cid: c["name"] for cid, c in doc["crew"].items()}
+    g = ground.overview(st, v, sh, mission.get(), TREE, names)
+    _with_lang(g["inbox"], lang); _with_lang(g["outbox"], lang); _with_lang(g["events"], lang)
+    return g
+
+
+class GroundReplyIn(BaseModel):
+    crew_id: str | None = None      # sobre quién (None = mensaje a toda la tripulación)
+    text_en: str
+    text_es: str | None = None
+    fitness: str | None = None      # fit | limited | unfit: se aplica a bordo cuando llega
+    packet_id: int | None = None    # a qué paquete contesta (opcional)
+
+
+@app.post("/api/ground/reply")
+def ground_reply(b: GroundReplyIn):
+    """Respuesta del cirujano: viaja a la nave con el retraso del entorno (sin enlace, en cola)."""
+    doc = crew_doc()
+    if b.crew_id is not None and b.crew_id not in doc["crew"]: raise HTTPException(404, "tripulante no encontrado")
+    if not b.text_en.strip(): raise HTTPException(400, "mensaje vacío")
+    try:
+        return ground.reply(b.crew_id, b.text_en[:500], (b.text_es or "")[:500] or None, b.fitness, b.packet_id,
+                            doc["crew"][b.crew_id]["name"] if b.crew_id else None)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+# ---------- estado de la nave y botiquín ----------
+@app.get("/api/ship")
+def get_ship(lang: str | None = None, viewer: str | None = None):
+    """Soporte vital, energía y radiación (simulado, rangos con fuente). La relación CO2 de la litera con el sueño
+    de Lena solo la ven quienes pueden ver sus datos (ella, el CMO, Tierra)."""
+    doc = crew_doc()
+    sh = ship.ship(doc, station.station(doc)["environment"], viewer_ok(viewer))
+    _with_lang(sh["alerts"], lang)
+    return sh
+
+
+@app.get("/api/meds")
+def get_meds():
+    """Botiquín por categorías (cantidad, mínimo, caducidad frente al fin de la misión) y planes preaprobados de ejemplo.
+    Sin dosis: la IA nunca nombra fármacos ni dosis."""
+    return ship.meds()
+
+
+# ---------- entorno de la misión ----------
+@app.get("/api/mission")
+def get_mission():
+    """Entorno elegido en Ajustes (ISS, EVA, Luna, Marte 5-20 min, sin enlace) y su enlace con Tierra."""
+    return mission.get()
+
+
+class MissionIn(BaseModel):
+    env: str                         # iss | eva | moon | mars | blackout
+    mars_delay_min: int | None = None
+
+
+@app.put("/api/mission")
+def put_mission(b: MissionIn):
+    try:
+        mission.set(b.env, b.mars_delay_min)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    released = station.release_queued()        # vuelve el enlace: lo que esperaba en cola sale ya
+    m = mission.get()
+    station.add_event("link_change", None, {"env": m["env"], "released": released},
+                      f"Mission environment: {m['label_en']}. {m['note_en']}" + (f" {released} queued packet(s) sent." if released else ""),
+                      f"Entorno de la misión: {m['label_es']}. {m['note_es']}" + (f" Enviados {released} paquetes en cola." if released else ""))
+    return {**m, "released": released}
+
+
+# ---------- roles a bordo, Tierra y aptitud ----------
+@app.get("/api/roles")
+def get_roles():
+    """Quién tiene qué rol y qué ve cada rol (tripulante, comandante, oficial médico, Tierra). Ver backend/roles.py."""
+    return roles.permissions_doc()
+
+
+class RoleIn(BaseModel):
+    crew_id: str
+    role: str               # crew | commander | cmo
+
+
+@app.put("/api/roles")
+def put_role(b: RoleIn):
+    if b.crew_id not in crew_doc()["crew"]: raise HTTPException(404, "tripulante no encontrado")
+    try:
+        roles.set_role(b.crew_id, b.role)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return roles.permissions_doc()
+
+
+@app.post("/api/roles/reset")
+def roles_reset():
+    roles.reset()
+    return roles.permissions_doc()
+
+
+class FitnessIn(BaseModel):
+    status: str             # fit | limited | unfit
+    viewer: str             # quien decide: el oficial médico o "ground"
+
+
+@app.put("/api/crew/{cid}/fitness")
+def put_fitness(cid: str, b: FitnessIn):
+    """Apto / limitado / no apto. Lo deciden el CMO o Tierra, nunca la IA; el comandante lo ve."""
+    if cid not in crew_doc()["crew"]: raise HTTPException(404, "tripulante no encontrado")
+    viewer_ok(b.viewer)
+    try:
+        roles.set_fitness(cid, b.status, b.viewer)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except roles.Forbidden as e:
+        raise HTTPException(403, str(e))
+    station.add_event("fitness", cid, {"status": b.status, "by": roles.role_of(b.viewer)},
+                      f"Fitness for duty: {b.status}", f"Aptitud para el servicio: {b.status}")
+    return roles.fitness(cid)
+
+
 @app.get("/api/vitals")
-def get_vitals(lang: str | None = None, series: bool = False):
+def get_vitals(lang: str | None = None, series: bool = False, viewer: str | None = None):
     """Constantes en directo del auricular (simuladas) y avisos tempranos por persona. Ver backend/vitals.py."""
-    v = vitals.snapshot(crew_doc(), with_series=series)
+    v = roles.filter_vitals(vitals.snapshot(crew_doc(), with_series=series), viewer_ok(viewer))
     _with_lang(v["alerts"], lang)
     return v
 
 
 @app.get("/api/vitals/{cid}")
-def get_vitals_one(cid: str, lang: str | None = None):
-    v = vitals.snapshot(crew_doc(), with_series=True)
+def get_vitals_one(cid: str, lang: str | None = None, viewer: str | None = None):
+    if viewer_ok(viewer) and roles.access(viewer, cid) == "none":
+        raise HTTPException(403, "solo puedes ver tu propia información; el oficial médico tiene el resto")
+    v = roles.filter_vitals(vitals.snapshot(crew_doc(), with_series=True), viewer)
     c = next((x for x in v["crew"] if x["id"] == cid), None)
     if not c: raise HTTPException(404, "tripulante no encontrado")
     return {**c, "alerts": _with_lang([a for a in v["alerts"] if a["crew_id"] == cid], lang), "method": v["method"]}
@@ -416,9 +605,11 @@ class EventIn(BaseModel):
 
 
 @app.get("/api/station/events")
-def get_events(lang: str | None = None):
+def get_events(lang: str | None = None, viewer: str | None = None):
+    ground.apply_delivered()
     crew_doc()
-    return _with_lang(station.events(), lang)
+    ev = station.events()
+    return _with_lang(roles.filter_events(ev, viewer) if viewer_ok(viewer) else ev, lang)
 
 
 @app.post("/api/station/events")

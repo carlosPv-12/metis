@@ -31,10 +31,11 @@ export default function Talk() {
     const r = await api.chat(crewId, text, lang, hist)
     const src = r.source === 'llm' || r.source?.startsWith?.('llm') ? t('src_llm') : t('src_fallback')
     const flow = (r as { suggest_flow?: string }).suggest_flow
+    const patient = (r as { patient?: string }).patient   // whose emergency (sent by the backend during an emergency)
     setMsgs(m => [...m, { who: 'metis', text: r.text, meta: `${src}${r.latency_ms ? `, ${(r.latency_ms / 1000).toFixed(1)} s` : ''}`, escalated: r.safety === 'escalated', flow }])
     setPhase('idle')
     // Emergency: no time to tap anything. Say it and open the triage straight away (hands-free there too).
-    if (r.safety === 'escalated' && flow) { setOpening(true); await sp.speak(r.text, lang); nav('/triage?flow=' + flow); return }
+    if (r.safety === 'escalated' && flow) { setOpening(true); await sp.speak(r.text, lang); nav('/triage?flow=' + flow + (patient ? '&patient=' + patient : '')); return }
     sp.speak(r.text, lang)
   }
 
