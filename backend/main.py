@@ -225,7 +225,8 @@ class ChatIn(BaseModel):
 
 
 # «How is the crew?», «how is Marco?», «status report»: lo contesta una regla con las cifras de los sensores, no la IA.
-CREW_STATUS = re.compile(r"\bhow(\'s| is| are)? (the )?(crew|everyone|everybody|team)\b|\bcrew (status|vitals)\b|\bstatus report\b|"
+# «queue», «cru», «crow»…: como escribe whisper «crew» con acento (14-nov, Carlos: «How is the queue?»).
+CREW_STATUS = re.compile(r"\bhow(\'s| is| are)? (the )?(crew|queue|cue|cru|crow|crue|everyone|everybody|team)\b|\b(crew|queue) (status|vitals)\b|\bstatus report\b|"
                          r"\bhow(\'s| is| are)? (marco|lena|noor|kenji)( doing)?\b|\b(marco|lena|noor|kenji)\'?s? (status|vitals)\b|"
                          r"\bcómo (está|esta|están|estan) (la tripulación|el equipo|todos|marco|lena|noor|kenji)\b", re.I)
 COMPANION = __import__("re").compile(r"\b(he|she|they|crewmate|marco|lena|noor|kenji|compañer|él|ella|se ha|se desplom)\b", __import__("re").I)

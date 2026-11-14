@@ -1,48 +1,17 @@
 import { useCallback, useLayoutEffect, useRef } from 'react'
-import { api } from '../api'
 import { useSpeaker } from '../hooks'
 import type { Lang } from '../i18n'
 
-// The unchanged runner calls useSpeaker automatically, even in screen-only mode.
-// Own its TTS entry point for this route's lifetime. A suppressed call must stay
-// pending: resolving null would make useSpeaker start browser speech instead.
-// No browser APIs are patched; the original endpoint is restored on unmount.
-const silent = () => new Promise<Blob | null>(() => {})
-
+// Speech for the triage follow-up helper. It used to swap the global `api.tts` for a version that never resolved
+// outside its own calls: every other phrase (emergency warnings, the triage questions, the always-on ear) hung
+// forever, the shared voice queue stalled and Metis went silent and deaf until a reload (found 14-nov by Carlos).
+// Screen-only mode is handled by the triage runner itself (?voice=0), so nothing global is patched any more.
 export function useRunnerSpeech() {
   const speaker = useSpeaker()
   const latest = useRef(speaker)
   useLayoutEffect(() => { latest.current = speaker })
-  const gate = useRef({ allowed: false, generation: 0, mounted: false })
-
-  useLayoutEffect(() => {
-    const original = api.tts
-    const current = gate.current
-    current.mounted = true
-    const scoped: typeof api.tts = (text, lang) => {
-      if (!current.allowed) return silent()
-      const generation = current.generation
-      return original(text, lang).then(blob =>
-        current.mounted && generation === current.generation ? blob : silent())
-    }
-    api.tts = scoped
-    return () => {
-      current.mounted = false
-      current.generation++
-      latest.current.stop()
-      if (api.tts === scoped) api.tts = original
-    }
-  }, [])
-
-  const stop = useCallback(() => {
-    gate.current.generation++
-    latest.current.stop()
-  }, [])
-  const speak = useCallback((text: string, lang: Lang) => {
-    gate.current.generation++
-    gate.current.allowed = true
-    try { void latest.current.speak(text, lang) }
-    finally { gate.current.allowed = false }
-  }, [])
+  // Stable callbacks: callers use them as effect dependencies, so they must not change on every render.
+  const stop = useCallback(() => latest.current.stop(), [])
+  const speak = useCallback((text: string, lang: Lang) => { void latest.current.speak(text, lang) }, [])
   return { speak, stop, speaking: speaker.speaking }
 }

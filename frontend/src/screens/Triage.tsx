@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Bell, ChevronLeft, HeartHandshake, Mic, MicOff, RotateCcw, Send, ShieldAlert, Stethoscope, Volume2 } from 'lucide-react'
 import { api, NO_SERVER, type FlowId, type TriageStep, type TriageNode } from '../api'
-import { listenOnce, useSpeaker } from '../hooks'
+import { isLeader, listenOnce, useSpeaker } from '../hooks'
 import { useLang, useT, type Key } from '../i18n'
 import { Card, MetisLine, Page, useCrew } from '../ui'
 import { useEar } from '../voice'
@@ -75,7 +75,7 @@ export default function Triage() {
   const listenQuestion = async (ac: AbortController, s: TriageStep) => {
     if (!flow) return
     while (!ac.signal.aborted) {
-      if (document.hidden) { await new Promise(r => setTimeout(r, 500)); continue }   // another tab has the mic
+      if (!isLeader()) { await new Promise(r => setTimeout(r, 500)); continue }   // another tab has the mic
       setLs('listening')
       const blob = await listenOnce({ signal: ac.signal, waitMs: 15000, maxMs: 9000, silenceMs: 700 })   // short answers: don't wait
       if (ac.signal.aborted) return

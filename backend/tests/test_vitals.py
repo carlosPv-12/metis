@@ -78,7 +78,8 @@ def test_endpoints(client):
     assert all("vitals" in c for c in st["crew"])
 
 
-@pytest.mark.parametrize("msg,who", [("Metis, how is the crew?", None), ("How's Marco doing?", "Marco"), ("status report", None)])
+@pytest.mark.parametrize("msg,who", [("Metis, how is the crew?", None), ("How's Marco doing?", "Marco"), ("status report", None),
+                                    ("How is the queue?", None)])
 def test_chat_crew_status_is_a_rule(client, msg, who):
     d = client.post("/api/metis/chat", json={"message": msg}).json()
     assert d["source"] == "rule" and d["ai_generated"] is False
