@@ -2,12 +2,9 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { Activity, LayoutDashboard, MessageCircle, PersonStanding, Send, Settings as SettingsIcon, Siren, Sun } from 'lucide-react'
-import { LangCtx, useT, habitatTime, type Lang } from './i18n'
+import { LangCtx, useT, type Lang } from './i18n'
 import { CrewCtx } from './ui'
 import { useLang as useLangCtx } from './i18n'
-import ConnectionPill from './Connection'
-import CrewSwitch from './CrewSwitch'
-import LinkChip from './LinkChip'
 import Settings from './screens/Settings'
 import { SETTINGS_LABEL } from './settings'
 import Greeting from './screens/Greeting'
@@ -19,7 +16,7 @@ import TriageRun from './screens/TriageRun'
 import Summary from './screens/Summary'
 import Station from './screens/Station'
 import Demo from './screens/Demo'
-import { EarProvider, EarSwitch, VitalsBanner } from './voice'
+import { EarProvider, VitalsBanner } from './voice'
 
 // English only for the demo and the submission (decided by Carlos, 14-nov). The Spanish texts stay in i18n.ts:
 // set this to true to bring back the EN/ES switch.
@@ -47,26 +44,14 @@ export default function App() {
 
 function Shell() {
   const t = useT()
-  const [now, setNow] = useState(() => new Date())
-  useEffect(() => { const id = setInterval(() => setNow(new Date()), 30000); return () => clearInterval(id) }, [])
-  const hhmm = habitatTime(now.getTime())
   const loc = useLocation()
   const { lang } = useLangCtx()
   useEffect(() => { document.querySelector('.content')?.scrollTo(0, 0) }, [loc.pathname])
   const I = 18
   return (
     <div className="shell">
-      <header className="top">
-        <div className="brand"><span className="orb" />Metis</div>
-        <div className="day day-inline"><span>{t('mission_day')} <b>112</b></span><span>{cap(t('habitat_time'))} <b>{hhmm}</b></span></div>
-        <div className="spacer" />
-        <EarSwitch />
-        <CrewSwitch />
-        <ConnectionPill />
-        <LinkChip />
-        {SPANISH_ENABLED && <LangSwitch />}
-      </header>
       <nav className="rail" aria-label="Main">
+        <div className="brand rail-brand"><span className="orb" />Metis</div>
         <div className="grp">{t('group_astronaut')}</div>
         <NavLink to="/today"><Sun size={I} /><span>{t('nav_today')}</span></NavLink>
         <NavLink to="/trends"><Activity size={I} /><span>{t('nav_trends')}</span></NavLink>
@@ -109,5 +94,3 @@ export function LangSwitch() {
     </div>
   )
 }
-
-const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1)

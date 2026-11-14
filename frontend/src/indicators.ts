@@ -1,6 +1,6 @@
 import type { Metric } from './api'
 
-export type Zone = 'heart' | 'ear' | 'lungs' | 'brain' | 'eyes' | 'bones' | 'muscle'
+export type Zone = 'heart' | 'ear' | 'lungs' | 'brain' | 'eyes' | 'bones' | 'muscle' | 'skin'
 export type IndicatorId = Metric | Zone
 export interface IndicatorCopy { title: string; measured: string; matters: string; action: string }
 type Translation = { en: IndicatorCopy; es: IndicatorCopy }
@@ -31,7 +31,11 @@ export const INDICATORS: Record<IndicatorId, Translation> = {
     ['Variabilidad cardiaca', 'La HRV se calcula con los intervalos entre latidos de un ECG sin artefactos, en condiciones de reposo parecidas. Esta demo usa una serie sintética y una banda personal supuesta, no un límite validado para astronautas.', 'La HRV cambia con el sueño, la carga de trabajo y la recuperación. Una lectura baja aislada no diagnostica una enfermedad.', 'Comprueba la calidad del registro y repite en condiciones de reposo parecidas. Revisa el sueño, el ejercicio y la hidratación dentro de tu plan de a bordo. Si persiste o te encuentras mal, avisa al CMO. Ante presión en el pecho o desmayo, pide ayuda y abre Triaje ya.'],
   ),
   sleep_h: sleep, brain: sleep,
-  co2_night_peak_mmhg: air, lungs: air,
+  co2_night_peak_mmhg: air,
+  lungs: {
+    en: { ...air.en, measured: 'Onboard sensors measure breathing rate and blood oxygen. The cabin monitor separately measures bunk CO₂. Each personal signal is compared with your baseline; faster breathing during exercise is expected.' },
+    es: { ...air.es, measured: 'Los sensores de a bordo miden la frecuencia respiratoria y el oxígeno en sangre. El monitor de cabina mide por separado el CO₂ de la litera. Cada señal personal se compara con tu referencia; respirar más rápido durante el ejercicio es esperable.' },
+  },
   mood_1_5: entry(
     ['Mood check-in', 'You report how you feel by voice or questionnaire. The 1–5 scale and its personal band are prototype assumptions. Voice analysis is a proposed supporting signal, not a diagnosis or a mind-reading sensor.', 'Isolation, workload and poor sleep can affect mood and teamwork. Your own account matters more than a score.', 'Check in again when you have a quiet moment. Consider sleep, pain and cabin air, and talk to someone you trust. Ask the CMO for support if distress persists. If you feel unsafe, contact a crewmate and the CMO immediately; for a medical emergency, open Triage.'],
     ['Registro de ánimo', 'Tú cuentas cómo te encuentras por voz o en un cuestionario. La escala de 1 a 5 y su banda personal son supuestos del prototipo. El análisis de voz es un apoyo propuesto, no un diagnóstico ni un sensor que lea la mente.', 'El aislamiento, la carga de trabajo y el mal descanso pueden afectar al ánimo y al equipo. Lo que tú cuentas importa más que una puntuación.', 'Vuelve a registrarlo en un momento tranquilo. Revisa cómo has dormido, si tienes dolor y el aire de cabina; habla con alguien de confianza. Pide apoyo al CMO si el malestar persiste. Si no te sientes a salvo, contacta enseguida con un compañero y el CMO; ante una urgencia médica, abre Triaje.'],
@@ -49,8 +53,12 @@ export const INDICATORS: Record<IndicatorId, Translation> = {
     ['Huesos y espalda', 'Se registran las cargas de ejercicio y el dolor de espalda. Los escáneres antes y después del vuelo valoran la densidad. Metis no mide la densidad ósea en vuelo ni la estima a partir del registro de ejercicio.', 'La menor carga en ingravidez puede debilitar los huesos. El registro de ejercicio ayuda al equipo médico a seguir el plan de contramedidas pautado.', 'Revisa si faltan sesiones por registrar y cuenta al CMO cualquier dolor nuevo o persistente. Sigue tu plan de ejercicio; no añadas carga para compensar un aviso. Tras una lesión o ante dolor intenso, para la tarea y pide ayuda; abre Triaje ante una urgencia.'],
   ),
   muscle: entry(
-    ['Muscle and exercise', 'ARED and treadmill sessions, workload and self-reported strength or pain are logged. Scheduled assessments add context. Metis does not directly measure muscle mass or strength through the earpiece.', 'Muscles lose conditioning with less gravitational loading. Changes in performance can affect daily tasks and return to gravity.', 'Check the log and review recovery with the CMO or exercise team. Follow the prescribed load and rest plan. Stop if exercise causes pain or dizziness. Sudden weakness, collapse or chest pressure needs crew help and Triage now.'],
-    ['Músculo y ejercicio', 'Se registran las sesiones de ARED y cinta, la carga y lo que cuentas sobre fuerza o dolor. Las evaluaciones programadas aportan contexto. Metis no mide directamente la masa ni la fuerza muscular con el módulo de oído.', 'Con menos carga gravitatoria, los músculos pierden condición física. Los cambios de rendimiento pueden afectar a las tareas y a la vuelta a la gravedad.', 'Comprueba el registro y revisa la recuperación con el CMO o el equipo de ejercicio. Sigue la carga y el descanso pautados. Para si el ejercicio causa dolor o mareo. Ante debilidad repentina, desplome o presión en el pecho, pide ayuda y abre Triaje ya.'],
+    ['Activity and exercise', 'The activity sensor in the shirt or earpiece detects movement and distinguishes rest from exercise. Heart rate adds context during exercise; this is not a measurement of muscle mass or strength.', '', 'Follow your prescribed exercise and recovery plan. Check sensor fit if activity does not match what you are doing. Stop and tell the CMO if you feel pain, dizziness or unusual weakness.'],
+    ['Actividad y ejercicio', 'El sensor de actividad de la camiseta o del módulo de oído detecta movimiento y distingue reposo de ejercicio. El pulso aporta contexto durante el ejercicio; no mide la masa ni la fuerza muscular.', '', 'Sigue el plan pautado de ejercicio y recuperación. Comprueba el ajuste del sensor si la actividad no coincide con lo que haces. Para y avisa al CMO si tienes dolor, mareo o debilidad inusual.'],
+  ),
+  skin: entry(
+    ['Skin temperature', 'The onboard sensor measures temperature at the skin and compares it with your personal baseline. Skin temperature is not core body temperature.', '', 'Check sensor contact and recent activity. Repeat at rest and tell the CMO if the change persists or you feel unwell.'],
+    ['Temperatura de la piel', 'El sensor de a bordo mide la temperatura de la piel y la compara con tu referencia personal. La temperatura cutánea no es la temperatura corporal interna.', '', 'Comprueba el contacto del sensor y la actividad reciente. Repite en reposo y avisa al CMO si el cambio persiste o te encuentras mal.'],
   ),
 }
 
