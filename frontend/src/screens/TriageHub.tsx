@@ -55,7 +55,7 @@ export default function TriageHub() {
   const [selected, setSelected] = useState<HubFlow | null>(null)
   const legacyFlow = new URLSearchParams(location.search).get('flow')
   const flows = getFlows(lang)
-  if (legacyFlow) return <Navigate replace to={`/triage/run?${new URLSearchParams({ flow: legacyFlow })}`} />
+  if (legacyFlow) return <Navigate replace to={`/triage/run?${location.search.slice(1)}`} />  // keep every param (patient, voice…)
   return (
     <div className="triage-run triage-hub">
       <Page title={t('triage_title')} sub={copy[lang].intro}>

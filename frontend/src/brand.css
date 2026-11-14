@@ -443,3 +443,7 @@ input.field::placeholder { color: #4A5468 }
 /* References, now a section at the end of Settings */
 .settings-references { margin-top: 36px; max-width: 1200px }
 .settings-references .section-h { font-size: 28px; margin-bottom: 14px }
+
+/* No visible scrollbars anywhere: every screen and inner panel still scrolls (wheel, trackpad, keyboard, touch). */
+html, body, main.content, * { scrollbar-width: none; -ms-overflow-style: none }
+html::-webkit-scrollbar, body::-webkit-scrollbar, main.content::-webkit-scrollbar, *::-webkit-scrollbar { display: none; width: 0; height: 0 }
