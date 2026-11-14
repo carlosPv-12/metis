@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Activity, Bandage, Brain, CloudRain, Eye, Flame, HeartPulse, MessageCircle, Moon, MousePointer2, Siren, Thermometer, Users, Wind, X, type LucideIcon } from 'lucide-react'
+import { Activity, Bandage, Battery, Brain, CloudRain, Eye, Flame, HeartPulse, MessageCircle, Moon, MousePointer2, Siren, Thermometer, Users, Wind, X, type LucideIcon } from 'lucide-react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useLang, useT } from '../i18n'
 import { Page } from '../ui'
@@ -9,7 +9,7 @@ import Orbit from '../triage/Orbit'
 import '../triage.css'
 
 // Keep the tree’s icon names explicit so the whole Lucide library is not bundled.
-const flowIcons: Record<string, LucideIcon> = { Activity, Bandage, Brain, CloudRain, Eye, Flame, HeartPulse, Moon, Siren, Thermometer, Users, Wind }
+const flowIcons: Record<string, LucideIcon> = { Activity, Bandage, Battery, Brain, CloudRain, Eye, Flame, HeartPulse, Moon, Siren, Thermometer, Users, Wind }
 
 function FlowIcon({ flow }: { flow: HubFlow }) {
   const Icon: LucideIcon = flowIcons[flow.icon] ?? (flow.group === 'emergency' ? Siren : HeartPulse)

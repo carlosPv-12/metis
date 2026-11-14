@@ -50,6 +50,16 @@ export interface Mission { env: 'iss' | 'eva' | 'moon' | 'mars' | 'blackout'; ma
 // ---- Roles (backend/roles.py; contract in API.md, «Roles a bordo y Tierra») ----
 export type CrewRole = 'crew' | 'commander' | 'cmo'
 export type Viewer = string            // a crew id ('lena', 'kenji'…) or 'ground'
+/** A wellbeing check-in as the backend sends it (backend/wellbeing.py). `note` only for its owner, or for ground if shared with it. */
+export interface ApiCheckIn { id: string; ts: number; crew_id: string; instrument: string; answers: Record<string, number>; tags: string[]; note?: string; shared: boolean; note_shared: boolean
+  scores?: { total: number; band: string; gad2: number; phq2: number; anxiety_positive: boolean; mood_positive: boolean } }
+export interface WbAdvice { code: string; en: string; es: string; flow: string | null; source: { title: string; url: string } }
+export type WbRiskId = 'stress' | 'mood' | 'fatigue' | 'sleep' | 'isolation' | 'conflict'
+export type WbLevel = 'low' | 'watch' | 'high'
+export interface WbWhy { code: 'hrv_low' | 'rhr_high' | 'sleep_low' | 'co2' | 'answer' | 'tag' | 'phq2' | 'gad2' | 'voice'; value?: number; nights?: number; q?: string; tag?: string; tone?: string }
+export interface WbRisk { id: WbRiskId; score: number; level: WbLevel; why: WbWhy[] }
+/** What ground may see about how someone feels, as that person chose (never answers or notes). */
+export interface WbGroundSummary { crew_id: string; share_level: 'none' | 'summary' | 'signals'; severe_flag?: boolean; overall?: 'ok' | 'watch' | 'high'; trend?: 'up' | 'down' | 'flat'; areas?: { id: WbRiskId; level: WbLevel }[] }
 export type Access = 'full' | 'summary'
 export interface Fitness { status: 'fit' | 'limited' | 'unfit'; by: 'default' | 'cmo' | 'ground'; ts: number | null }
 export interface RolesDoc { roles: Record<string, CrewRole>; defaults: Record<string, CrewRole>
@@ -105,6 +115,17 @@ export const api = {
   thresholds: () => withFallback(j<Threshold[]>('/api/thresholds'), () => FALLBACK_THRESHOLDS).then(r => (Array.isArray(r) ? r : FALLBACK_THRESHOLDS)),
   // viewer (optional): who is looking — a crew id or 'ground'. The backend then applies the roles (see Roles below).
   station: (viewer?: Viewer) => withFallback(j<Station>('/api/station' + vq(viewer), undefined, 4000), () => FALLBACK_STATION),
+  // Wellbeing check-ins ("How I feel"), kept on board by the backend. viewer = the crew member, or 'ground' (only what was sent).
+  wbList: (crew_id: string, viewer: Viewer) => j<ApiCheckIn[]>(`/api/wellbeing/checkins?${new URLSearchParams({ crew_id, viewer })}`, undefined, 4000),
+  wbAdd: (b: { crew_id: string; instrument: string; answers: Record<string, number>; tags: string[]; note: string; share: boolean; share_note: boolean }) =>
+    j<ApiCheckIn & { advice: WbAdvice[] }>('/api/wellbeing/checkins', b, 5000),
+  wbPhq4Due: (crew_id: string) => j<{ phq4_due: boolean }>(`/api/wellbeing/instrument?${new URLSearchParams({ crew_id })}`, undefined, 4000).then(r => r.phq4_due),
+  wbAdvice: (crew_id: string) => j<WbAdvice[]>(`/api/wellbeing/advice?${new URLSearchParams({ crew_id })}`, undefined, 4000),
+  wbRisks: (crew_id: string) => j<{ crew_id: string; risks: WbRisk[] }>(`/api/wellbeing/risks?${new URLSearchParams({ crew_id })}`, undefined, 4000).then(r => r.risks),
+  wbGround: (crew_id: string) => j<WbGroundSummary>(`/api/wellbeing/risks?${new URLSearchParams({ crew_id, viewer: 'ground' })}`, undefined, 4000),
+  wbShare: (id: string, with_note: boolean) => j<ApiCheckIn>(`/api/wellbeing/checkins/${encodeURIComponent(id)}/share`, { with_note }, 5000),
+  wbShareLevel: (crew_id: string) => j<{ crew_id: string; level: string }>(`/api/wellbeing/share?${new URLSearchParams({ crew_id })}`, undefined, 4000),
+  wbSetShareLevel: (crew_id: string, level: string) => j<{ crew_id: string; level: string }>('/api/wellbeing/share', { crew_id, level }, 4000, 'PUT'),
   // Events: backend first; if the endpoint is missing, a local store (localStorage) keeps the console working across tabs.
   events: () => j<StationEvent[] | { events: StationEvent[] }>('/api/station/events', undefined, 4000).then(r => (Array.isArray(r) ? r : r.events ?? [])).catch(() => localEvents()),
   postEvent: (type: string, crew_id: string, payload: Record<string, unknown> = {}) => j<unknown>('/api/station/events', { type, crew_id, payload }, 4000).catch(() => {

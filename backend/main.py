@@ -11,7 +11,7 @@ from fastapi.responses import Response, JSONResponse
 from pydantic import BaseModel
 
 import re
-import ground, llm, mission, roles, ship, station, vitals, voice_answer, voice_engine
+import ground, llm, mission, roles, ship, station, vitals, voice_answer, voice_engine, wellbeing
 
 HERE = pathlib.Path(__file__).parent
 DATA = HERE.parent / "data"
@@ -595,6 +595,127 @@ def vitals_checkin(b: CheckinIn):
 @app.post("/api/vitals/reset")
 def vitals_reset():
     vitals.reset()
+    return {"ok": True}
+
+
+# ---------- bienestar («How I feel»), guardado a bordo ----------
+def _crew_or_404(crew_id: str):
+    doc = crew_doc()
+    if crew_id not in doc["crew"]:
+        raise HTTPException(404, f"tripulante desconocido: {crew_id}")
+    return doc
+
+
+def _wellbeing_viewer(viewer: str | None, crew_id: str):
+    """Sin viewer = el propio tripulante (las pantallas de a bordo son las suyas)."""
+    v = viewer_ok(viewer) or crew_id
+    if v not in (crew_id, "ground"):
+        raise HTTPException(403, "los registros de bienestar solo los ve la propia persona (y Tierra lo que ella envía)")
+    return v
+
+
+class CheckInIn(BaseModel):
+    crew_id: str
+    instrument: str = wellbeing.DAILY["id"]     # o wellbeing.PHQ4["id"]
+    answers: dict[str, float]
+    tags: list[str] = []
+    note: str = ""
+    share: bool = False         # enviarlo también al cirujano de vuelo
+    share_note: bool = False    # con la nota
+
+
+class ShareIn(BaseModel):
+    with_note: bool = False
+
+
+class ShareLevelIn(BaseModel):
+    crew_id: str
+    level: str
+
+
+def _send_checkin(c: dict, doc: dict):
+    t_en, t_es = wellbeing.text(c, doc["crew"][c["crew_id"]]["name"])
+    station.add_event("send_flight_surgeon", c["crew_id"], {"kind": "wellbeing", "checkin_id": c["id"], "text_en": t_en, "text_es": t_es})
+
+
+@app.get("/api/wellbeing/instrument")
+def wellbeing_instrument(crew_id: str | None = None):
+    """Los dos cuestionarios y, si se dice quién, si le toca el PHQ-4 (cada 14 días)."""
+    out = {"daily": wellbeing.DAILY, "biweekly": wellbeing.PHQ4, "sources": wellbeing.SOURCES,
+           "tags": list(wellbeing.TAGS), "share_levels": list(wellbeing.SHARE_LEVELS)}
+    if crew_id:
+        _crew_or_404(crew_id)
+        out["phq4_due"] = wellbeing.phq4_due(crew_id)
+    return out
+
+
+@app.get("/api/wellbeing/checkins")
+def wellbeing_list(crew_id: str, viewer: str | None = None):
+    _crew_or_404(crew_id)
+    return wellbeing.checkins(crew_id, _wellbeing_viewer(viewer, crew_id))
+
+
+@app.post("/api/wellbeing/checkins")
+def wellbeing_add(b: CheckInIn):
+    doc = _crew_or_404(b.crew_id)
+    answers = {k: (int(v) if float(v).is_integer() else v) for k, v in b.answers.items()}
+    try:
+        c = wellbeing.add(b.crew_id, answers, b.tags, b.note, b.share, b.share_note, b.instrument)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if c["shared"]:
+        _send_checkin(c, doc)
+    return {**c, "advice": wellbeing.advice(doc["crew"][b.crew_id], b.crew_id)}
+
+
+@app.get("/api/wellbeing/advice")
+def wellbeing_advice(crew_id: str, viewer: str | None = None):
+    """Consejos de Metis para el propio tripulante (dependen de sus respuestas: solo los ve él)."""
+    doc = _crew_or_404(crew_id)
+    if _wellbeing_viewer(viewer, crew_id) != crew_id:
+        raise HTTPException(403, "los consejos son solo para la propia persona")
+    return wellbeing.advice(doc["crew"][crew_id], crew_id)
+
+
+@app.get("/api/wellbeing/risks")
+def wellbeing_risks(crew_id: str, viewer: str | None = None):
+    """El propio tripulante: señales con sus motivos. Tierra: solo el resumen que esa persona eligió compartir."""
+    doc = _crew_or_404(crew_id)
+    v = _wellbeing_viewer(viewer, crew_id)
+    if v == "ground":
+        return wellbeing.ground_summary(crew_id, doc["crew"][crew_id])
+    return {"crew_id": crew_id, "risks": wellbeing.risks(doc["crew"][crew_id], crew_id)}
+
+
+@app.post("/api/wellbeing/checkins/{checkin_id}/share")
+def wellbeing_share(checkin_id: str, b: ShareIn):
+    before = wellbeing.get(checkin_id)
+    if not before:
+        raise HTTPException(404, "registro desconocido")
+    c = wellbeing.share(checkin_id, b.with_note)
+    if not before["shared"]:
+        _send_checkin(c, _crew_or_404(c["crew_id"]))
+    return c
+
+
+@app.get("/api/wellbeing/share")
+def wellbeing_share_get(crew_id: str):
+    _crew_or_404(crew_id)
+    return {"crew_id": crew_id, "level": wellbeing.share_level(crew_id)}
+
+
+@app.put("/api/wellbeing/share")
+def wellbeing_share_set(b: ShareLevelIn):
+    _crew_or_404(b.crew_id)
+    try:
+        return {"crew_id": b.crew_id, "level": wellbeing.set_share_level(b.crew_id, b.level)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/wellbeing/reset")
+def wellbeing_reset():
+    wellbeing.reset()
     return {"ok": True}
 
 

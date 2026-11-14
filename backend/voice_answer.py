@@ -26,6 +26,7 @@ FUZZY_YES = {"yes", "yeah", "yep", "yup", "ya", "yah", "yea", "yess", "yesh", "j
              "uhhuh", "affirmative", "correct", "sure", "si", "sip", "vale", "claro"}
 FUZZY_NO = {"no", "nope", "nah", "know", "now", "noh", "nou", "nop", "noo", "nooo", "negative", "not", "nein"}
 UNSURE = re.compile(r" (dont know|not sure|unsure|no idea|maybe|perhaps|i think|no se|no lo se|ni idea|quizas|tal vez|puede que|creo que) ")
+SKIP = re.compile(r" (rather not|prefer not|not say|dont want to say|dont want to talk|pass|skip|prefiero no|no quiero decir|no quiero contestar|no quiero responder) ")
 NO = re.compile(r" (no|nope|nah|not|never|negative|isnt|doesnt|dont|cant|wont|arent|hasnt|gasping|nada|nunca|tampoco|ni|boquea|apenas) ")
 YES = re.compile(r" (yes|yeah|yep|yup|sure|correct|affirmative|ok|okay|si|claro|vale|correcto|afirmativo|exacto) ")
 # Describen el estado bueno; cuentan como "sí" solo si no hay ninguna negación ("he is breathing").
@@ -54,10 +55,14 @@ def match_option(text: str, options: list[dict], state_means_yes: bool = False) 
     t = _norm(clean_transcript(text))
     if not t.strip():
         return None
-    if UNSURE.search(t):
-        return None
     ids = {o["id"] for o in options}
-    if ids == {"si", "no"}:
+    # «I'd rather not say» / «prefiero no decirlo»: solo donde el nodo ofrece esa salida (cribado de riesgo).
+    if "skip" in ids and SKIP.search(t):
+        return "skip"
+    if UNSURE.search(t):
+        # «No estoy seguro» es una respuesta propia donde el nodo la ofrece (en las señales de alarma cuenta como sí).
+        return "unsure" if "unsure" in ids else None
+    if {"si", "no"} <= ids and ids <= {"si", "no", "unsure", "skip"}:
         y, n, st = bool(YES.search(t)), bool(NO.search(t)), bool(STATE.search(t))
         if y and not n:
             return "si"

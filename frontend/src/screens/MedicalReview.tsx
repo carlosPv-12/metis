@@ -3,7 +3,7 @@
 // read it top to bottom: findings, vital signs, daily measurements against the personal baseline, sleep and air,
 // body systems, blood, mood, equipment, the reports received and the current duty decision.
 import { ArrowDown, ArrowRight, ArrowUp, ClipboardList, Lock } from 'lucide-react'
-import { api, type CrewDetail, type Fitness, type GroundView, type Metric } from '../api'
+import { api, NO_SERVER, type CrewDetail, type Fitness, type GroundView, type Metric, type WbGroundSummary } from '../api'
 import { usePoll, useLoad } from '../hooks'
 import { useLang, useT, pick } from '../i18n'
 import { DEC, LevelTag, METRICS, Shape, UNIT, fmt, levelOf, type Level } from '../ui'
@@ -12,7 +12,7 @@ import { useHotspots } from './Body'
 import { insightText, matchN } from './Greeting'
 import CrewAvatar from '../CrewAvatar'
 import EarpiecePair from '../EarpiecePair'
-import { QUESTIONS, WB_TXT, useCheckIns, useShareLevel } from '../wellbeing'
+import { QUESTIONS, WB_TXT, concerning, fmtAnswer, isDaily, useCheckIns, useShareLevel, type CheckIn } from '../wellbeing'
 import { computeRisks, WB_RISK_TXT } from './Wellbeing'
 
 const TXT = {
@@ -86,7 +86,8 @@ export default function MedicalReview({ g, crewId, detail, live }: { g: GroundVi
   const { data: blood } = useLoad(api.blood)
   const st = usePoll(() => api.station(), 5000)
   const shared = useCheckIns(crewId, true)
-  const allCheckIns = useCheckIns(crewId)
+  // Only the single-file demo (no backend) computes the summary here; with the backend ground never asks for private check-ins.
+  const allCheckIns = useCheckIns(crewId, !NO_SERVER)
   const shareLvl = useShareLevel(crewId)
   const hotspots = useHotspots(detail, live).filter(h => h.id !== 'eyes' && h.id !== 'bones' && h.level !== 'nodata')
   if (!detail) return null
@@ -199,7 +200,7 @@ export default function MedicalReview({ g, crewId, detail, live }: { g: GroundVi
       </Section>}
 
       <Section n={7} title={s.s7}>
-        <Emotional detail={detail} last={allCheckIns[0]} level={shareLvl} name={crew.name} />
+        <Emotional crewId={crewId} detail={detail} local={allCheckIns} level={shareLvl} name={crew.name} />
       </Section>
 
       <Section n={8} title={s.s8}>
@@ -210,7 +211,11 @@ export default function MedicalReview({ g, crewId, detail, live }: { g: GroundVi
         {!shared.length && <p className="small muted" style={{ margin: 0 }}>{s.noReports}</p>}
         <ul className="mr-reports">{shared.slice(0, 5).map(c => <li key={c.id}>
           <time>{new Date(c.ts).toLocaleString(lang === 'es' ? 'es-ES' : 'en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</time>
-          <div className="mr-wb">{QUESTIONS.map(q => <span key={q} className={c.answers[q] <= 2 ? 'low' : ''}><small>{wb.q[q]}</small><b>{c.answers[q]}/5</b></span>)}</div>
+          {isDaily(c)
+            ? <div className="mr-wb">{QUESTIONS.map(q => <span key={q} className={concerning(q, c.answers[q]) ? 'low' : ''}><small>{wb.q[q]}</small><b>{fmtAnswer(q, c.answers[q])}</b></span>)}</div>
+            : c.scores && <div className="mr-wb"><span className={c.scores.total >= 6 ? 'low' : ''}><small>PHQ-4</small><b>{c.scores.total}/12</b></span>
+                <span className={c.scores.mood_positive ? 'low' : ''}><small>PHQ-2</small><b>{c.scores.phq2}/6</b></span>
+                <span className={c.scores.anxiety_positive ? 'low' : ''}><small>GAD-2</small><b>{c.scores.gad2}/6</b></span></div>}
           {!!c.tags.length && <p>{c.tags.map(t => wb.tag[t]).join(', ')}</p>}
           {c.noteShared && c.note.trim() && <p>“{c.note.trim()}”</p>}
         </li>)}</ul>
@@ -232,20 +237,28 @@ const EMO = {
     areas: 'Áreas que necesitan atención', noAreas: 'Ningún área necesita atención.', chose: (n: string, w: string) => `${n} comparte: ${w}`, what: { none: 'nada', summary: 'un resumen', signals: 'qué áreas necesitan atención' } },
 }
 
-/** What ground sees of a crew member's emotional state: only what that person chose to share, never answers or notes. */
-function Emotional({ detail, last, level, name }: { detail: CrewDetail; last: ReturnType<typeof useCheckIns>[number] | undefined; level: 'none' | 'summary' | 'signals'; name: string }) {
+/** What ground sees of a crew member's emotional state: only what that person chose to share, never answers or notes.
+ *  With the backend, ground receives only the summary computed on board (backend/wellbeing.py, ground_summary);
+ *  the private check-ins never reach this screen. Without a backend (single-file demo) it is computed here. */
+function Emotional({ crewId, detail, local, level, name }: { crewId: string; detail: CrewDetail; local: CheckIn[]; level: 'none' | 'summary' | 'signals'; name: string }) {
   const { lang } = useLang(); const e = EMO[lang]; const rt = WB_RISK_TXT[lang]
-  const risks = computeRisks(detail, last, lang)
-  const overall = risks.some(r => r.level === 'high') ? 'high' : risks.some(r => r.level === 'watch') ? 'watch' : 'ok'
-  const m = detail.days.slice(-7).map(d => d.mood_1_5), d = (m[m.length - 1] + m[m.length - 2]) / 2 - (m[0] + m[1]) / 2
-  const trend = d > .4 ? 'up' : d < -.4 ? 'down' : 'flat'
+  const server = usePoll(() => (NO_SERVER ? Promise.reject(new Error('no server')) : api.wbGround(crewId)), 5000, [crewId])
+  const fallback = (): WbGroundSummary => {
+    const rs = computeRisks(detail, local)
+    const m = detail.days.slice(-7).map(d => d.mood_1_5), d = (m[m.length - 1] + m[m.length - 2]) / 2 - (m[0] + m[1]) / 2
+    return { crew_id: crewId, share_level: level, overall: rs.some(r => r.level === 'high') ? 'high' : rs.some(r => r.level === 'watch') ? 'watch' : 'ok',
+      severe_flag: rs.some(r => r.level === 'high'), trend: d > .4 ? 'up' : d < -.4 ? 'down' : 'flat', areas: rs.filter(r => r.level !== 'low').map(r => ({ id: r.id, level: r.level })) }
+  }
+  const g = server ?? (NO_SERVER ? fallback() : null)
+  if (!g) return null
+  const overall = g.overall ?? 'ok', trend = g.trend ?? 'flat', areas = g.areas ?? []
   const Arrow = trend === 'up' ? ArrowUp : trend === 'down' ? ArrowDown : ArrowRight
   return (
     <div className="mr-emo">
       <p className="mr-emo-who"><Lock size={13} aria-hidden /> {e.chose(name, e.what[level])}</p>
       {level === 'none' ? <>
         <p className="small muted" style={{ margin: 0 }}>{e.none(name)}</p>
-        {overall === 'high' && <p className="mr-emo-flag">{e.flagged}</p>}
+        {(g.severe_flag ?? overall === 'high') && <p className="mr-emo-flag">{e.flagged}</p>}
       </> : <>
         <div className="mr-emo-row">
           <span className={`mr-emo-state ${overall}`}>{e.state[overall]}</span>
@@ -253,8 +266,8 @@ function Emotional({ detail, last, level, name }: { detail: CrewDetail; last: Re
         </div>
         {level === 'signals' && <div className="mr-emo-areas">
           <span className="small muted">{e.areas}</span>
-          {risks.filter(r => r.level !== 'low').length
-            ? <div>{risks.filter(r => r.level !== 'low').map(r => <span key={r.id} className={`mr-emo-area ${r.level}`}>{rt.risk[r.id].name}<em>{rt.level[r.level]}</em></span>)}</div>
+          {areas.length
+            ? <div>{areas.map(r => <span key={r.id} className={`mr-emo-area ${r.level}`}>{rt.risk[r.id].name}<em>{rt.level[r.level]}</em></span>)}</div>
             : <p className="small" style={{ margin: 0 }}>{e.noAreas}</p>}
         </div>}
       </>}

@@ -1,28 +1,37 @@
 // Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026
-// "How I feel": Metis keeps asking how the crew member is and offers to talk; below, the wellbeing signals it reads
-// (self-reported mood plus sleep, HRV and resting heart rate against the personal band), the possible risks they point
-// to (stress, low mood, fatigue, poor sleep, isolation, crew tension) with example signs, what helps, and a direct
-// check with Metis (the psychological triage flows). Check-ins are private; sending one to ground is optional.
-import { useState } from 'react'
+// "How I feel": Metis asks if there is something to talk about; the daily check-in uses the kind of 0-10 scales NASA crews used on
+// the ISS (Reaction Self Test) plus the Samn-Perelli fatigue scale, and every 14 days the PHQ-4 (free use, Pfizer).
+// Below: the wellbeing signals Metis reads (check-in + sleep, HRV and resting heart rate against the personal band),
+// the possible risks they point to with their reasons, Metis's advice for these answers and a direct check with Metis
+// (the psychological triage flows). Check-ins are private; sending one to ground is optional.
+// Layout (Manuela, 14-nov 23:38): today at a glance (4 signals + voice of the week), only the active signs as cards,
+// how the voice sounded (voiceTone.ts: only the result is kept, never the recording), then three cards.
+// Risks and advice come from the backend (backend/wellbeing.py); computeRisks() below is the same rule set for the
+// single-file demo without a backend.
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, ChevronDown, Lock, MessageCircle, Send, Stethoscope } from 'lucide-react'
-import { api, type CrewDetail, type Metric } from '../api'
+import { Check, ChevronDown, ExternalLink, Lock, MessageCircle, Send, Stethoscope } from 'lucide-react'
+import { api, NO_SERVER, type CrewDetail, type Metric, type WbAdvice, type WbRisk, type WbRiskId, type WbWhy } from '../api'
 import { useLoad } from '../hooks'
 import { useLang, useT } from '../i18n'
 import { Card, DEC, Loading, MetisLine, Page, Spark, UNIT, fmt, levelOf, useCrew } from '../ui'
-import { QUESTIONS, WB_TXT, SHARE_TXT, setShareLevel, useShareLevel, type ShareLevel, addCheckIn, checkInText, shareCheckIn, useCheckIns, type CheckIn, type Score } from '../wellbeing'
+import { DAILY_ID, PHQ4_ID, PHQ4_QUESTIONS, QUESTIONS, RANGE, TAGS, WB_TXT, SHARE_TXT, addCheckIn, concerning, fmtAnswer, isDaily, setShareLevel, shareCheckIn,
+  useCheckIns, useShareLevel, type CheckIn, type PhqQuestion, type Question, type ShareLevel } from '../wellbeing'
+import { TONES, VOICE_TXT, toneCounts, voiceMoments, type Tone } from '../voiceTone'
 import '../wellbeing.css'
 
-export type RiskId = 'stress' | 'mood' | 'fatigue' | 'sleep' | 'isolation' | 'conflict'
+export type RiskId = WbRiskId
 export type RiskLevel = 'low' | 'watch' | 'high'
 
 export const WB_RISK_TXT = {
   en: {
     title: 'How I feel',
-    ask: (n: string) => `${n}, how are you feeling today? Is there something on your mind you would like to talk about?`,
+    ask: (n: string) => `${n}, is there something on your mind you would like to talk about?`,
     askAgain: (n: string) => `Thanks, ${n}. I am here whenever you want to talk about anything that is going on.`,
     quick: { good: 'I feel good', tired: 'A bit tired', stressed: 'Stressed', talk: 'I would like to talk' },
     talk: 'Talk to Metis', check: 'Do a check with Metis',
+    glance: 'Today at a glance', examples: 'Examples', noSigns: 'No signs',
+    lowMood: 'Low mood', voiceWeek: 'Voice this week', toneDetails: 'Tone breakdown', showAll: 'Show all', showLess: 'Show less',
     signals: 'What Metis reads about how you feel', risks: 'Possible signs to watch',
     level: { low: 'Low', watch: 'Watch', high: 'High' } as Record<RiskLevel, string>,
     why: 'Why', signs: 'Examples of signs', help: 'What I can do', hide: 'Hide',
@@ -34,7 +43,7 @@ export const WB_RISK_TXT = {
       mood: { name: 'Low mood (risk of depression)', flow: 'persistent_low_mood',
         signs: ['Things you enjoyed feel flat', 'Wanting to stay in the bunk', 'Feeling hopeless or guilty', 'Eating or sleeping much more or less'],
         help: ['Plan one small thing you enjoy today', 'Call or write to someone at home', 'Time at the window or under the bright light panel', 'Talk to the crew medical officer if it lasts more than two weeks'] },
-      fatigue: { name: 'Fatigue', flow: 'cant_sleep',
+      fatigue: { name: 'Fatigue', flow: 'fatigue',
         signs: ['Heavy eyes during the day', 'Slower reactions', 'More small mistakes', 'Needing caffeine to get going'],
         help: ['Keep a short nap under 30 minutes', 'Do the hardest tasks at your best time of day', 'Hydrate and eat at regular times', 'Ask to swap a demanding task if you can'] },
       sleep: { name: 'Poor sleep', flow: 'cant_sleep',
@@ -52,18 +61,21 @@ export const WB_RISK_TXT = {
       rhrHigh: (v: string) => `Resting heart rate ${v} bpm, above your band`,
       sleepLow: (v: string, n: number) => `Sleep ${v} h, below your band (${n} ${n === 1 ? 'night' : 'nights'})`,
       co2: (v: string) => `Bunk CO₂ peak ${v} mmHg, above the 3 mmHg limit`,
-      moodLow: (v: number) => `Mood ${v}/5 in your last days`,
       said: (what: string) => `You said: ${what}`,
+      phq2: (v: number) => `Two-week check: low mood score ${v}/6 (3 or more is worth a talk)`,
+      gad2: (v: number) => `Two-week check: worry score ${v}/6 (3 or more is worth a talk)`,
     },
     checkin: 'Tell Metis how you feel', history: 'My last check-ins',
     recTitle: (n: string) => `${n}, this is what I recommend for the next days:`, talkOffer: 'Do you want to talk with me about it?', talkYes: 'Yes, talk with Metis',
   },
   es: {
     title: 'Cómo me siento',
-    ask: (n: string) => `${n}, ¿qué tal te sientes hoy? ¿Hay algo que te ronde la cabeza y de lo que quieras hablar?`,
+    ask: (n: string) => `${n}, ¿hay algo que te ronde la cabeza y de lo que quieras hablar?`,
     askAgain: (n: string) => `Gracias, ${n}. Aquí estoy cuando quieras hablar de cualquier cosa que te esté pasando.`,
     quick: { good: 'Me siento bien', tired: 'Algo cansado/a', stressed: 'Con estrés', talk: 'Quiero hablar' },
     talk: 'Hablar con Metis', check: 'Hacer un chequeo con Metis',
+    glance: 'Hoy de un vistazo', examples: 'Ejemplos', noSigns: 'Sin señales',
+    lowMood: 'Ánimo bajo', voiceWeek: 'Voz esta semana', toneDetails: 'Detalle de tonos', showAll: 'Mostrar todo', showLess: 'Mostrar menos',
     signals: 'Lo que Metis lee de cómo te sientes', risks: 'Posibles señales a vigilar',
     level: { low: 'Bajo', watch: 'Vigilar', high: 'Alto' } as Record<RiskLevel, string>,
     why: 'Por qué', signs: 'Ejemplos de señales', help: 'Qué puedo hacer', hide: 'Ocultar',
@@ -75,7 +87,7 @@ export const WB_RISK_TXT = {
       mood: { name: 'Ánimo bajo (riesgo de depresión)', flow: 'persistent_low_mood',
         signs: ['Lo que antes te gustaba ahora no te dice nada', 'Ganas de quedarte en la litera', 'Sensación de desesperanza o culpa', 'Comer o dormir mucho más o mucho menos'],
         help: ['Planea hoy una cosa pequeña que te guste', 'Llama o escribe a alguien de casa', 'Un rato en la ventana o bajo el panel de luz', 'Habla con el oficial médico si dura más de dos semanas'] },
-      fatigue: { name: 'Cansancio', flow: 'cant_sleep',
+      fatigue: { name: 'Cansancio', flow: 'fatigue',
         signs: ['Ojos pesados durante el día', 'Reacciones más lentas', 'Más errores pequeños', 'Necesitar cafeína para arrancar'],
         help: ['Siesta corta, de menos de 30 minutos', 'Las tareas difíciles a tu mejor hora', 'Bebe agua y come a horas regulares', 'Pide cambiar una tarea exigente si se puede'] },
       sleep: { name: 'Mal sueño', flow: 'cant_sleep',
@@ -93,12 +105,43 @@ export const WB_RISK_TXT = {
       rhrHigh: (v: string) => `Pulso en reposo ${v} lpm, por encima de tu banda`,
       sleepLow: (v: string, n: number) => `Sueño ${v} h, por debajo de tu banda (${n} ${n === 1 ? 'noche' : 'noches'})`,
       co2: (v: string) => `Pico de CO₂ en la litera ${v} mmHg, por encima del límite de 3 mmHg`,
-      moodLow: (v: number) => `Ánimo ${v}/5 en tus últimos días`,
       said: (what: string) => `Dijiste: ${what}`,
+      phq2: (v: number) => `Chequeo de dos semanas: ánimo bajo ${v}/6 (3 o más merece una charla)`,
+      gad2: (v: number) => `Chequeo de dos semanas: preocupación ${v}/6 (3 o más merece una charla)`,
     },
     checkin: 'Cuéntale a Metis cómo te sientes', history: 'Mis últimos registros',
     recTitle: (n: string) => `${n}, esto es lo que te recomiendo para los próximos días:`, talkOffer: '¿Quieres hablarlo conmigo?', talkYes: 'Sí, hablar con Metis',
   },
+}
+
+/** Text of one reason (the backend sends codes and values, the screen writes them). */
+export function whyText(w: WbWhy, lang: 'en' | 'es') {
+  const x = WB_RISK_TXT[lang].reason, wb = WB_TXT[lang]
+  switch (w.code) {
+    case 'hrv_low': return x.hrvLow(fmt(w.value ?? 0, 0), w.nights ?? 1)
+    case 'rhr_high': return x.rhrHigh(fmt(w.value ?? 0, 0))
+    case 'sleep_low': return x.sleepLow(fmt(w.value ?? 0, 1), w.nights ?? 1)
+    case 'co2': return x.co2(fmt(w.value ?? 0, 2))
+    case 'answer': return `${wb.q[w.q as Question] ?? w.q} ${fmtAnswer(w.q ?? '', w.value ?? 0)}`
+    case 'tag': return x.said((wb.tag[w.tag ?? ''] ?? w.tag ?? '').toLowerCase())
+    case 'phq2': return x.phq2(w.value ?? 0)
+    case 'gad2': return x.gad2(w.value ?? 0)
+    case 'voice': { const v = VOICE_TXT[lang]; return v.reason(v.tone[w.tone as Tone] ?? w.tone ?? '', w.value ?? 1) }
+  }
+}
+
+/** How the voice sounded in the last 3 days also counts (Manuela, voiceTone.ts). Demo history kept in the frontend,
+ *  so it is added here on top of the backend's signals; ground's summary does not include it. */
+export function withVoice(risks: WbRisk[], crewId: string): WbRisk[] {
+  const tc = toneCounts(voiceMoments(crewId), 72)
+  const extra: [RiskId, Tone, number][] = [['mood', 'sad', tc.sad], ['stress', 'irritated', tc.irritated], ['stress', 'anxious', tc.anxious], ['fatigue', 'tired', tc.tired >= 2 ? tc.tired : 0]]
+  const lvl = (sc: number): RiskLevel => (sc >= 4 ? 'high' : sc >= 2 ? 'watch' : 'low')
+  return risks.map(r => {
+    const add = extra.filter(([id, , n]) => id === r.id && n > 0)
+    if (!add.length) return r
+    const score = r.score + add.length
+    return { ...r, score, level: lvl(score), why: [...r.why, ...add.map(([, tone, n]): WbWhy => ({ code: 'voice', tone, value: n }))] }
+  }).sort((p, q) => q.score - p.score)
 }
 
 /** Nights in a row, counting back from today, outside the band on the bad side. */
@@ -108,35 +151,48 @@ function streak(c: CrewDetail, m: Metric, dir: 1 | -1) {
   return n
 }
 
-export function computeRisks(c: CrewDetail, last: CheckIn | undefined, lang: 'en' | 'es') {
-  const x = WB_RISK_TXT[lang], wb = WB_TXT[lang]
+/** Same rules as risks() in backend/wellbeing.py: used only without a backend (single-file demo). */
+export function computeRisks(c: CrewDetail, history: CheckIn[], now = Date.now()): WbRisk[] {
   const today = c.days[c.days.length - 1]
-  const recent = last && Date.now() - last.ts < 3 * 864e5 ? last : undefined
-  const a = recent?.answers, tags = recent?.tags ?? []
+  const daily = history.find(h => isDaily(h) && now - h.ts < 3 * 864e5)
+  const phq = history.find(h => h.instrument === PHQ4_ID && now - h.ts < 14 * 864e5)
+  const ids: RiskId[] = ['stress', 'mood', 'fatigue', 'sleep', 'isolation', 'conflict']
+  const out = Object.fromEntries(ids.map(r => [r, { score: 0, why: [] as WbWhy[] }])) as Record<RiskId, { score: number; why: WbWhy[] }>
+  const add = (r: RiskId, pts: number, w: WbWhy) => { out[r].score += pts; out[r].why.push(w) }
   const hrv = streak(c, 'hrv_ms', -1), rhr = streak(c, 'resting_hr_bpm', 1), sl = streak(c, 'sleep_h', -1)
-  const moodDays = c.days.slice(-5).map(d => d.mood_1_5), moodAvg = moodDays.reduce((s, v) => s + v, 0) / moodDays.length
-  const out: Record<RiskId, { score: number; why: string[] }> = { stress: { score: 0, why: [] }, mood: { score: 0, why: [] }, fatigue: { score: 0, why: [] }, sleep: { score: 0, why: [] }, isolation: { score: 0, why: [] }, conflict: { score: 0, why: [] } }
-  const add = (r: RiskId, pts: number, why: string) => { out[r].score += pts; out[r].why.push(why) }
-  const said = (t: string) => x.reason.said(wb.tag[t].toLowerCase())
-  if (hrv) add('stress', hrv >= 2 ? 2 : 1, x.reason.hrvLow(fmt(today.hrv_ms, 0), hrv))
-  if (rhr) add('stress', 1, x.reason.rhrHigh(fmt(today.resting_hr_bpm, 0)))
-  if (a && a.stress <= 2) add('stress', 2, `${wb.q.stress} ${a.stress}/5`)
-  for (const t of ['workload', 'worried']) if (tags.includes(t)) add('stress', 1, said(t))
-  if (moodAvg <= 3) add('mood', moodAvg <= 2.5 ? 2 : 1, x.reason.moodLow(Math.round(moodAvg)))
-  if (a && a.mood <= 2) add('mood', 2, `${wb.q.mood} ${a.mood}/5`)
-  if (tags.includes('bored')) add('mood', 1, said('bored'))
-  if (sl) add('fatigue', 1, x.reason.sleepLow(fmt(today.sleep_h, 1), sl))
-  if (a && a.energy <= 2) add('fatigue', 2, `${wb.q.energy} ${a.energy}/5`)
-  if (tags.includes('tired')) add('fatigue', 1, said('tired'))
-  if (sl) add('sleep', sl >= 2 ? 2 : 1, x.reason.sleepLow(fmt(today.sleep_h, 1), sl))
-  if (today.co2_night_peak_mmhg > 3) add('sleep', 1, x.reason.co2(fmt(today.co2_night_peak_mmhg, 2)))
-  if (a && a.sleep <= 2) add('sleep', 2, `${wb.q.sleep} ${a.sleep}/5`)
-  if (a && a.connected <= 2) add('isolation', 2, `${wb.q.connected} ${a.connected}/5`)
-  if (tags.includes('homesick')) add('isolation', 2, said('homesick'))
-  if (tags.includes('crew')) add('conflict', 2, said('crew'))
-  return (Object.keys(out) as RiskId[]).map(id => ({ id, ...out[id], level: (out[id].score >= 4 ? 'high' : out[id].score >= 2 ? 'watch' : 'low') as RiskLevel }))
-    .sort((p, q) => q.score - p.score)
+  if (hrv) add('stress', hrv >= 2 ? 2 : 1, { code: 'hrv_low', value: today.hrv_ms, nights: hrv })
+  if (rhr) add('stress', 1, { code: 'rhr_high', value: today.resting_hr_bpm })
+  if (sl) { add('fatigue', 1, { code: 'sleep_low', value: today.sleep_h, nights: sl }); add('sleep', sl >= 2 ? 2 : 1, { code: 'sleep_low', value: today.sleep_h, nights: sl }) }
+  if (today.co2_night_peak_mmhg > 3) add('sleep', 1, { code: 'co2', value: today.co2_night_peak_mmhg })
+  if (daily) {
+    const a = daily.answers, A = (q: string, value: number): WbWhy => ({ code: 'answer', q, value })
+    if (a.stress >= 7) add('stress', 2, A('stress', a.stress)); else if (a.stress >= 5) add('stress', 1, A('stress', a.stress))
+    if (a.workload >= 8) add('stress', 1, A('workload', a.workload))
+    if (a.mood <= 3) add('mood', 2, A('mood', a.mood)); else if (a.mood <= 5) add('mood', 1, A('mood', a.mood))
+    if (a.fatigue >= 6) add('fatigue', 3, A('fatigue', a.fatigue)); else if (a.fatigue >= 5) add('fatigue', 2, A('fatigue', a.fatigue))
+    if (a.sleep_hours < 6) add('sleep', 1, A('sleep_hours', a.sleep_hours))
+    if (a.sleep_quality <= 4) add('sleep', 2, A('sleep_quality', a.sleep_quality))
+    if (a.crew <= 4) add('conflict', 2, A('crew', a.crew))
+    for (const [t, r] of [['workload', 'stress'], ['worried', 'stress'], ['bored', 'mood'], ['tired', 'fatigue'], ['homesick', 'isolation'], ['crew', 'conflict']] as [string, RiskId][])
+      if (daily.tags.includes(t)) add(r, t === 'homesick' || t === 'crew' ? 2 : 1, { code: 'tag', tag: t })
+  }
+  if (phq?.scores) {
+    if (phq.scores.mood_positive) add('mood', 3, { code: 'phq2', value: phq.scores.phq2 })
+    if (phq.scores.anxiety_positive) add('stress', 3, { code: 'gad2', value: phq.scores.gad2 })
+  }
+  const lvl = (s: number): RiskLevel => (s >= 4 ? 'high' : s >= 2 ? 'watch' : 'low')
+  return ids.map(id => ({ id, score: out[id].score, level: lvl(out[id].score), why: out[id].why })).sort((p, q) => q.score - p.score)
 }
+
+/** Advice without a backend: the risk's own "what I can do" lines (the backend gives answer-specific advice). */
+function localAdvice(risks: WbRisk[], lang: 'en' | 'es'): WbAdvice[] {
+  const x = WB_RISK_TXT[lang]
+  const top = risks.filter(r => r.level !== 'low').slice(0, 3)
+  if (!top.length) return [{ code: 'ok', en: WB_TXT.en.tipOk, es: WB_TXT.es.tipOk, flow: null, source: { title: '', url: '' } }]
+  return top.map(r => ({ code: r.id, en: WB_RISK_TXT.en.risk[r.id].help[0], es: WB_RISK_TXT.es.risk[r.id].help[0], flow: x.risk[r.id].flow, source: { title: '', url: '' } }))
+}
+
+type Draft = Partial<Record<Question, number>>
 
 export default function Wellbeing() {
   const { lang } = useLang(); const t = useT(); const x = WB_RISK_TXT[lang]
@@ -144,90 +200,219 @@ export default function Wellbeing() {
   const { data: c } = useLoad(() => api.crewOne(crewId), [crewId])
   const history = useCheckIns(crewId)
   const nav = useNavigate()
-  const [replied, setReplied] = useState(false)
-  const [open, setOpen] = useState(false)
+  const [formOpen, setFormOpen] = useState(false)
+  const [advice, setAdvice] = useState<WbAdvice[] | null>(null)
+  const [serverRisks, setServerRisks] = useState<WbRisk[] | null>(null)
+  const [phqDue, setPhqDue] = useState<boolean | null>(null)
+  const [phqDismissed, setPhqDismissed] = useState(false)
+  const newest = history[0]?.id
+  useEffect(() => {
+    if (NO_SERVER) return
+    let alive = true
+    api.wbRisks(crewId).then(r => { if (alive) setServerRisks(r) }).catch(() => {})
+    api.wbPhq4Due(crewId).then(d => { if (alive) setPhqDue(d) }).catch(() => {})
+    return () => { alive = false }
+  }, [crewId, newest])
+  useEffect(() => { setAdvice(null); setFormOpen(false); setPhqDismissed(false) }, [crewId])
   if (!c) return <Loading />
-  const risks = computeRisks(c, history[0], lang)
-  const quickSave = (mood: Score, energy: Score, stress: Score, tags: string[]) => {
-    addCheckIn({ id: `${Date.now()}`, ts: Date.now(), crewId, answers: { mood, energy, stress, sleep: 3, connected: 3 }, tags, note: '', shared: false, noteShared: false })
-    setReplied(true)
-  }
+  const risks = withVoice(serverRisks ?? computeRisks(c, history), c.id)
+  const localPhqDue = !history.some(h => h.instrument === PHQ4_ID && Date.now() - h.ts < 14 * 864e5)
+  const showPhq = !phqDismissed && (phqDue ?? localPhqDue)
   const today = c.days[c.days.length - 1]
   const SIGNALS: Metric[] = ['mood_1_5', 'sleep_h', 'hrv_ms', 'resting_hr_bpm']
   const go = (flow: string) => nav(`/triage/run?${new URLSearchParams({ flow, voice: '1' })}`)
   const top = risks.find(r => r.level !== 'low')
   const attention = risks.filter(r => r.level !== 'low')
   const recs = (attention.length ? attention : risks.slice(0, 1)).flatMap(r => x.risk[r.id].help.slice(0, 2)).slice(0, 4)
+  const saved = (a: WbAdvice[] | null) => { setAdvice(a ?? localAdvice(computeRisks(c, history), lang)); setFormOpen(false) }
 
   return (
     <Page title={x.title}>
-      {/* Metis is always the one asking */}
+      {/* Metis is always the one asking: two buttons, talk or check (Manuela) */}
       <section className="card feature feature-gradient wb-ask" aria-live="polite">
-        <MetisLine><p className="wb-ask-q">{replied ? x.askAgain(c.name) : x.ask(c.name)}</p></MetisLine>
+        <MetisLine><p className="wb-ask-q">{advice ? x.askAgain(c.name) : x.ask(c.name)}</p></MetisLine>
         <div className="wb-ask-actions">
-          {!replied && <>
-            <button type="button" className="wb-chip" onClick={() => quickSave(4, 4, 4, [])}>{x.quick.good}</button>
-            <button type="button" className="wb-chip" onClick={() => quickSave(3, 2, 3, ['tired'])}>{x.quick.tired}</button>
-            <button type="button" className="wb-chip" onClick={() => quickSave(3, 3, 2, ['worried'])}>{x.quick.stressed}</button>
-          </>}
-          <button type="button" className="btn primary" onClick={() => nav('/talk')}><MessageCircle size={16} />{replied ? x.talk : x.quick.talk}</button>
-          {top && <button type="button" className="btn wb-check" onClick={() => go(x.risk[top.id].flow)}><Stethoscope size={16} />{x.check}</button>}
+          <button type="button" className="btn primary" onClick={() => nav('/talk')}><MessageCircle size={16} />{advice ? x.talk : x.quick.talk}</button>
+          <button type="button" className="btn wb-check" onClick={() => go(x.risk[(top ?? risks[0]).id].flow)}><Stethoscope size={16} />{x.check}</button>
         </div>
       </section>
 
-      <h2 className="section-h wb-h">{x.signals}</h2>
-      <div className="wb-signals">
-        {SIGNALS.map(m => {
-          const b = c.baseline[m], l = levelOf(m, today[m], b)
-          return <div key={m} className={`wb-signal ${l}`}>
+      {advice && <AdviceCard advice={advice} name={c.name} onFlow={go} />}
+      {!advice && (formOpen
+        ? <DailyCheckIn crewId={crewId} name={c.name} onSaved={saved} onCancel={() => setFormOpen(false)} />
+        : <div className="wb-open-form"><button type="button" className="btn primary" onClick={() => setFormOpen(true)}><Check size={16} />{WB_TXT[lang].today}</button></div>)}
+      {showPhq && !formOpen && <Phq4 crewId={crewId} name={c.name} onSaved={a => { setPhqDue(false); saved(a) }} onLater={() => setPhqDismissed(true)} />}
+
+      <Card title={x.glance} className="wb-glance">
+        <div className="wb-signals" aria-label={x.signals}>
+          {SIGNALS.map(m => <div key={m} className={`wb-signal ${levelOf(m, today[m], c.baseline[m])}`}>
             <span>{t(`m_${m}`)}</span>
             <strong>{fmt(today[m], DEC[m])}<small>{m === 'mood_1_5' ? '/5' : t(UNIT[m])}</small></strong>
-            <Spark days={c.days} m={m} b={b} h={38} color="#9CBF00" />
-          </div>
-        })}
-      </div>
+            <Spark days={c.days} m={m} b={c.baseline[m]} h={26} color="#2E96F5" />
+          </div>)}
+          <VoiceWeek crewId={c.id} />
+        </div>
+      </Card>
 
-      <h2 className="section-h wb-h">{x.risks}</h2>
-      <div className="wb-risks">
-        {risks.map(r => {
-          const k = x.risk[r.id]
-          return <article key={r.id} className={`wb-risk ${r.level}`}>
-            <header><h3>{k.name}</h3><span className={`wb-level ${r.level}`}>{x.level[r.level]}</span></header>
-            <div className="wb-meter" aria-hidden><i style={{ width: `${Math.min(100, 12 + r.score * 18)}%` }} /></div>
-            <p className="wb-why"><b>{x.why}:</b> {r.why.length ? r.why.join('; ') : x.noWhy}</p>
-            <p className="wb-signs"><b>{x.signs}:</b> {k.signs.map((g, i) => (i ? g.replace(/^./, ch => ch.toLowerCase()) : g)).join(', ')}</p>
-          </article>
-        })}
-      </div>
+      <section className="wb-signs-section" aria-labelledby="wb-risks-h">
+        <h2 id="wb-risks-h" className="wb-h">{x.risks}</h2>
+        <div className="wb-risks">
+          {attention.map(r => <RiskCard key={r.id} risk={r} lang={lang} />)}
+        </div>
+        <div className="wb-low-risks">
+          {risks.some(r => r.level === 'low') && <span>{x.noSigns}:</span>}
+          {risks.filter(r => r.level === 'low').map(r => <details key={r.id} className="wb-low-risk">
+            <summary>{r.id === 'mood' ? x.lowMood : x.risk[r.id].name}</summary>
+            <RiskCard risk={r} lang={lang} />
+          </details>)}
+        </div>
+      </section>
+
+      <VoiceTone crewId={c.id} />
 
       <div className="wb-grid">
-        {/* "What I can do": Metis's own recommendations for the signs that need attention, and an offer to talk */}
-        <div className="wb-improve">
-          <button type="button" className="btn wb-help-btn" aria-expanded={open} onClick={() => setOpen(v => !v)}>
-            <ChevronDown size={15} style={{ transform: open ? 'rotate(180deg)' : 'none' }} />{open ? x.hide : x.help}
-          </button>
-          {open && <section className="card wb-improve-card">
-            <MetisLine>
-              <p className="wb-rec-title">{x.recTitle(c.name)}</p>
-              <ul className="wb-recs">{recs.map(r => <li key={r}><Check size={15} aria-hidden />{r}</li>)}</ul>
-              <div className="wb-talk-offer"><span>{x.talkOffer}</span>
-                <button type="button" className="btn primary" onClick={() => nav('/talk')}><MessageCircle size={16} />{x.talkYes}</button></div>
-            </MetisLine>
-          </section>}
-        </div>
-        <div className="wb-side">
-          <History c={c} crewId={crewId} title={x.history} />
-          <ShareChoice crewId={crewId} />
-        </div>
+        <Card title={x.help} className="wb-improve-card">
+          <p className="wb-rec-title">{x.recTitle(c.name)}</p>
+          <ul className="wb-recs">{recs.map(r => <li key={r}><Check size={14} aria-hidden />{r}</li>)}</ul>
+        </Card>
+        <History c={c} crewId={crewId} title={x.history} />
+        <ShareChoice crewId={crewId} />
       </div>
     </Page>
   )
 }
 
-function sendToGround(ci: CheckIn, withNote: boolean, crewId: string, name: string) {
-  const x = { ...ci, noteShared: withNote }
-  void api.postEvent('send_flight_surgeon', crewId, { kind: 'wellbeing', text_en: checkInText(x, 'en', name), text_es: checkInText(x, 'es', name) })
-  shareCheckIn(ci.id, withNote)
+function RiskCard({ risk: r, lang }: { risk: WbRisk; lang: 'en' | 'es' }) {
+  const x = WB_RISK_TXT[lang], k = x.risk[r.id]
+  return <article className={`card wb-risk ${r.level}`}>
+    <header><h3>{k.name}</h3><span className={`wb-level ${r.level}`}>{x.level[r.level]}</span></header>
+    <div className="wb-meter" aria-hidden><i style={{ width: `${Math.min(100, 12 + r.score * 18)}%` }} /></div>
+    <p className="wb-why"><b>{x.why}:</b> {r.why.length ? r.why.map(w => whyText(w, lang)).join('; ') : x.noWhy}</p>
+    <details className="wb-examples">
+      <summary>{x.examples}<ChevronDown size={13} aria-hidden /></summary>
+      <p className="wb-signs"><b>{x.signs}:</b> {k.signs.map((g, i) => (i ? g.replace(/^./, ch => ch.toLowerCase()) : g)).join(', ')}</p>
+    </details>
+  </article>
+}
+
+/** Metis's advice for the answers just saved, each with its source and, if it fits, a triage to open. */
+function AdviceCard({ advice, name, onFlow }: { advice: WbAdvice[]; name: string; onFlow: (flow: string) => void }) {
+  const { lang } = useLang(); const s = WB_TXT[lang]
+  return (
+    <section className="card wb-improve-card wb-advice" aria-live="polite">
+      <MetisLine>
+        <p className="wb-rec-title">{s.adviceTitle(name)}</p>
+        <ul className="wb-recs">{advice.map(a => <li key={a.code}>
+          <Check size={15} aria-hidden />
+          <span>{lang === 'es' ? a.es : a.en}
+            {a.source.url && <a className="wb-src" href={a.source.url} target="_blank" rel="noreferrer" title={a.source.title}> <ExternalLink size={11} aria-hidden />{s.source}</a>}
+            {a.flow && <button type="button" className="btn ghost wb-send" onClick={() => onFlow(a.flow!)}><Stethoscope size={13} />{s.openTriage}</button>}
+          </span>
+        </li>)}</ul>
+      </MetisLine>
+    </section>
+  )
+}
+
+/** One 0-10 (or 1-7 / 0-3) answer as a row of buttons; fine for touch and for reading out. */
+function Scale({ q, value, onPick, labels }: { q: string; value: number | undefined; onPick: (v: number) => void; labels?: string[] }) {
+  const [lo, hi] = RANGE[q as Question | PhqQuestion]
+  const vals = Array.from({ length: hi - lo + 1 }, (_, i) => lo + i)
+  return (
+    <div className={`wb-scale ${labels ? 'wb-scale-anchored' : ''}`} role="radiogroup">
+      {vals.map(v => <button key={v} type="button" role="radio" aria-checked={value === v} className={`wb-dot ${value === v ? 'on' : ''} ${concerning(q, v) ? 'warn' : ''}`}
+        onClick={() => onPick(v)} title={labels?.[v - lo]}>
+        <span>{v}</span>{labels && <em>{labels[v - lo]}</em>}
+      </button>)}
+    </div>
+  )
+}
+
+function DailyCheckIn({ crewId, name, onSaved, onCancel }: { crewId: string; name: string; onSaved: (a: WbAdvice[] | null) => void; onCancel: () => void }) {
+  const { lang } = useLang(); const s = WB_TXT[lang]
+  const [a, setA] = useState<Draft>({})
+  const [tags, setTags] = useState<string[]>([])
+  const [note, setNote] = useState('')
+  const [share, setShare] = useState(false)
+  const [shareNote, setShareNote] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const complete = QUESTIONS.every(q => typeof a[q] === 'number')
+  const set = (q: Question, v: number) => setA(p => ({ ...p, [q]: v }))
+  // From the previous state, so quick repeated taps all count.
+  const stepHours = (d: number) => setA(p => ({ ...p, sleep_hours: Math.min(14, Math.max(0, (p.sleep_hours ?? 7) + d)) }))
+  const save = async () => {
+    if (!complete || busy) return
+    setBusy(true)
+    const ci: CheckIn = { id: `${Date.now()}`, ts: Date.now(), crewId, instrument: DAILY_ID, answers: a as Record<string, number>, tags, note, shared: share, noteShared: share && shareNote }
+    onSaved(await addCheckIn(ci, name))
+  }
+  return (
+    <section className="card wb-form" aria-label={s.today}>
+      <h2 className="section-h" style={{ margin: 0 }}>{s.today}</h2>
+      <p className="small muted" style={{ margin: '4px 0 6px' }}>{s.todaySub}</p>
+      {QUESTIONS.map(q => <div key={q} className="wb-q">
+        <span className="wb-q-label">{s.ask[q]}</span>
+        {q === 'sleep_hours'
+          ? <div className="wb-hours">
+              <button type="button" className="wb-dot" aria-label="−" onClick={() => stepHours(-0.5)}><span>−</span></button>
+              <strong>{typeof a[q] === 'number' ? `${a[q]} h` : '— h'}</strong>
+              <button type="button" className="wb-dot" aria-label="+" onClick={() => stepHours(0.5)}><span>+</span></button>
+            </div>
+          : <div>
+              <Scale q={q} value={a[q]} onPick={v => set(q, v)} labels={q === 'fatigue' ? s.fatigue : undefined} />
+              {s.ends[q] && <div className="wb-ends small muted"><span>{s.ends[q][0]}</span><span>{s.ends[q][1]}</span></div>}
+            </div>}
+      </div>)}
+      <div className="wb-tags"><span className="wb-q-label">{s.onMind}</span>
+        <div>{TAGS.map(tg => <button key={tg} type="button" className={`wb-tag ${tags.includes(tg) ? 'on' : ''}`} aria-pressed={tags.includes(tg)}
+          onClick={() => setTags(p => (p.includes(tg) ? p.filter(y => y !== tg) : [...p, tg]))}>{s.tag[tg]}</button>)}</div>
+      </div>
+      <label className="wb-note"><span className="wb-q-label">{s.note}</span>
+        <textarea rows={2} value={note} placeholder={s.notePh} onChange={e => setNote(e.target.value)} /></label>
+      <div className={`wb-share ${share ? 'on' : ''}`}>
+        <label className="wb-switch"><input type="checkbox" checked={share} onChange={e => setShare(e.target.checked)} /><i />{s.share}</label>
+        {share && note.trim() && <label className="wb-switch small"><input type="checkbox" checked={shareNote} onChange={e => setShareNote(e.target.checked)} /><i />{s.shareNote}</label>}
+      </div>
+      <div className="wb-actions">
+        <button type="button" className="btn primary" disabled={!complete || busy} onClick={save}>{share ? <Send size={15} /> : <Lock size={15} />}{share ? s.saveSend : s.save}</button>
+        <button type="button" className="btn ghost" onClick={onCancel}>{s.phqLater}</button>
+      </div>
+    </section>
+  )
+}
+
+function Phq4({ crewId, name, onSaved, onLater }: { crewId: string; name: string; onSaved: (a: WbAdvice[] | null) => void; onLater: () => void }) {
+  const { lang } = useLang(); const s = WB_TXT[lang]
+  const [a, setA] = useState<Partial<Record<PhqQuestion, number>>>({})
+  const [busy, setBusy] = useState(false)
+  const complete = PHQ4_QUESTIONS.every(q => typeof a[q] === 'number')
+  const save = async () => {
+    if (!complete || busy) return
+    setBusy(true)
+    onSaved(await addCheckIn({ id: `${Date.now()}`, ts: Date.now(), crewId, instrument: PHQ4_ID, answers: a as Record<string, number>, tags: [], note: '', shared: false, noteShared: false }, name))
+  }
+  return (
+    <section className="card wb-form wb-phq" aria-label={s.phqTitle}>
+      <h2 className="section-h" style={{ margin: 0 }}>{s.phqTitle}</h2>
+      <p className="small muted" style={{ margin: '4px 0 2px' }}>{s.phqSub}</p>
+      <p className="wb-q-label" style={{ margin: '8px 0 0' }}>{s.phqIntro}</p>
+      {PHQ4_QUESTIONS.map(q => <div key={q} className="wb-q">
+        <span className="wb-q-label">{s.phq[q]}</span>
+        <div className="wb-scale" role="radiogroup">{s.phqOpts.map((o, i) =>
+          <button key={o} type="button" role="radio" aria-checked={a[q] === i} className={`wb-tag ${a[q] === i ? 'on' : ''}`} onClick={() => setA(p => ({ ...p, [q]: i }))}>{o}</button>)}</div>
+      </div>)}
+      <p className="small muted" style={{ margin: '8px 0 0' }}>PHQ-4 © Pfizer Inc., free for download and use (Kroenke et al., Psychosomatics 2009).</p>
+      <div className="wb-actions">
+        <button type="button" className="btn primary" disabled={!complete || busy} onClick={save}><Lock size={15} />{s.phqSave}</button>
+        <button type="button" className="btn ghost" onClick={onLater}>{s.phqLater}</button>
+      </div>
+    </section>
+  )
+}
+
+/** The backend saves it as shared and creates the packet for the flight surgeon (without a backend: a local packet). */
+function sendToGround(ci: CheckIn, withNote: boolean, name: string) {
+  void shareCheckIn(ci, withNote, name)
 }
 
 function History({ c, crewId, title }: { c: CrewDetail; crewId: string; title: string }) {
@@ -241,8 +426,14 @@ function History({ c, crewId, title }: { c: CrewDetail; crewId: string; title: s
         <li key={h.id}>
           <div className="wb-history-top"><time>{when(h.ts)}</time>
             {h.shared ? <span className="wb-badge shared"><Send size={11} /> {s.shared}</span> : <span className="wb-badge"><Lock size={11} /> {s.private}</span>}</div>
-          <div className="wb-bars" aria-hidden>{QUESTIONS.map(q => <span key={q} title={`${s.q[q]} ${h.answers[q]}/5`}><i className={`v${h.answers[q]}`} style={{ height: `${h.answers[q] * 20}%` }} /></span>)}</div>
-          {!h.shared && <button type="button" className="btn ghost wb-send" onClick={() => sendToGround(h, false, crewId, c.name)}><Send size={13} />{s.sendNow}</button>}
+          {isDaily(h)
+            ? <div className="wb-bars" aria-hidden>{QUESTIONS.map(q => {
+                const [lo, hi] = RANGE[q], v = h.answers[q], bad = concerning(q, v)
+                const good = q === 'fatigue' || q === 'stress' || q === 'workload' ? (hi - v) / (hi - lo) : (v - lo) / (hi - lo)   // tall = good
+                return <span key={q} title={`${s.q[q]} ${fmtAnswer(q, v)}`}><i className={bad ? 'v1' : ''} style={{ height: `${Math.max(8, Math.min(1, good) * 100)}%` }} /></span>
+              })}</div>
+            : <span className="small">{h.scores ? `${s.phqTitle}: PHQ-4 ${h.scores.total}/12` : s.phqTitle}</span>}
+          {!h.shared && <button type="button" className="btn ghost wb-send" onClick={() => sendToGround(h, false, c.name)}><Send size={13} />{s.sendNow}</button>}
         </li>
       ))}</ul>
     </Card>
@@ -260,5 +451,56 @@ function ShareChoice({ crewId }: { crewId: string }) {
       </div>
       <p className="small muted" style={{ margin: '10px 0 0' }}>{s.hint[level]}</p>
     </Card>
+  )
+}
+
+/** Compact weekly overview, kept beside the other wellbeing signals. */
+function VoiceWeek({ crewId }: { crewId: string }) {
+  const { lang } = useLang(); const v = VOICE_TXT[lang], x = WB_RISK_TXT[lang]
+  const moments = voiceMoments(crewId)
+  const counts = toneCounts(moments)
+  const total = TONES.reduce((n, t) => n + counts[t], 0) || 1
+  const ranked = TONES.filter(t => counts[t]).sort((a, b) => counts[b] - counts[a])
+  const others = ranked.slice(1).filter(t => t !== 'neutral' && t !== 'calm' && t !== 'happy').slice(0, 2).map(t => v.tone[t].toLowerCase())
+  const summary = ranked.length ? v.summary(v.tone[ranked[0]].toLowerCase(), others.length ? v.also(others.join(lang === 'es' ? ' y ' : ' and ')) : '') : ''
+  return <div className="wb-voice-week">
+    <span className="wb-stat-label">{x.voiceWeek}</span>
+    <div className="wb-voice-bar" aria-hidden>{TONES.filter(t => counts[t]).map(t => <i key={t} className={`tone-${t}`} style={{ width: `${(counts[t] / total) * 100}%` }} />)}</div>
+    <p className="wb-voice-summary">{summary}</p>
+    <details className="wb-tone-details">
+      <summary>{x.toneDetails}<ChevronDown size={12} aria-hidden /></summary>
+      <p className="wb-stat-label">{v.week}</p>
+      <ul className="wb-voice-legend">{ranked.map(t => <li key={t}><i className={`tone-${t}`} />{v.tone[t]}<b>{counts[t]}</b></li>)}</ul>
+    </details>
+  </div>
+}
+
+/** The most recent voice moments, with the complete history available on demand. */
+function VoiceTone({ crewId }: { crewId: string }) {
+  const { lang } = useLang(); const v = VOICE_TXT[lang], x = WB_RISK_TXT[lang]
+  const [showAll, setShowAll] = useState(false)
+  const moments = voiceMoments(crewId)
+  const day = (ts: number) => {
+    const d = new Date(ts), now = new Date(), y = new Date(now); y.setDate(now.getDate() - 1)
+    const hm = d.toLocaleTimeString(lang === 'es' ? 'es-ES' : 'en-GB', { hour: '2-digit', minute: '2-digit' })
+    const label = d.toDateString() === now.toDateString() ? v.today : d.toDateString() === y.toDateString() ? v.yesterday : d.toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-GB', { weekday: 'short', day: 'numeric' })
+    return `${label} ${hm}`
+  }
+  return (
+    <section className="wb-voice" aria-labelledby="wb-voice-h">
+      <h2 id="wb-voice-h" className="wb-h">{v.title}</h2>
+      <p className="wb-voice-sub">{v.sub}</p>
+      <ol id="wb-voice-moments" className="wb-voice-list">
+        {(showAll ? moments : moments.slice(0, 4)).map(m => <li key={m.id}>
+          <time dateTime={new Date(m.ts).toISOString()}>{day(m.ts)}</time>
+          <span className="wb-voice-ctx">{v.context[m.context]}</span>
+          <span className={`wb-tone tone-${m.tone}`}><i />{v.tone[m.tone as Tone]}</span>
+          <span className="wb-voice-conf" role="meter" aria-label={v.confidence} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(m.confidence * 100)} title={`${Math.round(m.confidence * 100)} % ${v.confidence}`}><i style={{ width: `${m.confidence * 100}%` }} /></span>
+        </li>)}
+      </ol>
+      {moments.length > 4 && <button type="button" className="wb-text-toggle" aria-expanded={showAll} aria-controls="wb-voice-moments" onClick={() => setShowAll(value => !value)}>
+        {showAll ? x.showLess : x.showAll}<ChevronDown size={14} aria-hidden style={{ transform: showAll ? 'rotate(180deg)' : undefined }} />
+      </button>}
+    </section>
   )
 }

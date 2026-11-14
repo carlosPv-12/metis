@@ -15,8 +15,10 @@ S = {
  "erc_bls_2021": {"title": "Olasveengen et al., European Resuscitation Council Guidelines 2021: Basic Life Support, Resuscitation 161:98-114", "url": "https://doi.org/10.1016/j.resuscitation.2021.02.009", "kind": "peer-reviewed guideline"},
  "hrp_risks": {"title": "NASA HRP, Risks of Human Spaceflight (Resources tab)", "url": "https://www.nasa.gov/hrp/risks/", "kind": "NASA (challenge resource)"},
 }
-W = {"en": "Prototype guidance. Steps are anchored to the cited sources but have NOT been reviewed by a physician. Follow your approved onboard medical procedures and your CMO.",
-     "es": "Guía de prototipo. Los pasos se apoyan en las fuentes citadas pero NO los ha revisado un médico. Sigue los procedimientos médicos aprobados de a bordo y a tu CMO."}
+# Corregido el 14-nov (revisión de los 13 flujos, investigacion/triaje-revision-flujos-nuevos.md): las fuentes respaldan que
+# estos problemas ocurren en vuelo, no los pasos concretos, que son criterios de primeros auxilios en tierra.
+W = {"en": "Prototype guidance, NOT reviewed by a physician. The sources show these conditions occur in spaceflight; the questions and steps follow common first-aid practice. Follow your approved onboard medical procedures and your CMO.",
+     "es": "Guía de prototipo, NO revisada por un médico. Las fuentes muestran que estos problemas ocurren en vuelo; las preguntas y los pasos siguen prácticas habituales de primeros auxilios. Sigue los procedimientos médicos aprobados de a bordo y a tu CMO."}
 def q(en, es, why_en, why_es, opts, say_en=None, say_es=None, src=(), esc=False):
     return {"type": "question", "text_en": en, "text_es": es, "why_en": why_en, "why_es": why_es,
             "options": [{"id": i, "label_en": a, "label_es": b, "next": n} for i, a, b, n in opts],
@@ -161,6 +163,23 @@ S.update({
         "title": "Levin et al. 2023, Enabling Human Space Exploration Missions Through Progressively Earth Independent Medical Operations (EIMO)",
         "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10810302/",
         "kind": "peer-reviewed"},
+    # Añadidas el 14-nov (investigacion/triaje-y-bienestar-referencias.md, secciones B y C).
+    "bh_tb016": {
+        "title": "NASA OCHMO-TB-016 Rev B, Behavioral Health (stressors: sleep, workload, CO2, isolation, family news; private psychological conferences)",
+        "url": "https://www.nasa.gov/wp-content/uploads/2023/12/ochmo-tb-016-behavioral-health.pdf",
+        "kind": "NASA technical brief"},
+    "rst_sleep": {
+        "title": "Reaction Self Test on the ISS (2022): under 6 h of sleep linked to slower responses, more stress and workload",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8919197",
+        "kind": "peer-reviewed"},
+    "cssrs": {
+        "title": "Columbia Suicide Severity Rating Scale (C-SSRS): stepped questions (thoughts, then intent, plan and recent behaviour). Structure only; Metis uses its own wording",
+        "url": "https://cssrs.columbia.edu/the-columbia-scale-c-ssrs/about-the-scale/",
+        "kind": "clinical screening structure"},
+    "asking_safe": {
+        "title": "Blades et al. 2018: asking about suicidal thoughts does not increase them (meta-analysis)",
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30014862/",
+        "kind": "peer-reviewed"},
 })
 
 # New flows retain the q/r/YN node contract. Shared branches are copied into
@@ -176,6 +195,8 @@ COLLAPSE = ("If they stop responding or are not breathing normally, open the tri
 CHEST = ("For chest pain or pressure, open the triage \"I feel pressure in my chest\" while the CMO comes.",
          "Si hay dolor u opresión en el pecho, abre el triaje «Noto presión en el pecho» mientras acude el CMO.")
 AIR_STEPS = [
+    ("Follow the vehicle emergency procedure for fire or toxic atmosphere now, led by the commander.",
+     "Sigue ya el procedimiento de emergencia de la nave para fuego o atmósfera tóxica, dirigido por el comandante."),
     ("Leave the affected area now by the safe route in the onboard procedure; do not re-enter.",
      "Sal ya de la zona afectada por la ruta segura del procedimiento de a bordo; no vuelvas a entrar."),
     ("Use the prescribed protective mask and oxygen only as the onboard smoke or toxic-exposure procedure indicates.",
@@ -184,6 +205,8 @@ AIR_STEPS = [
      "Avisa ya a toda la tripulación, al comandante y al CMO; comprobad desde una zona segura que estáis todos."),
     ("Contact the flight surgeon at the next link; do not wait for ground advice before taking protective action.",
      "Contacta con el cirujano de vuelo en cuanto haya enlace; no esperes indicaciones de Tierra para protegerte."),
+    ("If a chemical reached the eyes or skin, rinse it once safe, following the onboard eye-irrigation or skin-exposure procedure.",
+     "Si un producto químico llegó a los ojos o a la piel, acláralo cuando estés a salvo según el procedimiento de irrigación ocular o de exposición cutánea de a bordo."),
     COLLAPSE,
 ]
 
@@ -200,25 +223,29 @@ def urgent(en, es, summary_en, summary_es, src, first=None):
         CALL_NOW, LOG, COLLAPSE], summary_en, summary_es, src)
 
 
-def question(en, es, yes, no, src, why_en, why_es):
-    return q(en, es, why_en, why_es, YN(yes, no), src=src)
+def question(en, es, yes, no, src, why_en, why_es, unsure=None):
+    """unsure: destino de «No estoy seguro». En las señales de alarma va al camino más grave (en caso de duda, se escala)."""
+    opts = YN(yes, no) + ([("unsure", "Not sure", "No estoy seguro", unsure)] if unsure else [])
+    return q(en, es, why_en, why_es, opts, src=src)
 
 
 def safety_nodes(next_id):
+    """Señales de alarma comunes. Humo, fuego o tóxico va PRIMERO: quien respira mal por humo tiene que salir de la zona,
+    no quedarse descansando (revisión de los 13 flujos, problema grave 1)."""
     src = ["ochmo_tb033", "hrp_risks"]
     return {
+        "air": question("Is there suspected smoke, fire or toxic exposure?", "¿Se sospecha humo, fuego o exposición tóxica?",
+                        "air_now", "awake", ["imm_ranking", "hrp_risks"],
+                        "An environmental hazard comes first: it can affect everyone.", "Un peligro ambiental va primero: puede afectar a todos.", unsure="air_now"),
         "awake": question("Is the affected person responding normally?", "¿La persona afectada responde con normalidad?",
                           "breathing", "collapse_now", ["erc_bls_2021"],
-                          "Check responsiveness before continuing.", "Comprueba si responde antes de continuar."),
+                          "Check responsiveness before continuing.", "Comprueba si responde antes de continuar.", unsure="collapse_now"),
         "breathing": question("Are they having trouble breathing?", "¿Le cuesta respirar?",
                               "breathing_now", "chest", src,
-                              "Breathing difficulty needs immediate help.", "La dificultad para respirar necesita ayuda inmediata."),
+                              "Breathing difficulty needs immediate help.", "La dificultad para respirar necesita ayuda inmediata.", unsure="breathing_now"),
         "chest": question("Is there chest pain or pressure?", "¿Hay dolor u opresión en el pecho?",
-                          "chest_now", "air", src,
-                          "Chest symptoms need their own urgent assessment.", "Los síntomas en el pecho necesitan una valoración urgente propia."),
-        "air": question("Is there suspected smoke, fire or toxic exposure?", "¿Se sospecha humo, fuego o exposición tóxica?",
-                        "air_now", next_id, ["imm_ranking", "hrp_risks"],
-                        "An environmental hazard can affect everyone.", "Un peligro ambiental puede afectar a todos."),
+                          "chest_now", next_id, src,
+                          "Chest symptoms need their own urgent assessment.", "Los síntomas en el pecho necesitan una valoración urgente propia.", unsure="chest_now"),
         "collapse_now": urgent("Not responding: get help now", "No responde: pide ayuda ya",
                                "Unresponsiveness reported; breathing must be checked with the collapse protocol.",
                                "Se comunica falta de respuesta; hay que comprobar la respiración con el protocolo de desplome.",
@@ -233,7 +260,7 @@ def safety_nodes(next_id):
     }
 
 
-def add_flow(fid, group, en, es, icon, nodes, start="awake"):
+def add_flow(fid, group, en, es, icon, nodes, start="air"):
     tree["flows"][fid] = {"title_en": en, "title_es": es, "start": start, "nodes": nodes,
                           "group": group, "summary_en": en, "summary_es": es, "icon": icon}
 
@@ -278,7 +305,16 @@ n.update({
                         ("sudden", "Sudden, at its worst", "Repentino y máximo", "head_red"),
                         ("neck", "Fever and stiff neck", "Fiebre y rigidez de cuello", "head_red"),
                         ("neuro", "New vision, speech or movement problem", "Problema nuevo de visión, habla o movimiento", "head_red"),
+                        ("pressure", "During or after an EVA or a pressure change", "Durante o después de una EVA o un cambio de presión", "head_pressure"),
                         ("none", "None of these", "Nada de esto", "head_pain")], src=src),
+    # Revisión de los 13 flujos, problema grave 2: una cefalea tras una EVA o un cambio de presión no puede esperar al próximo enlace.
+    "head_pressure": result("rojo", "Headache after an EVA or pressure change: alert the CMO now", "Cefalea tras una EVA o un cambio de presión: avisa ya al CMO", [
+        ("Stop the task and tell the CMO now; follow the onboard post-EVA or decompression procedure without waiting for ground.", "Deja la tarea y avisa ya al CMO; sigue el procedimiento de a bordo posterior a la EVA o de descompresión sin esperar a Tierra."),
+        ("Report when the EVA or pressure change happened, and any joint pain, skin changes, dizziness, vision or breathing problems.", "Comunica cuándo fue la EVA o el cambio de presión y si hay dolor articular, cambios en la piel, mareo o problemas de visión o respiración."),
+        ("Rest secured with a crewmate beside you; do not start another EVA or pressure change until the CMO clears you.", "Descansa sujeto con un compañero al lado; no empieces otra EVA ni otro cambio de presión hasta que el CMO lo autorice."),
+        CALL_NOW, LOG, COLLAPSE],
+        "Headache during or after an EVA or cabin pressure change; decompression-related cause not excluded.",
+        "Cefalea durante o tras una EVA o un cambio de presión de cabina; no se descarta una causa relacionada con la descompresión.", src),
     "head_pain": question("Is the pain severe and not settling?", "¿El dolor es intenso y no cede?", "head_red", "head_air", src,
                           "Severe persistent pain needs urgent assessment.", "El dolor intenso que no cede necesita valoración urgente."),
     "head_air": question("Is there a cabin CO2 or pressure warning?", "¿Hay un aviso de CO2 o presión de cabina?", "head_environment", "head_orange", src,
@@ -304,11 +340,15 @@ add_flow("strong_headache", "health", "I have a strong headache", "Me duele much
 src = ["hrp_risks", "imm_ranking"]
 n = safety_nodes("vision_loss")
 n.update({
+    # Revisión de los 13 flujos, problema grave 4: la salpicadura química va primero (irrigar no puede esperar a 5 preguntas).
+    "eye_splash": question("Did a chemical splash into your eye?", "¿Te ha salpicado un producto químico en el ojo?", "eye_chemical", "air", src,
+                           "A chemical in the eye needs rinsing straight away.", "Un producto químico en el ojo hay que aclararlo enseguida.", unsure="eye_chemical"),
     "vision_loss": question("Has any vision suddenly been lost?", "¿Has perdido visión de repente?", "eye_red", "eye_kind", src,
-                            "Sudden vision loss needs immediate help.", "La pérdida repentina de visión necesita ayuda inmediata."),
+                            "Sudden vision loss needs immediate help.", "La pérdida repentina de visión necesita ayuda inmediata.", unsure="eye_red"),
+    # Problema grave 3: un impacto fuerte o algo clavado escala aunque duela poco.
     "eye_kind": q("What is bothering the eye?", "¿Qué te pasa en el ojo?", "The next action depends on the type of problem.", "El siguiente paso depende del tipo de problema.", [
-        ("chemical", "Chemical splash", "Salpicadura química", "eye_chemical"),
-        ("object", "Something in it", "Tengo algo dentro", "eye_pain"),
+        ("impact", "Something hit it hard or is stuck in it", "Algo lo golpeó fuerte o está clavado", "eye_red"),
+        ("object", "Something loose in it", "Tengo algo suelto dentro", "eye_pain"),
         ("blur", "Blurred vision", "Veo borroso", "eye_orange")], src=src),
     "eye_pain": question("Is the eye pain severe?", "¿El dolor del ojo es intenso?", "eye_red", "eye_particle", src,
                           "Severe eye pain needs urgent assessment.", "El dolor ocular intenso necesita valoración urgente."),
@@ -333,7 +373,7 @@ n.update({
         ("Seek immediate help for sudden vision loss, severe eye pain or new speech or movement difficulty.", "Pide ayuda inmediata si pierdes visión de repente, aparece dolor ocular intenso o dificultad nueva al hablar o moverte.")],
         "Blurred vision reported; no sudden vision loss selected. SANS or another diagnosis not established.", "Se comunica visión borrosa; no se ha elegido pérdida súbita de visión. No se establece SANS ni otro diagnóstico.", src),
 })
-add_flow("eye_problem", "health", "My vision is blurred or something is in my eye", "Veo borroso o tengo algo en el ojo", "Eye", n)
+add_flow("eye_problem", "health", "My vision is blurred or something is in my eye", "Veo borroso o tengo algo en el ojo", "Eye", n, "eye_splash")
 
 # 3.4 / 3.15: basic protection and procedure referral for injury.
 src = ["imm_ranking", "hrp_risks"]
@@ -344,15 +384,18 @@ n.update({
         ("burn", "Serious burn", "Quemadura grave", "injury_red"),
         ("pain", "Severe pain not settling", "Dolor intenso que no cede", "injury_red"),
         ("none", "None of these", "Nada de esto", "injury_kind")], src=src),
-    "injury_kind": question("Is this a burn?", "¿Es una quemadura?", "burn_yellow", "wound_depth", src,
+    "injury_kind": question("Is this a burn?", "¿Es una quemadura?", "burn_cause", "wound_depth", src,
                            "Burns and wounds use different onboard procedures.", "Las quemaduras y las heridas tienen procedimientos distintos de a bordo."),
+    # Revisión de los 13 flujos, problema grave 5: química o eléctrica siempre escala, aunque no se marque «grave».
+    "burn_cause": question("Was it caused by a chemical or by electricity?", "¿La ha causado un producto químico o la electricidad?", "injury_red", "burn_yellow", src,
+                           "Chemical and electrical burns can be deeper than they look.", "Las quemaduras químicas y eléctricas pueden ser más profundas de lo que parecen.", unsure="injury_red"),
     "wound_depth": question("Is the wound deep or gaping?", "¿La herida es profunda o está abierta de lado a lado?", "wound_orange", "wound_yellow", src,
                             "A deeper wound needs prompt assessment.", "Una herida profunda necesita valoración pronta."),
     "injury_red": urgent("Serious injury: alert the CMO now", "Lesión grave: avisa ya al CMO",
                          "Heavy bleeding, large/deep/chemical/electrical burn or severe persistent injury pain reported; clarify selected sign.", "Se comunica sangrado abundante, quemadura extensa/profunda/química/eléctrica o dolor intenso persistente; concretar la señal elegida.", src,
                          ("For bleeding, apply firm direct pressure with a clean dressing per procedure; do not remove an embedded object. For a burn, stop exposure if safe.", "Si sangra, aplica presión directa firme con un apósito limpio según el procedimiento; no saques objetos clavados. Si es una quemadura, interrumpe la exposición si es seguro.")),
     "burn_yellow": result("amarillo", "Protect the burn and show it to the CMO", "Protege la quemadura y enséñasela al CMO", [
-        ("Stop contact with the heat source if safe; for electrical or chemical injury, call the CMO now for urgent assessment.", "Interrumpe el contacto con el calor si es seguro; si es una lesión eléctrica o química, llama ya al CMO para valoración urgente."),
+        ("Stop contact with the heat source if safe.", "Interrumpe el contacto con el calor si es seguro."),
         ("Use the approved onboard burn-cooling and dressing procedure with contained fluids; do not use ice or improvised creams.", "Usa el procedimiento aprobado de enfriamiento y cura de quemaduras con líquidos contenidos; no uses hielo ni cremas improvisadas."),
         ("Ask the CMO to assess the area and depth, especially on the face, hands or joints.", "Pide al CMO que valore la extensión y la profundidad, sobre todo en cara, manos o articulaciones."),
         ("Get immediate help for increasing severe pain, a large or deep burn, or any breathing difficulty.", "Pide ayuda inmediata si aumenta el dolor intenso, la quemadura es extensa o profunda o cuesta respirar.")],
@@ -458,7 +501,9 @@ air_intro_en = "Leave the affected area, use mask/oxygen per onboard procedure a
 air_intro_es = "Sal de la zona afectada, usa mascarilla/oxígeno según el procedimiento de a bordo y avisa a toda la tripulación YA. No esperes a responder."
 src = ["imm_ranking", "hrp_risks", "eimo_levin"]
 n = {
-    "safe": q("Have you reached the designated safe area?", "¿Has llegado a la zona segura designada?",
+    # Revisión de los 13 flujos, problema grave 6: la orden va en el titular, no en la letra pequeña.
+    "safe": q("Leave now and follow the vehicle fire or toxic-atmosphere procedure with the commander. Are you in the safe area?",
+              "Sal ya y sigue con el comandante el procedimiento de la nave para fuego o atmósfera tóxica. ¿Estás en la zona segura?",
               air_intro_en, air_intro_es, YN("air_awake", "exposure_red"),
               say_en=air_intro_en + " Have you reached the safe area?", say_es=air_intro_es + " ¿Has llegado a la zona segura?", src=src, esc=True),
     "air_awake": question("Is everyone responding normally?", "¿Todos responden con normalidad?", "air_breathing", "exposure_collapse", src,
@@ -480,93 +525,318 @@ for node in n.values():
     node["escalate"] = True
 add_flow("smoke_fire_toxic", "emergency", "There is smoke, fire or a possible toxic exposure", "Hay humo, fuego o una posible exposición tóxica", "Flame", n, "safe")
 
-# 3.1 / 3.12 / section 5: safety first, then supportive, non-diagnostic care.
-# HRP covers behavioural health and teamwork; Levin covers communication delay.
-MIND_SRC = ["hrp_risks", "eimo_levin"]
+# 3.1 / 3.12 / section 5: supportive, non-diagnostic care. Rehecho el 14-nov (Carlos: «al decir que estaba cansado me
+# preguntó si quería hacerme daño»). Orden de investigacion/triaje-y-bienestar-referencias.md (B.3) y de
+# investigacion/triaje-revision-flujos-nuevos.md: contexto y señales de alarma del síntoma → funcionamiento → puerta de
+# ánimo → preguntas de riesgo solo si hacen falta (siempre antes de un naranja, y siempre en el ánimo bajo persistente).
+# Riesgo en escalera, con la estructura del C-SSRS pero con texto propio: pensamientos → intención, plan o conducta.
+# Nada de esto lo ha revisado un clínico.
+MIND_SRC = ["hrp_risks", "bh_tb016", "eimo_levin"]
+RISK_SRC = ["cssrs", "asking_safe", "bh_tb016"]
+
 HARM_STEPS = [
-    ("Thank them for telling you. Stay with them and do not leave them alone.", "Dale las gracias por contarlo. Quédate con esa persona y no la dejes sola."),
-    ("Tell the CMO and commander now; follow the onboard behavioural emergency procedure.", "Avisa ya al CMO y al comandante; sigue el procedimiento de emergencia de salud mental de a bordo."),
-    ("Make the immediate surroundings safer with the CMO, without confrontation or putting anyone at risk.", "Con ayuda del CMO, haced más seguro el entorno inmediato sin confrontaciones ni poner a nadie en riesgo."),
-    ("Contact the flight surgeon and behavioural health team at the next available link; do not wait for a reply to provide company and protection.", "Contacta con el cirujano de vuelo y el equipo de salud mental en cuanto haya enlace; no esperes respuesta para acompañar y proteger."),
-    COLLAPSE,
+    ("You do not have to handle this alone. Tell a crewmate you trust or the CMO right now, and stay with them.",
+     "No tienes que pasar por esto a solas. Díselo ahora a un compañero de confianza o al CMO y quédate con esa persona."),
+    ("The CMO and commander will follow the onboard behavioural health emergency procedure: that is what it is for.",
+     "El CMO y el comandante seguirán el procedimiento de emergencia de salud mental de a bordo: para eso existe."),
+    ("With the CMO, put distance between you and anything you could use to hurt yourself or someone else.",
+     "Con el CMO, aleja de ti cualquier cosa con la que pudieras hacerte daño o hacérselo a otra persona."),
+    ("The flight surgeon and behavioural health team are contacted at the next link; the crew does not wait for the reply to support you.",
+     "Se avisa al cirujano de vuelo y al equipo de salud mental en cuanto haya enlace; la tripulación no espera la respuesta para apoyarte."),
 ]
+MIND_HELP = ("Talk to someone you trust today; you can request a private psychological conference with the flight surgeon or psychologist at the next window.",
+             "Habla hoy con alguien de confianza; puedes pedir una conferencia psicológica privada con el cirujano de vuelo o el psicólogo en la próxima ventana.")
+MIND_RETURN = ("Open this check again if it persists or gets worse. If thoughts of hurting yourself or someone else appear, tell a crewmate or the CMO straight away.",
+               "Vuelve a abrir este chequeo si persiste o empeora. Si aparecen pensamientos de hacerte daño o hacérselo a otra persona, díselo enseguida a un compañero o al CMO.")
 
 
-def mind_nodes():
-    nodes = safety_nodes("function")
-    nodes["harm"] = question(
-        "Thank you for telling me. Are you having thoughts of harming yourself or someone else?",
-        "Gracias por contármelo. ¿Estás pensando en hacerte daño o en hacérselo a otra persona?",
-        "harm_now", "awake", MIND_SRC,
-        "I ask directly so we can help you stay safe.", "Te lo pregunto directamente para poder ayudarte a estar a salvo.")
-    nodes["harm_now"] = result("rojo", "Stay together and get help now", "Quedaos juntos y pedid ayuda ya", HARM_STEPS,
-                               "Thoughts of self-harm or harm to others reported; immediate company and CMO/commander support required.",
-                               "Se comunican pensamientos de hacerse daño o dañar a otros; requiere compañía inmediata y apoyo del CMO/comandante.", MIND_SRC)
-    return nodes
+def risk_nodes(no_next, suffix=""):
+    """Escalera de riesgo. «I'd rather not say» es una salida válida y respetada."""
+    return {
+        "risk" + suffix: q(
+            "Some people who feel this way have thoughts of not wanting to be alive, or of hurting themselves or someone else. I ask everyone this. Has that been happening to you?",
+            "Hay personas que, cuando se sienten así, piensan en no querer vivir o en hacerse daño o hacérselo a otra persona. Se lo pregunto a todo el mundo. ¿Te está pasando a ti?",
+            "Asking directly does not put the idea in anyone's head; it lets us get you the right support.",
+            "Preguntarlo directamente no le mete la idea a nadie; sirve para darte el apoyo adecuado.",
+            [("si", "Yes", "Sí", "risk_plan"), ("no", "No", "No", no_next), ("skip", "I'd rather not say", "Prefiero no decirlo", "mind_private")],
+            src=RISK_SRC),
+    }
 
 
-MIND_HELP = ("Talk to someone you trust today; request a private conference with the flight surgeon or psychologist per the mission schedule.",
-             "Habla hoy con alguien de confianza; pide una consulta privada con el cirujano de vuelo o el psicólogo según el horario de la misión.")
-MIND_RETURN = ("Ask for help sooner if this persists or worsens. If thoughts of harm appear, tell the CMO and commander immediately and stay with a crewmate.",
-               "Pide ayuda antes si esto persiste o empeora. Si aparecen pensamientos de hacer daño, avisa de inmediato al CMO y al comandante y quédate con un compañero.")
+def risk_common():
+    return {
+        "risk_plan": q("Thank you for telling me. Are you thinking about acting on these thoughts, have you made a plan, or have you done something to hurt yourself recently?",
+                       "Gracias por contármelo. ¿Estás pensando en actuar según esos pensamientos, has hecho un plan o has hecho algo recientemente para hacerte daño?",
+                       "This tells us how quickly to bring someone to you.", "Esto nos dice con qué rapidez hay que llevarte a alguien.",
+                       [("si", "Yes", "Sí", "harm_now"), ("no", "No", "No", "risk_support"), ("unsure", "Not sure", "No estoy seguro", "harm_now")],
+                       src=RISK_SRC, esc=True),
+        "harm_now": result("rojo", "Stay with someone and get help now", "Quédate con alguien y pide ayuda ya", HARM_STEPS,
+                           "Thoughts of self-harm or of harming others with intent, a plan or recent behaviour (or unsure). Immediate company and CMO/commander support required.",
+                           "Pensamientos de hacerse daño o de dañar a otros con intención, plan o conducta reciente (o no lo sabe). Requiere compañía inmediata y apoyo del CMO/comandante.", RISK_SRC),
+        "risk_support": result("naranja", "Thank you for telling me: let's get you support today", "Gracias por contármelo: busquemos apoyo hoy", [
+            ("Tell the CMO today, in private, about these thoughts; you decide how much to share.", "Cuéntale hoy al CMO, en privado, esos pensamientos; tú decides cuánto compartir."),
+            ("Request a private psychological conference with the flight surgeon or psychologist at the next window.", "Pide una conferencia psicológica privada con el cirujano de vuelo o el psicólogo en la próxima ventana."),
+            ("If the thoughts get stronger or you feel you might act on them, tell a crewmate or the CMO right away and do not stay alone.", "Si los pensamientos se hacen más fuertes o sientes que podrías actuar, díselo enseguida a un compañero o al CMO y no te quedes a solas.")],
+            "Thoughts of not wanting to be alive or of harm reported, without intent, plan or recent behaviour. CMO support today and private psychological conference.",
+            "Refiere pensamientos de no querer vivir o de hacer daño, sin intención, plan ni conducta reciente. Apoyo del CMO hoy y conferencia psicológica privada.", RISK_SRC),
+        "mind_private": result("amarillo", "That's okay. A private conversation can help", "Está bien. Una conversación en privado puede ayudar", [
+            ("You decide what to share. A private talk with the CMO today, or a private psychological conference at the next window, stays between you and them.", "Tú decides qué contar. Una charla privada con el CMO hoy, o una conferencia psicológica privada en la próxima ventana, queda entre vosotros."),
+            ("If you ever have thoughts of hurting yourself or someone else, tell a crewmate or the CMO straight away.", "Si en algún momento piensas en hacerte daño o en hacérselo a otra persona, díselo enseguida a un compañero o al CMO."),
+            MIND_HELP],
+            "Preferred not to answer the risk question. Offered private support; no automatic alert.",
+            "Prefirió no contestar la pregunta de riesgo. Se le ofrece apoyo privado; sin aviso automático.", RISK_SRC),
+    }
 
 
-def add_mind(fid, en, es, icon, functional_en, functional_es, follow_en, follow_es, steps, low_level="amarillo", extra_src=()):
-    src = [*MIND_SRC, *extra_src]
-    nodes = mind_nodes()
-    nodes["function"] = question(functional_en, functional_es, "mind_orange", "support_check", src,
-                                 "When this affects daily functioning, arrange prompt support.", "Si afecta a tu funcionamiento diario, conviene buscar apoyo pronto.")
-    nodes["support_check"] = question(follow_en, follow_es, "mind_yellow", "mind_orange", src,
-                                      "This helps choose the next support step; it is not a diagnosis.", "Esto ayuda a elegir el siguiente apoyo; no es un diagnóstico.")
-    nodes["mind_orange"] = result("naranja", "You deserve support: speak to the CMO now", "Mereces apoyo: habla ya con el CMO", [
-        ("Pause demanding or safety-critical work; ask the CMO or commander to arrange cover if needed.", "Para las tareas exigentes o críticas para la seguridad; pide al CMO o al comandante que organice un relevo si lo necesitas."),
-        ("Tell the CMO now what is happening; request private flight-surgeon or behavioural health review at the next available link.", "Cuenta ya al CMO qué te pasa; pide revisión privada con el cirujano de vuelo o el equipo de salud mental en cuanto haya enlace."),
-        steps[0], steps[1], MIND_RETURN],
-        en + ". Daily functioning affected or initial support not sufficient; no psychiatric diagnosis established.",
-        es + ". Afecta al funcionamiento diario o el apoyo inicial no basta; no se establece un diagnóstico psiquiátrico.", src)
-    nodes["mind_yellow"] = result(low_level, "Take this one step at a time", "Vamos paso a paso", [*steps, MIND_HELP, MIND_RETURN],
-        en + ". No thoughts of harm reported; initial support available, without reported major functional impact.",
-        es + ". No refiere pensamientos de hacer daño; dispone de apoyo inicial, sin impacto importante referido en el funcionamiento.", src)
-    add_flow(fid, "mind", en, es, icon, nodes, "harm")
+MOOD_GATE = ("Over the last two weeks, have you often felt down or hopeless, or lost interest in things you usually enjoy?",
+             "En las dos últimas semanas, ¿te has sentido a menudo decaído o sin esperanza, o has perdido el interés por lo que sueles disfrutar?",
+             "Two quick mood questions help decide whether to offer more support.", "Dos preguntas rápidas de ánimo ayudan a decidir si conviene ofrecer más apoyo.")
 
 
-add_mind("anxiety_panic", "I feel anxious or panicky", "Siento ansiedad o pánico", "Wind",
-         "Is the anxiety stopping you from doing essential tasks?", "¿La ansiedad te impide hacer las tareas esenciales?",
-         "Is the anxiety easing with quiet support?", "¿La ansiedad va bajando con apoyo y tranquilidad?", [
-             ("Move to a quiet, safe place and ask a trusted crewmate to sit with you.", "Ve a un lugar tranquilo y seguro y pide a un compañero de confianza que se siente contigo."),
-             ("Breathe gently at a comfortable pace, letting the out-breath be slow; do not force deep breaths or use a paper bag.", "Respira suavemente a un ritmo cómodo, soltando el aire despacio; no fuerces respiraciones profundas ni uses una bolsa de papel."),
-             ("Notice things you can see and feel around you; describe what is happening without judging yourself.", "Fíjate en lo que ves y sientes a tu alrededor; describe lo que te pasa sin juzgarte.")])
-add_mind("persistent_low_mood", "My low mood is not going away", "Llevo tiempo con el ánimo bajo y no se me pasa", "CloudRain",
-         "Is your low mood making everyday tasks hard?", "¿El ánimo bajo te dificulta las tareas del día a día?",
-         "Is there someone you feel able to talk to today?", "¿Hay alguien con quien te veas capaz de hablar hoy?", [
-             ("Choose one small, manageable activity today, such as a meal or a short scheduled exercise session.", "Elige hoy una actividad pequeña y asequible, como comer o hacer una sesión corta de ejercicio del plan."),
-             ("Keep a simple note of mood, sleep and appetite to share privately with the CMO.", "Anota de forma sencilla el ánimo, el sueño y el apetito para comentarlo en privado con el CMO."),
-             ("Arrange a private mental-health check-in even if you can keep working; you do not need to handle persistent low mood alone.", "Pide una consulta privada de salud mental aunque puedas seguir trabajando; no tienes que afrontar a solas un ánimo bajo persistente.")])
-add_mind("cant_sleep", "I cannot sleep", "No consigo dormir", "Moon",
-         "Is sleepiness making essential tasks unsafe?", "¿La somnolencia hace que las tareas esenciales sean inseguras?",
-         "Was this just one difficult night?", "¿Ha sido solo una noche difícil?", [
-             ("Protect the next scheduled sleep period; agree a regular sleep and wake time with the crew.", "Protege el próximo periodo de descanso; acuerda con la tripulación una hora regular para acostarte y levantarte."),
-             ("Use your approved sleep space and light/noise controls; wind down quietly before bed.", "Usa el espacio de descanso aprobado y sus controles de luz y ruido; baja el ritmo antes de acostarte."),
-             ("Log sleep and shifts. Use sleep medication only as your flight surgeon or onboard procedures indicate.", "Anota el sueño y los turnos. Usa medicación para dormir solo como indique tu cirujano de vuelo o los procedimientos de a bordo.")],
-         extra_src=["sleep_barger", "sleep_tb041"])
-add_mind("crew_conflict", "I am having a conflict with a crewmate", "Tengo un conflicto con un compañero", "Users",
-         "Is the conflict making it hard to work safely together?", "¿El conflicto os dificulta trabajar juntos con seguridad?",
-         "Do you feel safe having a calm conversation with support?", "¿Te sientes seguro para hablar con calma y con apoyo?", [
-             ("Take a brief pause in a safe place and agree how essential duties will be covered.", "Haz una pausa breve en un lugar seguro y acordad cómo se cubrirán las tareas esenciales."),
-             ("When safe, describe one specific event and what you need, without blaming; listen in turn.", "Cuando sea seguro, describe un hecho concreto y lo que necesitas, sin culpar; escuchad por turnos."),
-             ("Ask a neutral crewmate or commander to help mediate; if there are threats, move to safety and tell the commander and CMO now.", "Pide a un compañero neutral o al comandante que ayude a mediar; si hay amenazas, ponte a salvo y avisa ya al comandante y al CMO.")], low_level="verde")
-conflict_nodes = tree["flows"]["crew_conflict"]["nodes"]
-conflict_nodes["support_check"]["options"][1]["next"] = "threat_now"
-conflict_nodes["threat_now"] = result("rojo", "You do not feel safe: get support now", "No te sientes seguro: pide apoyo ya", HARM_STEPS,
-    "Crew conflict; person does not feel safe having a supported conversation. Assess threats and immediate safety with CMO/commander.",
-    "Conflicto entre compañeros; la persona no se siente segura para conversar con apoyo. Valorar amenazas y seguridad inmediata con el CMO/comandante.", MIND_SRC)
+def mood_gate(node_id, yes, no, src):
+    return {node_id: question(MOOD_GATE[0], MOOD_GATE[1], yes, no, src, MOOD_GATE[2], MOOD_GATE[3])}
 
-add_mind("isolation_homesickness", "I feel isolated and miss home", "Me siento aislado y echo de menos mi casa", "Users",
-         "Is feeling isolated making everyday tasks hard?", "¿Sentirte aislado te dificulta las tareas del día a día?",
-         "Can you connect with someone you trust today?", "¿Puedes conectar hoy con alguien de confianza?", [
-             ("Choose a small shared activity with a crewmate today, while keeping some private time for yourself.", "Elige hoy una actividad pequeña con un compañero y reserva también un rato a solas para ti."),
-             ("Plan a private family call or recorded message per the mission schedule; delays in replies do not mean lack of care.", "Planea una llamada privada a tu familia o un mensaje grabado según el horario de la misión; que tarden en responder no significa que no les importes."),
-             ("Keep a familiar daily ritual, regular meals and your scheduled movement and rest.", "Mantén una rutina cotidiana que te resulte familiar, las comidas regulares y el movimiento y descanso del plan.")], low_level="verde")
+
+def mind_results(en, es, steps, low_level, orange_steps=(), src=MIND_SRC):
+    return {
+        "mind_orange": result("naranja", "You deserve support: speak to the CMO today", "Mereces apoyo: habla hoy con el CMO", [
+            ("Pause demanding or safety-critical work; ask the CMO or commander to arrange cover if needed.", "Para las tareas exigentes o críticas para la seguridad; pide al CMO o al comandante que organice un relevo si lo necesitas."),
+            ("Tell the CMO what is happening; request a private review with the flight surgeon or behavioural health team at the next window.", "Cuéntale al CMO qué te pasa; pide una revisión privada con el cirujano de vuelo o el equipo de salud mental en la próxima ventana."),
+            *orange_steps, steps[0], MIND_RETURN],
+            en + ". Daily functioning affected or initial support not enough; no thoughts of harm reported; no psychiatric diagnosis established.",
+            es + ". Afecta al funcionamiento diario o el apoyo inicial no basta; no refiere pensamientos de hacer daño; no se establece un diagnóstico psiquiátrico.", src),
+        "mind_yellow": result(low_level, "Take this one step at a time", "Vamos paso a paso", [*steps, MIND_HELP, MIND_RETURN],
+            en + ". No thoughts of harm reported; initial support available, without reported major functional impact.",
+            es + ". No refiere pensamientos de hacer daño; dispone de apoyo inicial, sin impacto importante referido en el funcionamiento.", src),
+    }
+
+
+def add_mind_flow(fid, en, es, icon, start, nodes, group="mind"):
+    nodes = {**risk_common(), **nodes}
+    seen, todo = set(), [start]                  # solo los nodos a los que se llega desde el inicio
+    while todo:
+        k = todo.pop()
+        if k in seen: continue
+        seen.add(k); todo += [o["next"] for o in nodes[k].get("options", [])]
+    add_flow(fid, group, en, es, icon, {k: v for k, v in nodes.items() if k in seen}, start)
+
+
+# --- Ansiedad o pánico: primero lo físico (el pánico se confunde con el corazón y con el CO2 alto).
+src = [*MIND_SRC]
+steps = [
+    ("Move to a quiet, safe place and ask a trusted crewmate to sit with you.", "Ve a un lugar tranquilo y seguro y pide a un compañero de confianza que se siente contigo."),
+    ("Breathe gently at a comfortable pace, letting the out-breath be slow; do not force deep breaths or use a paper bag.", "Respira suavemente a un ritmo cómodo, soltando el aire despacio; no fuerces respiraciones profundas ni uses una bolsa de papel."),
+    ("Notice things you can see and feel around you; describe what is happening without judging yourself.", "Fíjate en lo que ves y sientes a tu alrededor; describe lo que te pasa sin juzgarte."),
+]
+n = {
+    "body": question("Is there chest pain or pressure, trouble breathing, or a cabin air or CO2 alarm right now?",
+                     "¿Hay ahora dolor u opresión en el pecho, te cuesta respirar o hay una alarma de aire o de CO2 en la cabina?",
+                     "body_now", "anx_function", ["co2_tb004", "hrp_cardiac", "ochmo_tb033"],
+                     "Panic can feel like a heart problem or high CO2; those are ruled out first.", "El pánico puede parecerse a un problema de corazón o a un CO2 alto; eso se descarta primero.", unsure="body_now"),
+    "body_now": urgent("Physical warning sign: alert the CMO now", "Señal física de alarma: avisa ya al CMO",
+                       "Anxiety with chest symptoms, breathing difficulty or a cabin air/CO2 alarm reported; physical cause not excluded.",
+                       "Ansiedad con síntomas en el pecho, dificultad para respirar o alarma de aire/CO2 de cabina; no se descarta una causa física.",
+                       ["co2_tb004", "hrp_cardiac", "ochmo_tb033"],
+                       ("For chest pain open the triage \"I feel pressure in my chest\"; for a cabin alarm follow the vehicle procedure first.",
+                        "Si hay dolor en el pecho abre el triaje «Noto presión en el pecho»; si hay una alarma de cabina, sigue primero el procedimiento de la nave.")),
+    "anx_function": question("Is the anxiety stopping you from doing essential or safety-critical tasks?", "¿La ansiedad te impide hacer las tareas esenciales o críticas para la seguridad?",
+                             "risk_o", "anx_easing", src,
+                             "When it affects critical work, support comes sooner.", "Si afecta al trabajo crítico, el apoyo llega antes."),
+    "anx_easing": question("Is it easing with quiet support?", "¿Va bajando con apoyo y tranquilidad?", "anx_gate", "risk_o", src,
+                           "This helps choose the next support step; it is not a diagnosis.", "Esto ayuda a elegir el siguiente apoyo; no es un diagnóstico."),
+    **mood_gate("anx_gate", "risk_y", "mind_yellow", src),
+    **risk_nodes("mind_orange", "_o"), **risk_nodes("mind_yellow", "_y"),
+    **mind_results("I feel anxious or panicky", "Siento ansiedad o pánico", steps, "amarillo"),
+}
+add_mind_flow("anxiety_panic", "I feel anxious or panicky", "Siento ansiedad o pánico", "Wind", "body", n)
+
+# --- Ánimo bajo persistente: aquí el cribado va siempre, en segunda posición.
+steps = [
+    ("Choose one small, manageable activity today, such as a meal with the crew or a short scheduled exercise session.", "Elige hoy una actividad pequeña y asequible, como comer con la tripulación o hacer una sesión corta de ejercicio del plan."),
+    ("Keep a simple note of mood, sleep and appetite to share privately with the CMO.", "Anota de forma sencilla el ánimo, el sueño y el apetito para comentarlo en privado con el CMO."),
+    ("Get light and routine on your side: time at the window or under the bright light panel, and regular meals.", "Pon la luz y la rutina de tu parte: un rato en la ventana o bajo el panel de luz y comidas regulares."),
+]
+n = {
+    "lm_duration": q("How long has your mood been low?", "¿Cuánto tiempo llevas con el ánimo bajo?",
+                     "Two weeks or more is a reason to bring in more support.", "Dos semanas o más es motivo para sumar más apoyo.", [
+                         ("days", "A few days", "Unos días", "risk_d"),
+                         ("weeks", "Two weeks or more", "Dos semanas o más", "risk_w")], src=MIND_SRC),
+    **risk_nodes("lm_func_d", "_d"), **risk_nodes("lm_func_w", "_w"),
+    "lm_func_d": question("Is your low mood making everyday tasks hard?", "¿El ánimo bajo te dificulta las tareas del día a día?", "mind_orange", "lm_talk", MIND_SRC,
+                          "When it affects daily functioning, support comes sooner.", "Si afecta a tu funcionamiento diario, el apoyo llega antes."),
+    "lm_func_w": question("Is your low mood making everyday tasks hard?", "¿El ánimo bajo te dificulta las tareas del día a día?", "mind_orange", "mind_orange", MIND_SRC,
+                          "After two weeks a private review is worth it either way; this tells the CMO how urgent it is.", "Tras dos semanas merece la pena una revisión privada en cualquier caso; esto le dice al CMO lo urgente que es."),
+    "lm_talk": question("Is there someone you feel able to talk to today?", "¿Hay alguien con quien te veas capaz de hablar hoy?", "mind_yellow", "mind_orange", MIND_SRC,
+                        "Talking to someone is one of the most useful first steps.", "Hablar con alguien es uno de los primeros pasos más útiles."),
+    **mind_results("My low mood is not going away", "Llevo tiempo con el ánimo bajo y no se me pasa", steps, "amarillo"),
+}
+add_mind_flow("persistent_low_mood", "My low mood is not going away", "Llevo tiempo con el ánimo bajo y no se me pasa", "CloudRain", "lm_duration", n)
+
+# --- No consigo dormir: contexto de a bordo (litera, CO2, turnos, EVA) antes que nada emocional.
+SLEEP_SRC = ["sleep_barger", "sleep_tb041", "rst_sleep", "bh_tb016"]
+steps = [
+    ("Protect the next scheduled sleep period; agree a regular sleep and wake time with the crew.", "Protege el próximo periodo de descanso; acuerda con la tripulación una hora regular para acostarte y levantarte."),
+    ("Use your approved sleep space and its light and noise controls; wind down quietly before bed.", "Usa el espacio de descanso aprobado y sus controles de luz y ruido; baja el ritmo antes de acostarte."),
+    ("Log sleep and shifts. Use sleep medication only as your flight surgeon or onboard procedures indicate.", "Anota el sueño y los turnos. Usa medicación para dormir solo como indique tu cirujano de vuelo o los procedimientos de a bordo."),
+]
+ENV_STEPS = [
+    ("Check the bunk CO2 reading on the station screen; if the night peak is above 3 mmHg, ask the crew to check the airflow and the scrubber.", "Mira la lectura de CO2 de la litera en la pantalla de la centralita; si el pico nocturno pasa de 3 mmHg, pide a la tripulación que revise la ventilación y el filtro."),
+    ("Make sure the sleep station fan is on and nothing blocks the vent; use the earplugs and eye mask from your kit.", "Comprueba que el ventilador del camarote está encendido y que nada tapa la rejilla; usa los tapones y el antifaz del kit."),
+    ("Dim the cabin lights an hour before sleep and keep the light panel bright in the morning.", "Baja las luces una hora antes de dormir y pon el panel de luz fuerte por la mañana."),
+]
+SCHED_STEPS = [
+    ("Shift changes, EVA preparation and early wake-ups disrupt sleep: tell the commander so the schedule can protect your next sleep period.", "Los cambios de turno, la preparación de una EVA y los despertares tempranos alteran el sueño: díselo al comandante para que el horario proteja tu próximo descanso."),
+    ("Use the bright light panel at the start of your new day and keep the hour before sleep dim and quiet.", "Usa el panel de luz fuerte al empezar tu nuevo día y deja la hora antes de dormir con poca luz y en calma."),
+    ("Under 6 hours of sleep slows reactions: ask for a second check on safety-critical steps until you catch up.", "Dormir menos de 6 horas ralentiza los reflejos: pide una segunda comprobación en los pasos críticos hasta que te recuperes."),
+]
+LONG_STEP = ("This has lasted a week or more: tell the CMO so they can review it with the flight surgeon.", "Esto dura una semana o más: díselo al CMO para que lo revise con el cirujano de vuelo.")
+SAFE_Q = ("Is sleepiness making safety-critical tasks such as an EVA, robotics or piloting unsafe today?",
+          "¿La somnolencia hace que hoy sean inseguras las tareas críticas, como una EVA, la robótica o el pilotaje?")
+ENV_Q = ("Is your sleep station noisy, bright, too warm or stuffy?", "¿Tu camarote tiene ruido, luz, demasiado calor o el aire cargado?")
+SCHED_Q = ("Has your schedule shifted recently, for example a shift change, EVA preparation or an early wake-up?",
+           "¿Ha cambiado tu horario hace poco, por ejemplo un cambio de turno, la preparación de una EVA o un despertar temprano?")
+
+
+def sleep_env_res(long):
+    return result("amarillo", "Fix the sleep station first", "Arregla primero el camarote", [*ENV_STEPS, *([LONG_STEP] if long else []), steps[2], MIND_RETURN],
+                  "Poor sleep with a noisy, bright, warm or stuffy sleep station reported" + ("; a week or more" if long else "") + ". Check bunk CO2 and airflow.",
+                  "Mal sueño con camarote ruidoso, con luz, caluroso o con el aire cargado" + ("; una semana o más" if long else "") + ". Revisar CO2 y ventilación de la litera.",
+                  [*SLEEP_SRC, "co2_tb004"])
+
+
+def sleep_sched_res(long):
+    return result("amarillo", "Your schedule is the main suspect", "El horario es el principal sospechoso", [*SCHED_STEPS, *([LONG_STEP] if long else []), steps[2], MIND_RETURN],
+                  "Poor sleep after a recent schedule shift (shift change, EVA prep or early wake)" + ("; a week or more" if long else "") + ".",
+                  "Mal sueño tras un cambio reciente de horario (turno, preparación de EVA o despertar temprano)" + ("; una semana o más" if long else "") + ".", SLEEP_SRC)
+
+
+n = {
+    "sl_nights": q("How many nights has this been going on?", "¿Cuántas noches llevas así?",
+                   "One bad night and a week of them need different help.", "Una mala noche y una semana de ellas necesitan ayudas distintas.", [
+                       ("one", "Just last night", "Solo anoche", "sl_safe"),
+                       ("few", "2 to 6 nights", "De 2 a 6 noches", "sl_safe"),
+                       ("week", "A week or more", "Una semana o más", "sl_safe_l")], src=SLEEP_SRC),
+    "sl_safe": question(*SAFE_Q, "risk_o", "sl_env", SLEEP_SRC, "Safety first: under 6 hours of sleep slows reactions.", "Lo primero es la seguridad: dormir menos de 6 horas ralentiza los reflejos."),
+    "sl_safe_l": question(*SAFE_Q, "risk_o", "risk_l", SLEEP_SRC, "Safety first: under 6 hours of sleep slows reactions.", "Lo primero es la seguridad: dormir menos de 6 horas ralentiza los reflejos."),
+    "sl_env": question(*ENV_Q, "sl_env_res", "sl_sched", [*SLEEP_SRC, "co2_tb004"], "Noise, light, heat and CO2 at the bunk are common causes on board.", "El ruido, la luz, el calor y el CO2 en la litera son causas frecuentes a bordo."),
+    "sl_env_l": question(*ENV_Q, "sl_env_res_l", "sl_sched_l", [*SLEEP_SRC, "co2_tb004"], "Noise, light, heat and CO2 at the bunk are common causes on board.", "El ruido, la luz, el calor y el CO2 en la litera son causas frecuentes a bordo."),
+    "sl_sched": question(*SCHED_Q, "sl_sched_res", "sl_worry", SLEEP_SRC, "Shifting schedules are a known cause of short sleep in flight.", "Los cambios de horario son una causa conocida de dormir poco en vuelo."),
+    "sl_sched_l": question(*SCHED_Q, "sl_sched_res_l", "mind_orange", SLEEP_SRC, "Shifting schedules are a known cause of short sleep in flight.", "Los cambios de horario son una causa conocida de dormir poco en vuelo."),
+    "sl_worry": question("Is something on your mind keeping you awake, or have you been feeling low lately?", "¿Te quita el sueño algo que te preocupa, o te has sentido decaído últimamente?",
+                         "risk_y", "mind_yellow", SLEEP_SRC, "Worries are a common cause of poor sleep; I only ask to offer the right help.", "Las preocupaciones son una causa frecuente de dormir mal; lo pregunto solo para ofrecerte la ayuda adecuada."),
+    "sl_env_res": sleep_env_res(False), "sl_env_res_l": sleep_env_res(True),
+    "sl_sched_res": sleep_sched_res(False), "sl_sched_res_l": sleep_sched_res(True),
+    **risk_nodes("mind_orange", "_o"), **risk_nodes("mind_yellow", "_y"), **risk_nodes("sl_env_l", "_l"),
+    **mind_results("I cannot sleep", "No consigo dormir", steps, "amarillo", [LONG_STEP], SLEEP_SRC),
+}
+add_mind_flow("cant_sleep", "I cannot sleep", "No consigo dormir", "Moon", "sl_nights", n)
+
+# --- Cansancio (nuevo): «estoy cansado» no es insomnio. Causas de a bordo y seguridad operativa primero.
+FAT_SRC = ["rst_sleep", "sleep_barger", "bh_tb016"]
+fat_steps = [
+    ("Drink regularly within your mission fluid plan and keep regular meals.", "Bebe con regularidad dentro de tu plan de misión y mantén las comidas regulares."),
+    ("Use the bright light panel in the morning and keep a short nap under 30 minutes if the schedule allows.", "Usa el panel de luz fuerte por la mañana y, si el horario lo permite, una siesta corta de menos de 30 minutos."),
+    ("Do the hardest tasks at your best time of day and ask for a second check on critical steps.", "Haz las tareas más difíciles a tu mejor hora del día y pide una segunda comprobación en los pasos críticos."),
+]
+n = {
+    "fa_safe": question("Is tiredness making safety-critical tasks unsafe today, or have you nodded off during work?",
+                        "¿El cansancio hace que hoy sean inseguras las tareas críticas, o te has quedado dormido trabajando?",
+                        "fa_orange", "fa_ill", FAT_SRC, "Safety first: fatigue is a known cause of errors in flight.", "Lo primero es la seguridad: el cansancio es una causa conocida de errores en vuelo.", unsure="fa_orange"),
+    "fa_orange": result("naranja", "Too tired for critical work: tell the commander and the CMO", "Demasiado cansancio para el trabajo crítico: avisa al comandante y al CMO", [
+        ("Stop safety-critical tasks (EVA, robotics, piloting) and tell the commander so they can be reassigned.", "Deja las tareas críticas (EVA, robótica, pilotaje) y avisa al comandante para que se reasignen."),
+        ("Tell the CMO today and log your recent sleep and shifts.", "Avísale hoy al CMO y anota el sueño y los turnos recientes."),
+        ("Protect your next sleep period; open the triage \"I cannot sleep\" if sleeping is the problem.", "Protege tu próximo periodo de descanso; abre el triaje «No consigo dormir» si el problema es dormir."), MIND_RETURN],
+        "Fatigue making safety-critical tasks unsafe or nodding off at work. Critical tasks to be reassigned; CMO review.",
+        "Cansancio que hace inseguras las tareas críticas o se queda dormido trabajando. Reasignar tareas críticas; revisión del CMO.", FAT_SRC),
+    "fa_ill": question("Do you also have a fever, feel unwell, or wake up with headaches?", "¿Tienes también fiebre, te encuentras mal o te despiertas con dolor de cabeza?",
+                       "fa_ill_res", "fa_sleep", [*FAT_SRC, "immune_crucian", "co2_tb004"],
+                       "Illness and high CO2 can both make you tired.", "Una enfermedad y un CO2 alto pueden cansarte.", unsure="fa_ill_res"),
+    "fa_ill_res": result("amarillo", "Tiredness with feeling unwell: tell the CMO today", "Cansancio y malestar: avisa hoy al CMO", [
+        ("Tell the CMO today; for fever open the triage \"I feel feverish or think I have an infection\".", "Avísale hoy al CMO; si hay fiebre, abre el triaje «Tengo sensación de fiebre o creo que tengo una infección»."),
+        ("For morning headaches, check the bunk CO2 reading on the station screen and ask the crew to check the airflow.", "Si te despiertas con dolor de cabeza, mira la lectura de CO2 de la litera en la centralita y pide a la tripulación que revise la ventilación."),
+        fat_steps[0], NEW_MED, MIND_RETURN],
+        "Fatigue with fever, feeling unwell or morning headaches. Cause not established; check temperature and bunk CO2.",
+        "Cansancio con fiebre, malestar o dolor de cabeza al despertar. Causa sin determinar; revisar temperatura y CO2 de la litera.", [*FAT_SRC, "immune_crucian", "co2_tb004"]),
+    "fa_sleep": question("Have you slept less than 6 hours on most of the last 3 nights?", "¿Has dormido menos de 6 horas casi todas las últimas 3 noches?",
+                         "fa_sleep_res", "fa_load", FAT_SRC, "On the ISS, under 6 hours was linked to slower reactions and more stress.", "En la ISS, dormir menos de 6 horas se asoció a reflejos más lentos y más estrés."),
+    "fa_sleep_res": result("amarillo", "You are short of sleep: protect the next nights", "Te falta sueño: protege las próximas noches", [
+        ("Protect your next sleep period and tell the commander if the schedule keeps cutting it short.", "Protege tu próximo periodo de descanso y avisa al comandante si el horario lo sigue recortando."),
+        ("If you cannot fall or stay asleep, open the triage \"I cannot sleep\".", "Si no consigues dormirte o seguir dormido, abre el triaje «No consigo dormir»."),
+        *fat_steps[1:], MIND_RETURN],
+        "Fatigue with under 6 h of sleep on most of the last 3 nights (sleep debt).", "Cansancio con menos de 6 h de sueño casi todas las últimas 3 noches (deuda de sueño).", FAT_SRC),
+    "fa_load": question("Has your workload been unusually heavy, or the days long and monotonous?", "¿Has tenido una carga de trabajo inusualmente alta, o días largos y monótonos?",
+                        "fa_load_res", "fa_gate", FAT_SRC, "Both peaks of work and long quiet stretches wear people down in isolation.", "En aislamiento desgastan tanto los picos de trabajo como las rachas largas y monótonas."),
+    "fa_load_res": result("amarillo", "Talk about the workload with the commander", "Habla de la carga de trabajo con el comandante", [
+        ("Tell the commander how the workload is going; schedules can be adjusted before it becomes a safety issue.", "Cuéntale al comandante cómo va la carga de trabajo; el horario se puede ajustar antes de que sea un problema de seguridad."),
+        ("Plan real breaks and one thing you enjoy each day, especially on monotonous days.", "Planea descansos de verdad y una cosa que disfrutes cada día, sobre todo en los días monótonos."),
+        *fat_steps, MIND_RETURN],
+        "Fatigue with heavy workload or monotony reported.", "Cansancio con carga de trabajo alta o monotonía.", FAT_SRC),
+    **mood_gate("fa_gate", "risk_y", "mind_yellow", FAT_SRC),
+    **risk_nodes("mind_yellow", "_y"),
+    **mind_results("I feel very tired", "Me siento muy cansado", fat_steps, "verde", src=FAT_SRC),
+}
+add_mind_flow("fatigue", "I feel very tired", "Me siento muy cansado", "Battery", "fa_safe", n)
+
+# --- Conflicto con un compañero: primero si alguien corre peligro, y por separado.
+CONF_SRC = [*MIND_SRC]
+steps = [
+    ("Take a brief pause in a safe place and agree how essential duties will be covered.", "Haz una pausa breve en un lugar seguro y acordad cómo se cubrirán las tareas esenciales."),
+    ("When you are ready, describe one specific event and what you need, without blaming; listen in turn.", "Cuando estés listo, describe un hecho concreto y lo que necesitas, sin culpar; escuchad por turnos."),
+    ("Ask a neutral crewmate or the commander to help mediate; Metis can help you prepare what to say.", "Pide a un compañero neutral o al comandante que ayude a mediar; Metis puede ayudarte a preparar qué decir."),
+]
+n = {
+    "cc_danger": question("Is anyone in physical danger right now, or have you been threatened or hurt?", "¿Alguien corre peligro físico ahora mismo, o te han amenazado o hecho daño?",
+                          "threat_now", "cc_control", CONF_SRC, "Physical safety comes before anything else.", "La seguridad física va antes que todo lo demás.", unsure="threat_now"),
+    "threat_now": result("rojo", "Get to safety and tell the commander now", "Ponte a salvo y avisa ya al comandante", [
+        ("Move away to a safe module and do not stay alone with the person; stay with another crewmate.", "Aléjate a un módulo seguro y no te quedes a solas con esa persona; quédate con otro compañero."),
+        ("Tell the commander and the CMO now; they will follow the onboard procedure for a crew safety incident.", "Avisa ya al comandante y al CMO; seguirán el procedimiento de a bordo para un incidente de seguridad de la tripulación."),
+        ("If someone is hurt, the CMO assesses them first; open the triage that fits the injury.", "Si alguien está herido, el CMO lo valora primero; abre el triaje que corresponda a la lesión."),
+        ("The flight surgeon and behavioural health team are contacted at the next link; do not wait for the reply to stay safe.", "Se avisa al cirujano de vuelo y al equipo de salud mental en cuanto haya enlace; no esperes la respuesta para ponerte a salvo.")],
+        "Crew conflict with physical danger, threat or harm reported. Immediate separation and commander/CMO response.",
+        "Conflicto de tripulación con peligro físico, amenaza o daño. Separación inmediata y respuesta del comandante/CMO.", CONF_SRC),
+    "cc_control": question("Are you worried you might lose control and hurt someone, or yourself?", "¿Te preocupa perder el control y hacer daño a alguien, o a ti?",
+                           "harm_now", "cc_work", RISK_SRC, "Asking this directly is part of keeping everyone safe.", "Preguntarlo directamente es parte de mantener a todos a salvo.", unsure="harm_now"),
+    "cc_work": question("Is the conflict making it hard to work safely together?", "¿El conflicto os dificulta trabajar juntos con seguridad?", "mind_orange", "cc_talk", CONF_SRC,
+                        "Shared tasks have to stay safe while the conflict is sorted out.", "Las tareas compartidas tienen que seguir siendo seguras mientras se arregla el conflicto."),
+    "cc_talk": question("Do you feel able to have a calm conversation with support?", "¿Te ves capaz de tener una conversación tranquila, con apoyo?", "mind_yellow", "cc_mediate", CONF_SRC,
+                        "This helps choose the next support step.", "Esto ayuda a elegir el siguiente apoyo."),
+    "cc_mediate": result("amarillo", "Ask the commander to help mediate", "Pide al comandante que ayude a mediar", [
+        ("Ask the commander or a neutral crewmate for a short, structured conversation with both of you.", "Pide al comandante o a un compañero neutral una conversación breve y ordenada con los dos."),
+        *steps[:2], MIND_HELP, MIND_RETURN],
+        "Crew conflict; not ready for a calm conversation yet. No danger or loss of control reported; mediation offered.",
+        "Conflicto de tripulación; aún no se ve capaz de una conversación tranquila. Sin peligro ni pérdida de control referidos; se ofrece mediación.", CONF_SRC),
+    **mind_results("I am having a conflict with a crewmate", "Tengo un conflicto con un compañero", steps, "verde",
+                   [("Ask the commander to arrange how shared tasks will be covered safely for now.", "Pide al comandante que organice cómo cubrir de momento las tareas compartidas con seguridad.")]),
+}
+add_mind_flow("crew_conflict", "I am having a conflict with a crewmate", "Tengo un conflicto con un compañero", "Users", "cc_danger", n)
+
+# --- Aislamiento y nostalgia: lo que pasa en casa primero (TB-016: una mala noticia tardía llevó a un cosmonauta a aislarse).
+ISO_SRC = [*MIND_SRC]
+steps = [
+    ("Choose a small shared activity with a crewmate today, while keeping some private time for yourself.", "Elige hoy una actividad pequeña con un compañero y reserva también un rato a solas para ti."),
+    ("Plan a private family conference or a recorded message per the mission schedule; slow replies are the link delay, not a lack of care.", "Planea una conferencia familiar privada o un mensaje grabado según el horario de la misión; que las respuestas tarden es el retraso del enlace, no falta de cariño."),
+    ("Keep a familiar daily ritual, regular meals and your scheduled movement and rest.", "Mantén una rutina cotidiana que te resulte familiar, las comidas regulares y el movimiento y descanso del plan."),
+]
+n = {
+    "is_news": question("Has something happened at home, like bad news or a loss?", "¿Ha pasado algo en casa, como una mala noticia o una pérdida?",
+                        "risk_n", "is_function", ISO_SRC, "News from home lands differently when you cannot be there.", "Las noticias de casa pesan de otra manera cuando no puedes estar allí."),
+    **risk_nodes("is_news_res", "_n"),
+    "is_news_res": result("naranja", "Hard news from home: let's get you support today", "Una noticia dura de casa: busquemos apoyo hoy", [
+        ("Tell the CMO and the commander, so the crew can give you room and support.", "Díselo al CMO y al comandante, para que la tripulación te dé espacio y apoyo."),
+        ("Ask for a private family conference and a private psychological conference at the next window.", "Pide una conferencia familiar privada y una conferencia psicológica privada en la próxima ventana."),
+        ("Ask the commander to lighten safety-critical work for now if you need it.", "Pide al comandante que aligere de momento el trabajo crítico si lo necesitas."),
+        steps[0], MIND_RETURN],
+        "Bad news or a loss at home reported; no thoughts of harm reported. CMO/commander support, private family and psychological conference.",
+        "Refiere una mala noticia o una pérdida en casa; sin pensamientos de hacer daño. Apoyo del CMO/comandante, conferencia familiar y psicológica privada.", ISO_SRC),
+    "is_function": question("Is feeling isolated making everyday tasks hard?", "¿Sentirte aislado te dificulta las tareas del día a día?", "risk_o", "is_gate", ISO_SRC,
+                            "When it affects daily functioning, support comes sooner.", "Si afecta a tu funcionamiento diario, el apoyo llega antes."),
+    **mood_gate("is_gate", "risk_y", "is_connect", ISO_SRC),
+    "is_connect": question("Can you connect with someone you trust today?", "¿Puedes conectar hoy con alguien de confianza?", "mind_yellow", "risk_o", ISO_SRC,
+                           "Connection is the main help for isolation.", "Conectar con alguien es la principal ayuda contra el aislamiento."),
+    **risk_nodes("mind_orange", "_o"), **risk_nodes("mind_yellow", "_y"),
+    **mind_results("I feel isolated and miss home", "Me siento aislado y echo de menos mi casa", steps, "verde"),
+}
+add_mind_flow("isolation_homesickness", "I feel isolated and miss home", "Me siento aislado y echo de menos mi casa", "Users", "is_news", n)
 
 for fid, en, es in [
     ("companion_collapse", "A crewmate has collapsed", "Un compañero se ha desplomado"),
@@ -579,6 +849,11 @@ for f in tree["flows"].values():
     for n in f["nodes"].values():
         for s in n["sources"]: assert s in S, s
         for o in n.get("options", []): assert o["next"] in f["nodes"], (o["next"], sorted(f["nodes"]))
+    seen, todo = set(), [f["start"]]
+    while todo:
+        k = todo.pop()
+        if k not in seen: seen.add(k); todo += [o["next"] for o in f["nodes"][k].get("options", [])]
+    assert seen == set(f["nodes"]), ("inalcanzables", f.get("title_en"), sorted(set(f["nodes"]) - seen))
 _out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "backend", "triage_tree.json")
 json.dump(tree, open(_out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 print("ok")
