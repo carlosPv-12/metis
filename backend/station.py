@@ -96,9 +96,9 @@ def add_event(type_, crew_id=None, payload=None, text_en=None, text_es=None):
     t = _now()
     ev = {"id": next(_ids), "ts": _iso(t), "type": type_, "crew_id": crew_id, "payload": payload,
           "text_en": text_en, "text_es": text_es}
-    if type_ in TO_EARTH:
+    if type_ in TO_EARTH or type_ in TO_SHIP:
         d = payload.get("delay_s", mission.delay_s())     # retraso del entorno elegido; None = sin enlace
-        ev["direction"] = "to_earth"
+        ev["direction"] = "to_earth" if type_ in TO_EARTH else "to_ship"
         if d is None:
             ev["queued"] = True                              # sin enlace: espera en cola hasta que vuelva
         else:
@@ -110,6 +110,7 @@ def add_event(type_, crew_id=None, payload=None, text_en=None, text_es=None):
 
 
 TO_EARTH = ("surgeon_notice", "triage_summary", "earth_message", "send_flight_surgeon")
+TO_SHIP = ("surgeon_reply", "ground_message")          # de Tierra a la nave: mismo retraso, misma cola sin enlace
 
 
 def _send(ev, t, d):
@@ -142,8 +143,22 @@ def _with_countdown(ev):
     e = dict(ev)
     e["arrives_in_s"] = max(0, int((a - now).total_seconds()))
     e["reply_in_s"] = max(0, int((r - now).total_seconds()))
+    if ev.get("direction") == "to_ship":
+        e["status"] = "in_transit" if e["arrives_in_s"] > 0 else "delivered"
+        e["reply_in_s"] = None
+        return e
     e["status"] = "in_transit" if e["arrives_in_s"] > 0 else ("delivered_awaiting_reply" if e["reply_in_s"] > 0 else "reply_window_open")
     return e
+
+
+def mark(event_id, **fields):
+    """Anota algo en un evento ya guardado (p. ej. que la aptitud de una respuesta ya se aplicó)."""
+    with _lock:
+        for ev in _events:
+            if ev["id"] == event_id:
+                ev.setdefault("payload", {}).update(fields)
+                return True
+    return False
 
 
 def events():

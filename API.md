@@ -179,3 +179,57 @@ Lo elige Ajustes y lo usa todo el backend (`backend/mission.py`; mismos perfiles
   - Marte: «The report reaches the flight surgeon in about 5 minutes…»;
   - sin enlace: «There is no link with Earth: the report… waits in the queue.»
 - **Frontend**: `settings.ts` llama a `api.setMission` al cambiar el entorno, y al cargar toma el del backend, para que todas las pestañas y portátiles muestren lo mismo. Para la cuenta atrás del paquete, mejor `packet.arrives_in_s` y `packet.status` del backend.
+
+## Estado de la nave y botiquín (14-nov, Carlos)
+
+Código: `backend/ship.py`. **Simulado**, pero los rangos llevan fuente (`verified: true`). Lo que no tiene fuente sale como supuesto del prototipo (`verified: false`, por ahora solo la energía).
+
+| Sistema (`id`) | Valor de la demo | Rango / límite | Fuente |
+|---|---|---|---|
+| `o2` (ppO₂) | ~160 mmHg | 146-178 | NASA ICES-2015-146 |
+| `pressure` | ~752 mmHg | 724-770,5 | NASA ICES-2015-146 |
+| `co2_quarters` | pico nocturno de la litera de Lena (3,55) | ≤ 3 → **watch** | NASA OCHMO-TB-004 |
+| `co2_cabin` | media del resto de módulos | ≤ 3 | NASA OCHMO-TB-004 |
+| `water` | ~98 % de recuperación | ≥ 95 | NASA 2023 (Brine Processor) |
+| `power` | margen ~4 kW, batería 86 % | ≥ 1 kW | supuesto |
+| `radiation` | 112 días × 1,8 mSv/día = 201,6 mSv | 75 % de 600 mSv | NASA/JPL (RAD de Curiosity); límite de carrera 600 mSv |
+
+- GET `/api/ship?viewer=` → `{systems[], worst_status, alerts[], co2_sleep_link, mission}`.
+  - Los avisos de la nave (`source: "ship"`) **los ven todos**.
+  - `co2_sleep_link` (las noches de CO₂ alto en su litera frente a sus horas de sueño, con la correlación) es **dato de salud de Lena**: solo lo reciben Lena, el CMO y `ground`; los demás reciben `null`.
+- `/api/station` añade `ship: {worst_status, alerts}`, y los avisos de la nave van en `alerts`. Ya no sale el aviso antiguo `co2_crew`.
+- GET `/api/meds` → botiquín **por categorías** (sin fármacos concretos ni dosis): `qty`, `min`, `low`, `expires_in_days` y `expires_before_mission_end` (misión de 960 días; hoy es el día 112). Incluye también `plans` (planes preaprobados de ejemplo) y `plan_note`.
+- Chat:
+  - «what can I take for my headache?» / «…to sleep?» / «…for motion sickness?» / «…for my back pain?» → el **plan preaprobado** del cirujano (`source: "rule"`, `plan`, `note`: «Example plan for this demo…»);
+  - sin un motivo concreto, la regla de siempre («I can't recommend medication…»);
+  - «how is the ship?» → el estado de los sistemas, también durante una emergencia.
+- En `frontend/src/api.ts`: `api.ship(viewer?)` y `api.meds()`, y los tipos `ShipSystem`, `ShipState` y `MedKit`.
+
+**Para Manuela (pantallas)**:
+- en la centralita, una tarjeta «Ship systems» con los 7 sistemas, su estado y su fuente;
+- en el botiquín, las categorías con su caducidad («expires before the end of the mission»);
+- en la ficha de Lena (si tienes acceso), el texto de `co2_sleep_link`.
+
+## Vista de Tierra (14-nov, Carlos)
+
+Código: `backend/ground.py`. Decisión: **Tierra lo ve todo al momento**. Lo que **viaja con el retraso** del entorno son los **mensajes**.
+
+| Método y ruta | Cuerpo | Respuesta |
+|---|---|---|
+| GET `/api/ground` | | `{viewer, realtime_data, crew[], alerts[], vitals[], checks[], ship, mission, inbox[], outbox[], events[], note_en/es}` |
+| POST `/api/ground/reply` | `{crew_id?, text_en, text_es?, fitness?, packet_id?}` | el evento creado (`surgeon_reply`, o `ground_message` si no hay `crew_id`) |
+
+- **`inbox`**: paquetes de la nave hacia Tierra (`direction: "to_earth"`), con `name`, `summary_en` (el resumen del triaje para el cirujano o el de las constantes), `status` y `arrives_in_s`. **Al escalar una emergencia de constantes, Metis manda sola un `surgeon_notice`** con el resumen.
+- **`outbox`**: respuestas hacia la nave (`direction: "to_ship"`): `status` = `queued_no_link` → `in_transit` → `delivered`.
+- **`fitness`** (`fit`, `limited`, `unfit`) en una respuesta: **se aplica a bordo cuando la respuesta llega**, no antes. Queda `by: "ground"`. Sin enlace, espera en cola.
+- **Privacidad a bordo**: una respuesta sobre Marco la ven entera Marco y el CMO. El comandante solo ve un aviso genérico y el resto de la tripulación no la ve. Un `ground_message` sin `crew_id` lo ven todos.
+- **Voz**: cuando llega una respuesta, Metis la lee en voz alta en los auriculares que pueden verla, por ejemplo «Flight surgeon about Marco: Rest today, no EVA. Status: limited duty.».
+- En `frontend/src/api.ts`: `api.ground()`, `api.groundReply({...})`, `api.eventsAs(viewer)`, y los tipos `GroundView` y `Packet`.
+
+**Para Manuela (pantalla de Tierra, con el interruptor Nave / Tierra arriba)**:
+- **bandeja** con los paquetes y su cuenta atrás, y lo que contienen;
+- **tripulación completa** con constantes, avisos y la relación CO₂ ↔ sueño;
+- **sistemas de la nave**;
+- un **formulario de respuesta**: texto y aptitud, con aviso de «llega en X min» o «en cola, sin enlace».
+- **Tierra no tiene Metis, solo notificaciones** (Carlos, 14-nov): en cualquier ruta que empiece por **`/ground`** el oído no escucha y Metis no habla (`voice.tsx`). La pantalla de Tierra va en `/ground` (Manuela).
+- **A bordo, los mensajes de Tierra se ven además de oírse**: aviso verde «From ground» arriba (`VitalsBanner`), que queda hasta que se cierra con la ✕. Se vacía al cambiar de tripulante.

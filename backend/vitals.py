@@ -293,6 +293,12 @@ def _escalate(cid, name, a, reason, now):
                       c["instructions_en"], c["instructions_es"])
     if reason == "no_pulse" or a["level"] != "watch":
         station.add_event("cmo_alert", cid, {"level": a["level"], "reason": reason, "source": "vitals"})
+    # Paquete a Tierra con el resumen: le llega al cirujano con el retraso del entorno (o espera en cola sin enlace).
+    why = {"no_pulse": "no pulse detected", "help": "asked for help", "no_answer": "not answering"}[reason]
+    station.add_event("surgeon_notice", cid, {"level": a["level"], "reason": reason, "source": "vitals",
+                                              "summary_en": a.get("summary_en"), "summary_es": a.get("summary_es")},
+                      f"Vitals emergency, {name}: {why}. {a.get('summary_en', '')}",
+                      f"Emergencia de constantes, {name}: {why}. {a.get('summary_es', '')}")
 
 
 def _process_checks(alert_by_crew, names, now):

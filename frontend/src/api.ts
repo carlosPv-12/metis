@@ -26,6 +26,25 @@ export interface Say { text: string; source: 'llm' | 'fallback' | string; latenc
 export interface Chat { text: string; source: string; latency_ms?: number; safety: 'ok' | 'escalated' }
 export interface Status { llm: { ok: boolean; model?: string }; tts: { ok: boolean; engine?: string; voices?: unknown }; stt: { ok: boolean; engine?: string; model?: string }; offline: boolean }
 export interface Threshold { id: string; label_en: string; label_es: string; value: number | string; unit: string; rule?: string; source_title: string; source_url?: string; verified: boolean }
+export interface Packet extends StationEvent { direction: 'to_earth' | 'to_ship'; delay_s?: number; sent_ts?: string; arrives_ts?: string
+  arrives_in_s: number | null; reply_in_s?: number | null; status: 'queued_no_link' | 'in_transit' | 'delivered' | 'delivered_awaiting_reply' | 'reply_window_open'
+  name?: string; summary_en?: string }
+export interface GroundView { viewer: { id: 'ground'; role: 'ground' }; realtime_data: true; crew: StationCrew[]; alerts: Station['alerts']
+  vitals: VitalsSnapshot['crew']; checks: VitalsCheck[]; ship: ShipState; mission: Mission
+  inbox: Packet[]; outbox: Packet[]; events: StationEvent[]; note_en: string; note_es: string }
+export interface ShipSystem { id: string; group: 'life_support' | 'power' | 'radiation'; label_en: string; label_es: string; value: number; unit: string
+  nominal: { low: number | null; high: number | null }; status: 'ok' | 'watch' | 'fault'; note_en: string; note_es: string
+  source: string; source_url: string; verified: boolean; simulated: true }
+export interface ShipState { systems: ShipSystem[]; worst_status: 'ok' | 'watch' | 'fault'
+  alerts: { id: string; level: string; source: 'ship'; text_en: string; text_es: string }[]
+  /** Only for who may see that person's health data (themselves, CMO, ground); otherwise null. */
+  co2_sleep_link: { crew_id: string; name: string; nights: number; nights_over_limit: number; high_co2_mmhg: number; r: number
+    sleep_h_over_limit: number | null; sleep_h_other: number | null; text_en: string; text_es: string } | null
+  mission: { day: number; planned_days: number; env: string; link: string } }
+export interface MedKit { inventory: { id: string; category_en: string; category_es: string; qty: number; min: number; low: boolean
+    expires_in_days: number; expires_before_mission_end: boolean; source: string; verified_category: boolean }[]
+  mission_days_left: number; summary_en: string; summary_es: string; context_en: string; context_es: string
+  plans: Record<string, { en: string; es: string; category: string }>; plan_note: { en: string; es: string }; no_doses: true }
 export interface Mission { env: 'iss' | 'eva' | 'moon' | 'mars' | 'blackout'; mars_delay_min: number; one_way_delay_s: number | null
   round_trip_s: number | null; link: 'realtime' | 'delayed' | 'none'; label_en: string; label_es: string; note_en: string; note_es: string; source: string }
 // ---- Roles (backend/roles.py; contract in API.md, «Roles a bordo y Tierra») ----
@@ -100,6 +119,14 @@ export const api = {
   // Spoken orders on the triage result («alert the crew») and yes/no confirmations. Fixed rule, no AI.
   // Live earpiece vitals (simulated) and early warnings computed by fixed rules against each person's baseline.
   vitals: (viewer?: Viewer) => j<VitalsSnapshot>('/api/vitals' + vq(viewer), undefined, 4000),
+  // Ground view (flight surgeon / mission control): everything live; messages travel with the link delay.
+  ground: () => j<GroundView>('/api/ground', undefined, 5000),
+  groundReply: (b: { crew_id?: string | null; text_en: string; text_es?: string; fitness?: Fitness['status'] | null; packet_id?: number | null }) =>
+    j<StationEvent>('/api/ground/reply', b, 5000),
+  eventsAs: (viewer: Viewer) => j<StationEvent[]>('/api/station/events' + vq(viewer), undefined, 4000),
+  // Ship state (life support, power, radiation) and the medical kit with pre-approved plans. See API.md, «Estado de la nave».
+  ship: (viewer?: Viewer) => j<ShipState>('/api/ship' + vq(viewer), undefined, 4000),
+  meds: () => j<MedKit>('/api/meds', undefined, 4000),
   // Mission environment (Settings): the backend uses its delay for packets to Earth; «blackout» queues them.
   mission: () => j<Mission>('/api/mission', undefined, 4000),
   setMission: (env: Mission['env'], mars_delay_min?: number) => j<Mission & { released: number }>('/api/mission', { env, mars_delay_min }, 4000, 'PUT'),
