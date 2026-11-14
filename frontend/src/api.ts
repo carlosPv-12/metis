@@ -26,6 +26,8 @@ export interface Say { text: string; source: 'llm' | 'fallback' | string; latenc
 export interface Chat { text: string; source: string; latency_ms?: number; safety: 'ok' | 'escalated' }
 export interface Status { llm: { ok: boolean; model?: string }; tts: { ok: boolean; engine?: string; voices?: unknown }; stt: { ok: boolean; engine?: string; model?: string }; offline: boolean }
 export interface Threshold { id: string; label_en: string; label_es: string; value: number | string; unit: string; rule?: string; source_title: string; source_url?: string; verified: boolean }
+export interface Mission { env: 'iss' | 'eva' | 'moon' | 'mars' | 'blackout'; mars_delay_min: number; one_way_delay_s: number | null
+  round_trip_s: number | null; link: 'realtime' | 'delayed' | 'none'; label_en: string; label_es: string; note_en: string; note_es: string; source: string }
 // ---- Roles (backend/roles.py; contract in API.md, «Roles a bordo y Tierra») ----
 export type CrewRole = 'crew' | 'commander' | 'cmo'
 export type Viewer = string            // a crew id ('lena', 'kenji'…) or 'ground'
@@ -98,6 +100,9 @@ export const api = {
   // Spoken orders on the triage result («alert the crew») and yes/no confirmations. Fixed rule, no AI.
   // Live earpiece vitals (simulated) and early warnings computed by fixed rules against each person's baseline.
   vitals: (viewer?: Viewer) => j<VitalsSnapshot>('/api/vitals' + vq(viewer), undefined, 4000),
+  // Mission environment (Settings): the backend uses its delay for packets to Earth; «blackout» queues them.
+  mission: () => j<Mission>('/api/mission', undefined, 4000),
+  setMission: (env: Mission['env'], mars_delay_min?: number) => j<Mission & { released: number }>('/api/mission', { env, mars_delay_min }, 4000, 'PUT'),
   // Roles on board and the Ground view (crew: own data only; commander: main traits of everyone; CMO and ground: all).
   roles: () => j<RolesDoc>('/api/roles', undefined, 4000),
   setRole: (crew_id: string, role: CrewRole) => j<RolesDoc>('/api/roles', { crew_id, role }, 4000, 'PUT'),

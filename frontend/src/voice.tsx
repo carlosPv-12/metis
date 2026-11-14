@@ -16,7 +16,9 @@ import { useLang, useT } from './i18n'
 import { useCrew } from './ui'
 
 type EarState = 'off' | 'waiting' | 'conversation' | 'hearing' | 'paused'
+export interface SelfNotice { state: 'asking' | 'escalated'; seconds_left: number; text_en: string; text_es: string }
 interface EarApi { on: boolean; state: EarState; heard: string | null; pending: string | null; warning: VitalsAlert | null
+  ignored: boolean; selfNotice: SelfNotice | null
   toggle: () => void; takePending: () => string | null; setBusy: (who: string, busy: boolean) => void }
 
 const EarCtx = createContext<EarApi | null>(null)
@@ -30,6 +32,9 @@ export function EarProvider({ children }: { children: ReactNode }) {
   // This screen is the earpiece of the crew member chosen in the header (Lena / Marco).
   const me = useRef(crewId)
   const myCheck = useRef<string | null>(null)   // set while Metis is waiting for MY answer to «are you okay?»
+  // A crewmate's emergency is going on: what I say goes to their checklist, never to small talk in the chat.
+  const emergency = useRef<{ crew_id: string; go: string } | null>(null)
+  const pendingRef = useRef<string | null>(null)   // what the ear heard, handed to Talk exactly once
   const [on, setOn] = useState(!NO_SERVER)
   const [state, setState] = useState<EarState>('off')
   const [heard, setHeard] = useState<string | null>(null)
@@ -41,8 +46,22 @@ export function EarProvider({ children }: { children: ReactNode }) {
   const paused = () => busy.current.size > 0 || pathRef.current.startsWith('/demo') || !isLeader()
   const conv = useRef(0)                  // > now while a conversation is open (shared with the vitals watcher)
   const [warning, setWarning] = useState<VitalsAlert | null>(null)
+  const [ignored, setIgnored] = useState(false)          // last thing heard was dropped (no «Metis», no conversation)
+  const [selfNotice, setSelfNotice] = useState<SelfNotice | null>(null)
+  // Switching who you are (Lena, Kenji…) = another earpiece: forget the previous person's conversation, pending
+  // question and emergency, and say whose earpiece this is now, so it is always clear who Metis is talking to.
+  const firstCrew = useRef(true)
+  useEffect(() => {
+    if (firstCrew.current) { firstCrew.current = false; return }
+    myCheck.current = null; emergency.current = null; conv.current = 0; pendingRef.current = null
+    setPending(null); setHeard(null); setIgnored(false); setSelfNotice(null)
+    sp.stop()
+    const name = crewId.charAt(0).toUpperCase() + crewId.slice(1)
+    sp.speak(langRef.current === 'es' ? `Ahora soy el auricular de ${name}.` : `This is now ${name}'s earpiece.`, langRef.current)
+  }, [crewId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const deliver = (text: string) => {
+    pendingRef.current = text
     setPending(text)
     if (!pathRef.current.startsWith('/talk')) nav('/talk')
   }
@@ -82,9 +101,17 @@ export function EarProvider({ children }: { children: ReactNode }) {
           }
           myCheck.current = null
         }
+        // Emergency mode: a crewmate's emergency is open. Status questions still go to Metis; anything else
+        // takes you back to the checklist (where the triage listens), instead of turning into chat.
+        if (emergency.current && !/\b(how|status|crew|queue|vitals)\b/i.test(r.text)) {
+          setHeard(r.text)
+          if (isLeader() && !pathRef.current.startsWith('/triage')) nav(emergency.current.go)
+          continue
+        }
         const w = await api.wake(r.text, l).catch(() => null)
         if (ac.signal.aborted || !w) continue
-        if (w.emergency) { setHeard(r.text); conv.current = 0; deliver(w.wake && w.command ? w.command : w.heard); continue }
+        setHeard(r.text); setIgnored(false)
+        if (w.emergency) { conv.current = 0; deliver(w.wake && w.command ? w.command : w.heard); continue }
         if (wasConv) {
           setHeard(r.text)
           if (w.end) {
@@ -102,7 +129,7 @@ export function EarProvider({ children }: { children: ReactNode }) {
           if (w.command) deliver(w.command)
           else { if (!pathRef.current.startsWith('/talk')) nav('/talk'); await sp.speak(l === 'es' ? 'Dime.' : 'I’m listening.', l) }
         }
-        // no conversation and no «Metis»: people chatting nearby, ignored
+        else setIgnored(true)   // no conversation and no «Metis»: people chatting nearby, ignored (shown as such)
       }
     })()
     return () => ac.abort()
@@ -125,7 +152,18 @@ export function EarProvider({ children }: { children: ReactNode }) {
       const checks = v.checks ?? [], alerts = v.alerts ?? []   // an older backend has no checks: don't crash
       setWarning(alerts.length ? [...alerts].sort((x, y) => (rank[y.level] ?? 0) - (rank[x.level] ?? 0))[0] : null)
       const open = new Set(checks.map(c => c.crew_id))
+      const esc = checks.filter(c => c.state === 'escalated' && c.crew_id !== me.current && c.escalated_at && v.now - c.escalated_at < 300)
+        .sort((a, b) => (b.escalated_at ?? 0) - (a.escalated_at ?? 0))[0]
+      emergency.current = esc ? { crew_id: esc.crew_id, go: `/triage?flow=companion_collapse&patient=${esc.crew_id}` } : null
       for (const k of [...spoken]) if (!open.has(k.split(':')[0])) spoken.delete(k)       // back to normal: re-arm
+      const mineCheck = checks.find(c => c.crew_id === me.current)
+      setSelfNotice(!mineCheck ? null : mineCheck.state === 'asking'
+        ? { state: 'asking', seconds_left: mineCheck.seconds_left,
+            text_en: `Are you okay? Answer out loud. If you don't answer, Metis alerts the crew in ${mineCheck.seconds_left} s.`,
+            text_es: `¿Estás bien? Responde en voz alta. Si no contestas, Metis avisa a la tripulación en ${mineCheck.seconds_left} s.` }
+        : mineCheck.reason === 'no_pulse' ? null
+        : { state: 'escalated', seconds_left: 0, text_en: 'Metis alerted the crew and the medical officer. Help is on the way.',
+            text_es: 'Metis ha avisado a la tripulación y al oficial médico. Van a ayudarte.' })
       if (myCheck.current && !checks.some(c => c.crew_id === myCheck.current && c.state === 'asking')) myCheck.current = null
       for (const c of checks) {
         const mine = c.crew_id === me.current
@@ -149,8 +187,8 @@ export function EarProvider({ children }: { children: ReactNode }) {
       if (item.go && isLeader() && !pathRef.current.startsWith('/triage')) nav(item.go)   // only the tab you used last
       if (item.go) console.info('[metis] emergency →', item.go, isLeader() ? '(opening)' : '(another tab handles it)')
       await said
-      if (item.mine) myCheck.current = item.mine            // the next thing I say is my answer
-      conv.current = Date.now() + CONV_IDLE_MS
+      if (item.mine) { myCheck.current = item.mine; conv.current = Date.now() + CONV_IDLE_MS }   // my answer comes next
+      else if (item.go) conv.current = 0   // a crewmate's emergency: the checklist listens now, not the chat
       talking = false
     }
     tick(); const id = setInterval(tick, 2500)
@@ -158,9 +196,9 @@ export function EarProvider({ children }: { children: ReactNode }) {
   }, [crewId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const ear: EarApi = {
-    on, state, heard, pending, warning,
+    on, state, heard, pending, warning, ignored, selfNotice,
     toggle: () => { if (!NO_SERVER) { setOn(o => !o); setHeard(null) } },
-    takePending: () => { const p = pending; setPending(null); return p },
+    takePending: () => { const p = pendingRef.current; pendingRef.current = null; setPending(null); return p },
     setBusy: (who, b) => { if (b) busy.current.add(who); else busy.current.delete(who) },
   }
   return <EarCtx.Provider value={ear}>{children}</EarCtx.Provider>
@@ -188,7 +226,8 @@ export function EarSwitch() {
         {ear.on && <span className={`dot ${live ? 'pulse' : ''}`} style={{ background: live ? 'var(--metis)' : 'var(--ok)' }} />}
         {!ear.on ? <EarOff size={14} /> : ear.state === 'conversation' ? <MessageCircle size={14} /> : <Ear size={14} />}{label}
       </button>
-      {ear.on && ear.heard && <span className="small dim" style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={ear.heard}>«{ear.heard}»</span>}
+      {ear.on && ear.heard && <span className="small dim" style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        title={ear.heard}>«{ear.heard}»{ear.ignored && <b> · {t('ear_ignored')}</b>}</span>}
     </>
   )
 }
@@ -196,13 +235,20 @@ export function EarSwitch() {
 /** Banner on top of every screen while someone's vitals are off their baseline. Click -> station console. */
 export function VitalsBanner() {
   const ear = useEar(); const t = useT(); const { lang } = useLang(); const nav = useNavigate()
+  const me = ear?.selfNotice
+  if (me) return (   // about ME: what Metis is doing about it, and the countdown before it alerts the crew
+    <div className={`lvl ${me.state === 'asking' ? 'amarillo' : 'naranja'}`} role="status"
+      style={{ display: 'flex', gap: 10, alignItems: 'center', width: '100%', marginBottom: 14, padding: '10px 14px' }}>
+      <AlertTriangle size={18} /><b style={{ whiteSpace: 'nowrap' }}>{me.state === 'asking' ? t('heads_up') : t('crew_alerted')}</b>
+      <span>{lang === 'es' ? me.text_es : me.text_en}</span>
+    </div>)
   const w = ear?.warning
   if (!w) return null
   const cls = w.level === 'alarm' ? 'rojo' : w.level === 'warning' ? 'naranja' : 'amarillo'
   return (
     <button className={`lvl ${cls}`} onClick={() => nav('/station')}
       style={{ display: 'flex', gap: 10, alignItems: 'center', width: '100%', textAlign: 'left', marginBottom: 14, cursor: 'pointer', padding: '10px 14px' }}>
-      <AlertTriangle size={18} /><b style={{ whiteSpace: 'nowrap' }}>{t('early_warning')}</b><span>{lang === 'es' ? w.text_es : w.text_en}</span>
+      <AlertTriangle size={18} /><b style={{ whiteSpace: 'nowrap' }}>{w.level === 'alarm' ? t('emergency_title') : w.level === 'warning' ? t('early_warning') : t('heads_up')}</b><span>{lang === 'es' ? w.text_es : w.text_en}</span>
     </button>
   )
 }

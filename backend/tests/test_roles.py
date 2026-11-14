@@ -81,7 +81,11 @@ def test_chat_respects_roles(client):
     d = client.post("/api/metis/chat", json={"message": "How is the crew?", "crew_id": "lena"}).json()
     assert d["text"].startswith("Lena:") and "Marco" not in d["text"]
     d = client.post("/api/metis/chat", json={"message": "How is the crew?", "crew_id": "kenji"}).json()
-    assert "Marco: heart rate" in d["text"] and "breathing" not in d["text"].split("Marco:")[1].split(".")[0]
+    marco = d["text"].split("Marco:")[1].split(".")[0]
+    assert "fit for duty" in marco and "heart rate" in marco and "breathing" not in marco and "slept" not in marco
+    assert d["text"].endswith("Medical details are with the medical officer.")
+    d = client.post("/api/metis/chat", json={"message": "How is the crew?", "crew_id": "noor"}).json()
+    assert "slept" in d["text"].split("Marco:")[1].split(".")[0] + d["text"].split("Marco:")[1].split(".")[1]
 
 
 def test_fitness_only_cmo_or_ground(client):
@@ -106,3 +110,15 @@ def test_commander_note_follows_fitness(client):
     client.put("/api/crew/marco/fitness", json={"status": "limited", "viewer": "noor"})
     marco = next(c for c in client.get("/api/station?viewer=kenji").json()["crew"] if c["id"] == "marco")
     assert marco["note_en"].startswith("Limited duty.")
+
+
+def test_chat_during_emergency_is_a_rule_not_small_talk(client):
+    vitals.set_scenario("marco", "collapse")
+    client.get("/api/vitals")                                              # escala al momento (sin pulso)
+    d = client.post("/api/metis/chat", json={"message": "I'm fine", "crew_id": "kenji"}).json()
+    assert d["source"] == "rule" and d["safety"] == "escalated" and d["patient"] == "marco" and "emergency with Marco" in d["text"]
+    d = client.post("/api/metis/chat", json={"message": "How is the crew?", "crew_id": "kenji"}).json()
+    assert "Marco: no pulse" in d["text"]                                   # el estado se sigue pudiendo preguntar
+    vitals.reset()
+    d = client.post("/api/metis/chat", json={"message": "I'm fine", "crew_id": "kenji"}).json()
+    assert d["safety"] == "ok"                                              # sin emergencia, conversación normal

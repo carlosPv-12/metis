@@ -152,3 +152,30 @@ En `frontend/src/api.ts`: `api.station(viewer?)`, `api.vitals(viewer?)`, `api.ro
 - Pasar `viewer = crewId` en las pantallas de la nave, y `viewer = 'ground'` en la vista de Tierra.
 - Pintar `access: 'summary'` con menos detalle.
 - Mostrar `fitness` en las tarjetas.
+
+## Entorno de la misión (14-nov, Carlos)
+
+Lo elige Ajustes y lo usa todo el backend (`backend/mission.py`; mismos perfiles que `frontend/src/link.ts`).
+
+| `env` | Retraso de ida | `link` |
+|---|---|---|
+| `iss` | 0,6 s | `realtime` |
+| `eva` | 0,6 s | `realtime` |
+| `moon` | 1,3 s | `realtime` |
+| `mars` | `mars_delay_min` × 60 (5-20 min; 5 por defecto) | `delayed` |
+| `blackout` | — | `none` |
+
+| Método y ruta | Cuerpo | Respuesta |
+|---|---|---|
+| GET `/api/mission` | | `{env, mars_delay_min, one_way_delay_s, round_trip_s, link, label_en/es, note_en/es, source, profiles}` |
+| PUT `/api/mission` | `{env, mars_delay_min?}` | lo mismo más `released`: paquetes en cola que han salido al volver el enlace. Crea el evento `link_change`. |
+
+- **Paquetes hacia Tierra** (`send_flight_surgeon`, `surgeon_notice`, `triage_summary`, `earth_message`): llevan `direction: "to_earth"`, `delay_s`, `sent_ts`, `arrives_ts`, `arrives_in_s`, `reply_in_s` y `status` (`in_transit` → `delivered_awaiting_reply` → `reply_window_open`).
+  - Con `blackout` el `status` es `queued_no_link`, con `arrives_in_s: null`.
+  - Al volver el enlace, el paquete sale con el retraso del nuevo entorno.
+- **`/api/station` → `comms`**: `one_way_delay_s` sigue siendo un número (0 sin enlace, para no romper pantallas). Añade `link`, `env` y `env_label_en/es`.
+- **Lo que dice Metis** al avisar a la tripulación cambia según el entorno:
+  - ISS: «I'm calling the flight surgeon now…»;
+  - Marte: «The report reaches the flight surgeon in about 5 minutes…»;
+  - sin enlace: «There is no link with Earth: the report… waits in the queue.»
+- **Frontend**: `settings.ts` llama a `api.setMission` al cambiar el entorno, y al cargar toma el del backend, para que todas las pestañas y portátiles muestren lo mismo. Para la cuenta atrás del paquete, mejor `packet.arrives_in_s` y `packet.status` del backend.

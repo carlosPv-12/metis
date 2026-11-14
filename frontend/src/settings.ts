@@ -3,6 +3,7 @@
 // so the backend contract (api.ts / API.md) is unchanged. If the crew profile ever moves to the backend
 // (e.g. a `sex` field on /api/crew), only this file needs to change.
 import { useSyncExternalStore } from 'react'
+import { api } from './api'
 
 export type Sex = 'female' | 'male'
 export type EnvId = 'iss' | 'eva' | 'moon' | 'mars' | 'blackout'
@@ -41,12 +42,23 @@ function read(): Settings {
 let current: Settings = read()
 
 function write(next: Settings) {
+  // The mission environment also lives in the backend (packets to Earth, queue with no link, what Metis says).
+  if (next.env !== current.env || next.marsDelayMin !== current.marsDelayMin) api.setMission(next.env, next.marsDelayMin).catch(() => {})
   current = next
   try { localStorage.setItem(KEY, JSON.stringify(next)) } catch { /* private mode: keep in memory */ }
   listeners.forEach(l => l())
 }
 
 function subscribe(l: () => void) { listeners.add(l); return () => { listeners.delete(l) } }
+
+// On load, take the environment from the backend so every screen, tab and laptop shows the same one.
+api.mission().then(m => {
+  if (m.env !== current.env || m.mars_delay_min !== current.marsDelayMin) {
+    current = { ...current, env: m.env, marsDelayMin: m.mars_delay_min }
+    try { localStorage.setItem(KEY, JSON.stringify(current)) } catch { /* ignore */ }
+    listeners.forEach(l => l())
+  }
+}).catch(() => { /* no backend (standalone file): keep the local choice */ })
 
 export function useSettings(): Settings { return useSyncExternalStore(subscribe, () => current, () => current) }
 

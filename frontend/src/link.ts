@@ -1,7 +1,7 @@
 // Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026
 // Mission environment & Earth-link profiles (challenge 04: "adapt it to different environments").
-// SIMULATED in the frontend: the backend still reports its own demo scenario (Mars, 5 min one-way);
-// the profile chosen in Settings overrides what the screens show. Delays are approximate one-way light/relay
+// Chosen in Settings and sent to the backend (PUT /api/mission), which uses the same profiles (backend/mission.py)
+// for packets to Earth, the queue when there is no link and what Metis says. Delays are approximate one-way light/relay
 // times for illustration, not mission specifications.
 import { useSettings, type EnvId } from './settings'
 

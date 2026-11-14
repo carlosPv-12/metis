@@ -232,20 +232,27 @@ def status_text(crew_doc, cid=None, lang="en", viewer=None):
             st = {"ok": "normal", "watch": "under watch", "warning": "early warning", "alarm": "EMERGENCY"}.get(c["status"], c["status"])
             if not n.get("pulse", True):
                 out.append(f"{c['name']}: no pulse. Emergency." if lang != "es" else f"{c['name']}: sin pulso. Emergencia."); continue
-            out.append(f"{c['name']}: heart rate {n['hr_bpm']:.0f}, oxygen {n['spo2_pct']:.0f} percent, {st}." if lang != "es"
-                       else f"{c['name']}: pulso {n['hr_bpm']:.0f}, oxígeno {n['spo2_pct']:.0f} %, {st}.")
+            fit = {"fit": "fit for duty", "limited": "limited duty", "unfit": "not fit for duty"}[roles.fitness(c["id"])["status"]]
+            out.append(f"{c['name']}: {st}, {fit}, heart rate {n['hr_bpm']:.0f}, oxygen {n['spo2_pct']:.0f} percent." if lang != "es"
+                       else f"{c['name']}: {st}, pulso {n['hr_bpm']:.0f}, oxígeno {n['spo2_pct']:.0f} %.")
             continue
         if not n["pulse"]:
             out.append(by[c["id"]]["text_es" if lang == "es" else "text_en"]); continue
         if c["id"] in by:
             out.append(by[c["id"]]["text_es" if lang == "es" else "text_en"]); continue
         act = n["activity"] > 0
+        # Acceso completo (uno mismo, el CMO, Tierra): también el sueño de anoche frente a lo habitual.
+        d = crew_doc["crew"].get(c["id"])
+        sleep = (f", slept {d['days'][-1]['sleep_h']:.1f} hours (usual {d['baseline']['sleep_h']['mean']:.1f})" if lang != "es"
+                 else f", durmió {d['days'][-1]['sleep_h']:.1f} h (lo habitual, {d['baseline']['sleep_h']['mean']:.1f})") if d else ""
         if lang == "es":
-            out.append(f"{c['name']}: pulso {n['hr_bpm']:.0f}, respiración {n['rr_brpm']:.0f}, oxígeno {n['spo2_pct']:.0f} %"
+            out.append(f"{c['name']}: pulso {n['hr_bpm']:.0f}, respiración {n['rr_brpm']:.0f}, oxígeno {n['spo2_pct']:.0f} %{sleep}"
                        + (", haciendo ejercicio." if act else ", dentro de su normalidad."))
         else:
-            out.append(f"{c['name']}: heart rate {n['hr_bpm']:.0f}, breathing {n['rr_brpm']:.0f}, oxygen {n['spo2_pct']:.0f} percent"
-                       + (", exercising." if act else ", normal for them."))
+            out.append(f"{c['name']}: heart rate {n['hr_bpm']:.0f}, breathing {n['rr_brpm']:.0f}, oxygen {n['spo2_pct']:.0f} percent{sleep}"
+                       + (", exercising." if act else ", vitals normal right now."))
+    if any(c.get("access") == "summary" for c in rows):
+        out.append("Medical details are with the medical officer." if lang != "es" else "El detalle médico lo tiene el oficial médico.")
     if viewer is not None and roles.role_of(viewer) == "crew" and cid is None:
         out.append("For your crewmates, ask the medical officer; I'll tell you straight away if anyone needs help."
                    if lang != "es" else "Para tus compañeros, pregunta al oficial médico; te aviso al momento si alguien necesita ayuda.")
@@ -264,16 +271,18 @@ def _advice(name, a):
 
 def _instructions(name, a, reason):
     """Lo que Metis dice A LOS DEMÁS al escalar. Primero QUÉ HACER (lo que no se puede perder), luego por qué. Sin preguntar."""
+    import mission
+    g_en, g_es = mission.ground_phrase("en"), mission.ground_phrase("es")   # depende del entorno: ISS, Marte, sin enlace…
     if reason == "no_pulse":
         return (f"Emergency. Go to {name} now: {name}'s earpiece detects no pulse. "
-                f"I'm alerting the medical officer and opening the emergency checklist.",
-                f"Emergencia. Ve con {name} ya: su auricular no detecta pulso. Aviso al oficial médico y abro la lista de emergencia.")
+                f"I'm alerting the medical officer and opening the emergency checklist. {g_en}",
+                f"Emergencia. Ve con {name} ya: su auricular no detecta pulso. Aviso al oficial médico y abro la lista de emergencia. {g_es}")
     why_en = "asked for help" if reason == "help" else "is not answering"
     why_es = "ha pedido ayuda" if reason == "help" else "no contesta"
     return (f"Go to {name} now. {name} {why_en} and their vitals are off: {a['summary_en']}. "
-            f"Keep them at rest and stay with them. I've alerted the medical officer.",
+            f"Keep them at rest and stay with them. I've alerted the medical officer. {g_en}",
             f"Ve con {name} ya. {name} {why_es} y sus constantes no van bien: {a['summary_es']}. "
-            f"Que no se mueva y quédate a su lado. He avisado al oficial médico.")
+            f"Que no se mueva y quédate a su lado. He avisado al oficial médico. {g_es}")
 
 
 def _escalate(cid, name, a, reason, now):

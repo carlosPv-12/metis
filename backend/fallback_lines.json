@@ -1,47 +1,47 @@
 {
- "_nota": "Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026. Frases guionizadas de reserva (si el modelo local no responde). EN = inglés americano para la demo; ES = traducción.",
- "greeting": {
-  "en": "Good morning, Lena. Your resting heart rate is higher than usual, and you've slept under six hours three nights in a row. How are you feeling?",
-  "es": "Buenos días, Lena. Tu pulso en reposo está más alto de lo habitual y llevas tres noches seguidas durmiendo menos de seis horas. ¿Cómo te encuentras?"
- },
- "sleep_co2": {
-  "en": "Your worst nights line up with the CO2 peaks in your bunk. Want me to flag it to the crew?",
-  "es": "Tus peores noches coinciden con los picos de CO2 de tu litera. ¿Quieres que se lo comente a la tripulación?"
- },
- "offer_checkup": {
-  "en": "I can run a three-minute check-in with you. Shall we start?",
-  "es": "Puedo hacerte un chequeo de tres minutos. ¿Empezamos?"
- },
- "chest_pressure": {
-  "en": "Understood. I'll ask you a few questions, one at a time. I'm working fully offline.",
-  "es": "Entendido. Te haré unas preguntas, una cada vez. Estoy funcionando sin conexión."
- },
- "companion": {
-  "en": "We'll go step by step. Tell me if your crewmate responds to you.",
-  "es": "Vamos paso a paso. Dime si tu compañero te responde."
- },
- "escalate": {
-  "en": "That sounds urgent. I'm opening the emergency checklist and alerting your medical officer now.",
-  "es": "Eso suena urgente. Abro la lista de emergencia y aviso ahora a tu oficial médico."
- },
- "chat": {
-  "en": "I'm here with you. I can't diagnose, but I can walk you through the checklist and prepare a note for the flight surgeon.",
-  "es": "Estoy contigo. No puedo diagnosticar, pero puedo guiarte con la lista y preparar una nota para el cirujano de vuelo."
- },
- "default": {
-  "en": "I'm here. I don't diagnose: I guide you with procedures and prepare the summary for the flight surgeon.",
-  "es": "Estoy aquí. No diagnostico: te guío con procedimientos y preparo el resumen para el cirujano de vuelo."
- },
- "medication": {
-  "en": "I can't recommend medication. Your CMO or the flight surgeon decides that; I can add your question to today's note.",
-  "es": "No puedo recomendarte medicación. Eso lo decide tu CMO o el cirujano de vuelo; puedo añadir tu pregunta a la nota de hoy."
- },
- "psych": {
-  "en": "I'm really glad you told me, and you don't have to carry this alone. Let's talk to your CMO right now, and I can set up a private call with the psychological support team on Earth.",
-  "es": "Me alegra mucho que me lo cuentes, y no tienes que cargar con esto a solas. Hablemos ahora mismo con tu CMO, y puedo preparar una llamada privada con el equipo de apoyo psicológico en Tierra."
- },
- "diagnosis": {
-  "en": "I can't diagnose or guess at causes. I can show you your trends, run the onboard checklist with you, and pass everything to your CMO and the flight surgeon.",
-  "es": "No puedo diagnosticar ni adivinar causas. Puedo enseñarte tus tendencias, hacer contigo la lista de a bordo y pasárselo todo a tu CMO y al cirujano de vuelo."
- }
+  "_nota": "Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026. Frases guionizadas de reserva (si el modelo local no responde). EN = inglés americano para la demo; ES = traducción.",
+  "greeting": {
+    "en": "Good morning, Lena. Your resting heart rate is higher than usual, and you've slept under six hours three nights in a row. How are you feeling?",
+    "es": "Buenos días, Lena. Tu pulso en reposo está más alto de lo habitual y llevas tres noches seguidas durmiendo menos de seis horas. ¿Cómo te encuentras?"
+  },
+  "sleep_co2": {
+    "en": "Your worst nights line up with the CO2 peaks in your bunk. Want me to flag it to the crew?",
+    "es": "Tus peores noches coinciden con los picos de CO2 de tu litera. ¿Quieres que se lo comente a la tripulación?"
+  },
+  "offer_checkup": {
+    "en": "I can run a three-minute check-in with you. Shall we start?",
+    "es": "Puedo hacerte un chequeo de tres minutos. ¿Empezamos?"
+  },
+  "chest_pressure": {
+    "en": "Understood. I'll ask you a few questions, one at a time. I'm working fully offline.",
+    "es": "Entendido. Te haré unas preguntas, una cada vez. Estoy funcionando sin conexión."
+  },
+  "companion": {
+    "en": "We'll go step by step. Tell me if your crewmate responds to you.",
+    "es": "Vamos paso a paso. Dime si tu compañero te responde."
+  },
+  "escalate": {
+    "en": "That sounds urgent. I'm opening the emergency checklist and alerting your medical officer now.",
+    "es": "Eso suena urgente. Abro la lista de emergencia y aviso ahora a tu oficial médico."
+  },
+  "chat": {
+    "en": "I'm here with you. Tell me how you feel, or ask me about your data.",
+    "es": "Estoy aquí contigo. Dime cómo te encuentras o pregúntame por tus datos."
+  },
+  "default": {
+    "en": "I'm here. I don't diagnose: I guide you with procedures and prepare the summary for the flight surgeon.",
+    "es": "Estoy aquí. No diagnostico: te guío con procedimientos y preparo el resumen para el cirujano de vuelo."
+  },
+  "medication": {
+    "en": "I can't recommend medication. Your CMO or the flight surgeon decides that; I can add your question to today's note.",
+    "es": "No puedo recomendarte medicación. Eso lo decide tu CMO o el cirujano de vuelo; puedo añadir tu pregunta a la nota de hoy."
+  },
+  "psych": {
+    "en": "I'm really glad you told me, and you don't have to carry this alone. Let's talk to your CMO right now, and I can set up a private call with the psychological support team on Earth.",
+    "es": "Me alegra mucho que me lo cuentes, y no tienes que cargar con esto a solas. Hablemos ahora mismo con tu CMO, y puedo preparar una llamada privada con el equipo de apoyo psicológico en Tierra."
+  },
+  "diagnosis": {
+    "en": "I can't diagnose or guess at causes. I can show you your trends, run the onboard checklist with you, and pass everything to your CMO and the flight surgeon.",
+    "es": "No puedo diagnosticar ni adivinar causas. Puedo enseñarte tus tendencias, hacer contigo la lista de a bordo y pasárselo todo a tu CMO y al cirujano de vuelo."
+  }
 }

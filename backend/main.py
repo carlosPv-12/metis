@@ -11,7 +11,7 @@ from fastapi.responses import Response, JSONResponse
 from pydantic import BaseModel
 
 import re
-import llm, roles, station, vitals, voice_answer, voice_engine
+import llm, mission, roles, station, vitals, voice_answer, voice_engine
 
 HERE = pathlib.Path(__file__).parent
 DATA = HERE.parent / "data"
@@ -251,6 +251,16 @@ CREW_STATUS = re.compile(r"\bhow(\'s| is| are)? (the )?(crew|queue|cue|cru|crow|
 COMPANION = __import__("re").compile(r"\b(he|she|they|crewmate|marco|lena|noor|kenji|compañer|él|ella|se ha|se desplom)\b", __import__("re").I)
 
 
+def active_emergency(speaker):
+    """La emergencia escalada más reciente de OTRO tripulante (lo que ve el auricular de `speaker`), o None."""
+    try:
+        snap = roles.filter_vitals(vitals.snapshot(crew_doc()), speaker if speaker in crew_doc()["crew"] else None)
+    except Exception:
+        return None
+    esc = [c for c in snap.get("checks", []) if c.get("state") == "escalated" and c.get("crew_id") != speaker]
+    return max(esc, key=lambda c: c.get("escalated_at") or 0) if esc else None
+
+
 @app.post("/api/metis/chat")
 def chat(b: ChatIn):
     k, c = L(b.lang), _crew(b.crew_id)
@@ -263,6 +273,15 @@ def chat(b: ChatIn):
         flow = "companion_collapse" if COMPANION.search(b.message) else "self_chest_pressure"
         return {"text": fb("escalate", k), "source": "rule", "latency_ms": int((time.time() - t0) * 1000), "safety": "escalated",
                 "suggest_flow": flow, "lang": k, "ai_generated": False}
+    # Emergencia de un compañero en curso: nada de charla. Se responde con una regla y se abre su lista de emergencia.
+    # (Carlos, 14-nov: «cuando hay una incidencia se mezcla con el chat normal».) Las preguntas de estado siguen valiendo.
+    emerg = active_emergency(b.crew_id)
+    if emerg and not CREW_STATUS.search(b.message or ""):
+        n = emerg["name"]
+        text = (f"There's an emergency with {n} right now. Let's go to the checklist: I'll ask you one thing at a time."
+                if k == "en" else f"Hay una emergencia con {n} ahora mismo. Vamos a la lista de emergencia: te pregunto una cosa cada vez.")
+        return {"text": text, "source": "rule", "latency_ms": int((time.time() - t0) * 1000), "safety": "escalated",
+                "suggest_flow": "companion_collapse", "patient": emerg["crew_id"], "lang": k, "ai_generated": False}
     st_m = CREW_STATUS.search(b.message or "")
     if st_m:
         who = next((n for n in ("lena", "marco", "noor", "kenji") if re.search(rf"\b{n}\b", b.message, re.I)), None)
@@ -380,6 +399,32 @@ def get_station(lang: str | None = None, viewer: str | None = None):
     _with_lang(st["alerts"], lang); _with_lang(st["events"], lang)
     if st.get("packet"): _with_lang([st["packet"]], lang)
     return st
+
+
+# ---------- entorno de la misión ----------
+@app.get("/api/mission")
+def get_mission():
+    """Entorno elegido en Ajustes (ISS, EVA, Luna, Marte 5-20 min, sin enlace) y su enlace con Tierra."""
+    return mission.get()
+
+
+class MissionIn(BaseModel):
+    env: str                         # iss | eva | moon | mars | blackout
+    mars_delay_min: int | None = None
+
+
+@app.put("/api/mission")
+def put_mission(b: MissionIn):
+    try:
+        mission.set(b.env, b.mars_delay_min)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    released = station.release_queued()        # vuelve el enlace: lo que esperaba en cola sale ya
+    m = mission.get()
+    station.add_event("link_change", None, {"env": m["env"], "released": released},
+                      f"Mission environment: {m['label_en']}. {m['note_en']}" + (f" {released} queued packet(s) sent." if released else ""),
+                      f"Entorno de la misión: {m['label_es']}. {m['note_es']}" + (f" Enviados {released} paquetes en cola." if released else ""))
+    return {**m, "released": released}
 
 
 # ---------- roles a bordo, Tierra y aptitud ----------
