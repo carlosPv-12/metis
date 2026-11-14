@@ -15,6 +15,7 @@ import { useAccessRequests, useEmergencyAccess } from '../station/accessStore'
 import { roleOf, useSettings } from '../settings'
 import '../link.css'
 import { FALLBACK_STATION } from '../fallback'
+import { demoBattery } from '../earpieces'
 
 /** The long "outside personal band: …" streak summary is not shown in the log. */
 const notBaseline = (a: { id?: string; text_en?: string }) => a.id !== 'lena_baseline' && !/outside personal band/i.test(a.text_en ?? '')
@@ -97,7 +98,7 @@ export default function Station() {
               {(c.vitals || c.hr != null) && <div className="row between" style={{ marginTop: 14, alignItems: 'baseline' }}>
                 <span className={`mono ${c.vitals && !c.vitals.pulse ? 's-alarm' : ''}`} style={{ fontSize: 26 }}><Activity size={16} style={{ verticalAlign: -1, marginRight: 6, opacity: .7 }} />
                   {c.vitals ? (c.vitals.pulse ? Math.round(c.vitals.hr_bpm) : t('no_pulse')) : c.hr} {(!c.vitals || c.vitals.pulse) && <span className="small muted">{t('u_bpm')}</span>}</span>
-                {hs && <span className="small muted"><Ear size={13} style={{ verticalAlign: -2 }} /> {hs.battery_pct}%</span>}
+                {hs && <span className="small muted"><Ear size={13} style={{ verticalAlign: -2 }} /> {demoBattery(hs.crew_id)}%</span>}
               </div>}
               {c.vitals?.pulse && (
                 <div className="row small mono muted" style={{ gap: 12, marginTop: 6 }}>
@@ -142,8 +143,8 @@ export default function Station() {
           {st.headsets.map(h => (
             <div key={h.crew_id} className="row between small" style={{ marginBottom: 10 }}>
               <span style={{ width: 70 }}>{names[h.crew_id] ?? h.crew_id}</span>
-              <div className="bar" style={{ flex: 1 }}><i style={{ width: `${h.battery_pct}%`, background: h.battery_pct < 30 ? 'var(--warn)' : 'var(--ok)' }} /></div>
-              <span className="mono" style={{ width: 44, textAlign: 'right' }}><Battery size={12} /> {h.battery_pct}</span>
+              <div className="bar" style={{ flex: 1 }}><i style={{ width: `${demoBattery(h.crew_id)}%`, background: 'var(--ok)' }} /></div>
+              <span className="mono" style={{ width: 44, textAlign: 'right' }}><Battery size={12} /> {demoBattery(h.crew_id)}</span>
               <span className={h.link === 'ok' ? 's-ok' : 's-watch'} style={{ width: 54, textAlign: 'right' }}>{h.link === 'ok' ? '● ' + t('link_ok_short') : h.link === 'weak' ? t('link_weak') : h.link}</span>
             </div>
           ))}

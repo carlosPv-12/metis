@@ -54,13 +54,13 @@ export default function SleepAir() {
               </Bar>
               {Number.isFinite(numVal(co2)) && <ReferenceLine yAxisId="c" y={numVal(co2)} stroke="#B45309" strokeDasharray="5 4" />}
               {Number.isFinite(numVal(sleepRef)) && <ReferenceLine yAxisId="s" y={numVal(sleepRef)} stroke="#0960E1" strokeDasharray="2 4" strokeOpacity={0.6} />}
-              <Line yAxisId="c" dataKey="co2" name={t('m_co2_night_peak_mmhg')} stroke="#0960E1" strokeWidth={2.4} dot={{ r: 2.5, fill: '#0960E1' }} isAnimationActive={false} />
+              <Line yAxisId="c" dataKey="co2" name={t('m_co2_night_peak_mmhg')} stroke="#9CBF00" strokeWidth={2.8} dot={{ r: 2.5, fill: '#9CBF00' }} isAnimationActive={false} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
         <div className="row wrap" style={{ gap: 18, marginTop: 10 }}>
           <span className="small" style={{ color: 'var(--info)' }}>■ {t('m_sleep_h')} ({t('u_h')})</span>
-          <span className="small" style={{ color: 'var(--info)' }}>● {t('m_co2_night_peak_mmhg')}</span>
+          <span className="small" style={{ color: '#6F8A00' }}>● {t('m_co2_night_peak_mmhg')}</span>
           {co2 && <ThresholdLabel th={co2} />}{sleepRef && <ThresholdLabel th={sleepRef} color="var(--info)" />}
         </div>
       </Card>

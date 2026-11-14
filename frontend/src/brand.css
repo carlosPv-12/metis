@@ -504,3 +504,13 @@ dialog, dialog:focus, dialog:focus-visible,
 /* Trend cards: today's value in the display font, unit small */
 .trend-now { font: 700 17px var(--display, 'Overpass', sans-serif); color: #07173F; white-space: nowrap }
 .trend-now small { font: 500 12px 'Fira Sans', sans-serif; color: #4A5468; margin-left: 2px }
+
+/* Neon accents (brand Neon Yellow, the green-yellow of the body glow) so the pages are less monotone */
+.page-heading .h1::after { content: ''; display: block; width: 72px; height: 6px; margin-top: 12px; border-radius: 999px; background: linear-gradient(90deg, #EAFE07, #C6E600) }
+.section-h::after { content: ''; display: block; width: 48px; height: 5px; margin-top: 8px; border-radius: 999px; background: #EAFE07 }
+.card > h3::before { content: ''; display: inline-block; width: 14px; height: 3px; margin-right: 8px; border-radius: 999px; background: #C6E600; vertical-align: middle }
+.ground-ship { box-shadow: inset 0 4px 0 #EAFE07 }
+.ground-h::before { content: ''; display: inline-block; width: 14px; height: 3px; margin-right: 8px; border-radius: 999px; background: #C6E600; vertical-align: middle }
+.ground-hero { box-shadow: inset 0 -5px 0 #EAFE07 }
+.feature-gradient > h3::before, .mr-head + * h3::before { background: #EAFE07 }
+.sleepair-section + .sleepair-insight { margin: 18px 0 0 }

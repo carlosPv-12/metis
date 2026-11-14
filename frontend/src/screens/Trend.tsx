@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api, type Metric, type Threshold } from '../api'
 import SleepAir, { SleepAirInsight } from './SleepAir'
+import ShipPanel from '../ShipPanel'
 import { useLoad } from '../hooks'
 import { useLang, useT, pick, unitL } from '../i18n'
 import { Card, DEC, LevelTag, Loading, METRICS, Page, UNIT, fmt, levelOf, useCrew } from '../ui'
@@ -39,7 +40,7 @@ export default function Trend() {
   const today = c.days[c.days.length - 1]
   return (
     <Page title={t('trends_title')}>
-      <SleepAirInsight />
+      <ShipPanel />
       {live.online && live.crew?.id === crewId && <Card className="live-session" title={<span className="live-heading"><span className="live-dot" />{LIVE_COPY[lang].session}</span>} right={live.exercising ? <span className="live-chip exercising">{LIVE_COPY[lang].exercising}</span> : undefined}>
         <div className="live-grid">{LIVE_KEYS.map(k => <LiveTile key={k} live={live} signal={k} detailed />)}</div>
       </Card>}
@@ -78,6 +79,7 @@ export default function Trend() {
         })}
       </div>
       <SleepAir />
+      <SleepAirInsight />
     </Page>
   )
 }

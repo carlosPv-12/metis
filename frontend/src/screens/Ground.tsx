@@ -6,7 +6,7 @@
 // Ground has no Metis voice (voice.tsx stays silent on /ground routes): the thread is text only.
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { Inbox, Send, Satellite, Users, AlertTriangle, Radio, Sparkles } from 'lucide-react'
+import { Send, Radio, Sparkles, Clock } from 'lucide-react'
 import { api, type GroundView, type Packet, type Fitness, type CrewDetail } from '../api'
 import { usePoll, useLoad } from '../hooks'
 import { useLang, useT, pick, unitL } from '../i18n'
@@ -15,7 +15,7 @@ import MedicalReview from './MedicalReview'
 import EarpiecePair from '../EarpiecePair'
 import { useEmergencyAccess } from '../station/accessStore'
 import { AccessLog } from '../station/EmergencyAccess'
-import ShipModel3D, { moduleIdOf, type ShipModule, type ShipCrew } from '../ShipModel3D'
+import ShipPanel from '../ShipPanel'
 import { REF } from './Trend'
 import { matchN } from './Greeting'
 import { findThr } from '../thresholds'
@@ -74,8 +74,6 @@ export default function Ground() {
   const isGlobal = !sel || sel === GLOBAL
   const crewId = isGlobal ? null : sel
   const crew = crewId ? g.crew.find(c => c.id === crewId) ?? null : null
-  const watching = g.crew.filter(c => lvl(c.status) !== 'ok').length
-  const pending = g.inbox.filter(p => p.status !== 'reply_window_open' && p.status !== 'delivered').length
   return (
     <div className="page ground-page" aria-label={s.title}>
       {isGlobal ? <GlobalView g={g} s={s} now={now} onPick={setSel}>
@@ -84,12 +82,6 @@ export default function Ground() {
           <div className="ground-hero-top">
             <div><h3>{s.overview}</h3>
               <p className="ground-hero-link"><Radio size={15} aria-hidden /><strong>{pick(g.mission as never, 'label', lang)}</strong> {s.delay} {delayText(g.mission.one_way_delay_s)}</p></div>
-            <div className="ground-kpis">
-              <div><strong>{watching}</strong><span><Users size={13} aria-hidden /> {s.crewWatch}</span></div>
-              <div><strong>{g.alerts.length}</strong><span><AlertTriangle size={13} aria-hidden /> {s.alerts}</span></div>
-              <div><strong>{pending}</strong><span><Inbox size={13} aria-hidden /> {s.inbox}</span></div>
-              <div><strong className={`ship-${g.ship.worst_status}`}><Shape level={lvl(g.ship.worst_status)} size={14} /></strong><span><Satellite size={13} aria-hidden /> {g.ship.worst_status === 'ok' ? s.shipOk : s.ship}</span></div>
-            </div>
           </div>
           <div className="ground-hero-crew">
             {g.crew.map(c => {
@@ -309,59 +301,22 @@ export function GroundCrewRail() {
   )
 }
 
-/** First sentence only, without the leading "System: " label repeated twice. */
-const short = (t: string) => t.split(/(?<=\.)\s/)[0].replace(/^([^:]+): ([^:]+): /, '$2: ').replace(/^./, c => c.toUpperCase())
-
-const SHIP_TXT = {
-  en: { ship: 'Ship', now: 'On board now', in: 'in', modules: 'Modules', allOk: 'All modules nominal' },
-  es: { ship: 'Nave', now: 'A bordo ahora', in: 'en', modules: 'Módulos', allOk: 'Todos los módulos en rango' },
-}
-
-/** The ship in 3D (modules coloured by their air, crew where they are) next to the radiation dose and what is going on. */
-function ShipCard({ g, s, rad, radPct, perDay, career }: { g: GroundView; s: S; rad?: GroundView['ship']['systems'][number]; radPct: number; perDay: number | null; career: number }) {
-  const { lang } = useLang(); const x = SHIP_TXT[lang]
-  const st = usePoll(() => api.station(), 4000)
-  const [sel, setSel] = useState<string | null>(null)
-  const env = st?.environment ?? []
-  const modules: ShipModule[] = env.map(e => {
-    const id = moduleIdOf(e.module_en ?? e.module), co2 = e.co2_mmhg
-    return { id, label: pick(e as never, 'module', lang) || e.module, status: co2 > 4.5 ? 'alarm' : co2 > 3 ? 'watch' : 'ok', detail: `CO₂ ${fmt(co2, 2)} mmHg` }
-  })
-  const crew: ShipCrew[] = g.crew.map(c => ({ id: c.id, name: c.name, module: c.location ?? 'node', status: lvl(c.status) === 'alarm' ? 'alarm' : lvl(c.status) === 'watch' ? 'watch' : 'ok' }))
-  const room = sel ? env.find(e => moduleIdOf(e.module_en ?? e.module) === sel) : null
-  const happening = [
-    ...g.ship.alerts.map(a => ({ k: a.id, level: lvl(a.level), text: short(pick(a as never, 'text', lang)) })),
-    ...crew.map(c => ({ k: 'c' + c.id, level: c.status as Level, text: `${c.name} ${x.in} ${modules.find(m => m.id === moduleIdOf(c.module))?.label ?? c.module}` })),
-  ]
-  return (
-    <section className="card ground-ship" aria-label={x.ship}>
-      <div className="ground-ship-map">
-        <ShipModel3D modules={modules} crew={crew} selected={sel} onSelect={id => setSel(v => (v === id ? null : id))} />
-        {room && <div className="ground-ship-room"><>
-          <strong>{pick(room as never, 'module', lang) || room.module}</strong>
-          <span>CO₂ {fmt(room.co2_mmhg, 2)} mmHg</span>{room.temp_c != null && <span>{fmt(room.temp_c, 1)} °C</span>}{room.rh_pct != null && <span>{room.rh_pct} % RH</span>}
-        </></div>}
-      </div>
-      <div className="ground-ship-side">
-        {rad && <div className="ground-radiation">
-          <h3 className="ground-h">{s.radiation}</h3>
-          <div className="ground-rad-value"><strong>{rad.value}</strong><span>mSv</span></div>
-          <div className="ground-rad-bar" role="meter" aria-valuemin={0} aria-valuemax={career} aria-valuenow={rad.value}><i style={{ width: `${radPct}%` }} /></div>
-          <p className="small">{Math.round(radPct)} % {s.career}{perDay ? `, ${perDay.toFixed(1)} mSv${s.perDay}` : ''}</p>
-          <p className="small muted">{s.missionDay} {g.ship.mission.day} {s.of} {g.ship.mission.planned_days}</p>
-        </div>}
-        <div className="ground-happening">
-          <h3 className="ground-h">{x.now}</h3>
-          <ul>{happening.map(h => <li key={h.k} className={h.level}><Shape level={h.level} /><span>{h.text}</span></li>)}</ul>
-        </div>
-      </div>
-    </section>
-  )
-}
-
 const EQUIP_TXT = {
-  en: { earpieces: 'Earpieces', equipment: 'Medical equipment', qty: 'Qty / min', link: 'Link', weak: 'Weak link' },
-  es: { earpieces: 'Auriculares', equipment: 'Equipo médico', qty: 'Cant. / mín.', link: 'Enlace', weak: 'Enlace débil' },
+  en: { earpieces: 'Earpieces', equipment: 'Equipment', medicines: 'Medicines', qty: 'Qty / min', link: 'Link', weak: 'Weak link', expires: 'Expires before the mission ends', minimum: 'Minimum stock', below: 'below minimum' },
+  es: { earpieces: 'Auriculares', equipment: 'Equipo', medicines: 'Medicamentos', qty: 'Cant. / mín.', link: 'Enlace', weak: 'Enlace débil', expires: 'Caduca antes del fin de la misión', minimum: 'Existencias mínimas', below: 'por debajo del mínimo' },
+}
+
+/** One medical kit line: name, a stock gauge with the minimum marked, quantity, and a clock if it expires in-mission. */
+function Stock({ label, qty, min, flag }: { label: string; qty: number; min: number | null; flag: string | null }) {
+  const top = Math.max(qty, (min ?? qty) * 2, 1)
+  const low = min != null && qty < min
+  return (
+    <li className={`kit-item ${low ? 'low' : ''}`}>
+      <span className="kit-name">{label}{flag && <Clock size={12} className="kit-exp" aria-label={flag}><title>{flag}</title></Clock>}</span>
+      <span className="kit-gauge" aria-hidden><i style={{ width: `${(qty / top) * 100}%` }} />{min != null && <b style={{ left: `${(min / top) * 100}%` }} />}</span>
+      <strong className="kit-qty">{qty}{min != null && <small>/{min}</small>}</strong>
+    </li>
+  )
 }
 
 /** Global: everything that belongs to the whole ship and mission, not to one crew member. */
@@ -372,13 +327,10 @@ function GlobalView({ g, s, now, onPick, children }: { g: GroundView; s: S; now:
   const eq = EQUIP_TXT[lang]
   const { data: meds } = useLoad(api.meds)
   const sys = g.ship.systems
-  const rad = sys.find(x => x.group === 'radiation')
-  const career = 600, radPct = rad ? Math.min(100, (rad.value / career) * 100) : 0
-  const perDay = rad && g.ship.mission.day ? rad.value / g.ship.mission.day : null
   return (
     <div className="ground-global" onClickCapture={e => { const b = (e.target as Element).closest('.ground-hero-member') as HTMLElement | null; if (b?.dataset.crew) onPick(b.dataset.crew) }}>
       {children}
-      <ShipCard g={g} s={s} rad={rad} radPct={radPct} perDay={perDay} career={career} />
+      <ShipPanel />
       <AskAI crewId={null} />
       <div className="ground-global-grid">
         <Card title={s.lifeSupport}>
@@ -396,12 +348,18 @@ function GlobalView({ g, s, now, onPick, children }: { g: GroundView; s: S; now:
             </div>)}
           </div>
         </Card>
-        {meds && <Card className="ground-medkit" title={s.medkit}>
-          <p className="small" style={{ marginTop: 0 }}>{lang === 'es' ? meds.summary_es : meds.summary_en}</p>
-          <ul className="ground-meds">{meds.inventory.map(m => <li key={m.id} className={m.low ? 'low' : m.expires_before_mission_end ? 'exp' : ''}>
-            <span>{lang === 'es' ? m.category_es : m.category_en}</span><strong>{m.qty}<small>/{m.min}</small></strong>
-          </li>)}</ul>
-          <p className="small muted">{meds.mission_days_left} {s.daysLeft}</p>
+        {(meds || st) && <Card className="ground-medkit" title={s.medkit}>
+          <div className="kit-cols">
+            {meds && <div>
+              <h4 className="kit-h">{eq.medicines}<small>{meds.mission_days_left} {s.daysLeft}</small></h4>
+              <ul className="kit-list">{meds.inventory.map(m => <Stock key={m.id} label={lang === 'es' ? m.category_es : m.category_en} qty={m.qty} min={m.min} flag={m.expires_before_mission_end ? eq.expires : null} />)}</ul>
+            </div>}
+            {st && <div>
+              <h4 className="kit-h">{eq.equipment}</h4>
+              <ul className="kit-list">{st.medkit.map((m, i) => <Stock key={i} label={pick(m as never, 'item', lang) || m.item || ''} qty={m.qty} min={m.min ?? null} flag={null} />)}</ul>
+            </div>}
+          </div>
+          <p className="kit-legend small muted"><i className="kit-min-key" /> {eq.minimum}</p>
         </Card>}
         {st && <Card className="ground-earpieces" title={eq.earpieces}>
           {g.crew.map(c => {
@@ -412,12 +370,6 @@ function GlobalView({ g, s, now, onPick, children }: { g: GroundView; s: S; now:
               <EarpiecePair battery={h?.battery_pct} crewId={c.id} compact />
             </div>
           })}
-        </Card>}
-        {st && <Card className="ground-equipment" title={eq.equipment}>
-          <table className="mr-table"><thead><tr><th></th><th className="n">{eq.qty}</th></tr></thead>
-            <tbody>{st.medkit.map((m, i) => <tr key={i} className={m.min != null && m.qty < m.min ? 'low' : ''}>
-              <td>{pick(m as never, 'item', lang) || m.item}</td><td className="n"><strong>{m.qty}</strong>{m.min != null && <small>/{m.min}</small>}</td>
-            </tr>)}</tbody></table>
         </Card>}
         <div className="ground-access"><AccessLog access={access} /></div>
       </div>

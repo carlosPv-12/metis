@@ -1,7 +1,7 @@
 // Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026
 import { useEffect, useState } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
-import { Activity, LayoutDashboard, MessageCircle, PersonStanding, Send, Settings as SettingsIcon, Siren, Sun } from 'lucide-react'
+import { Activity, LayoutDashboard, MessageCircle, PersonStanding, HeartPulse, Settings as SettingsIcon, Siren, Sun } from 'lucide-react'
 import { LangCtx, useT, type Lang } from './i18n'
 import { CrewCtx } from './ui'
 import { useLang as useLangCtx } from './i18n'
@@ -16,7 +16,7 @@ import Body from './screens/Body'
 import Talk from './screens/Talk'
 import TriageHub from './screens/TriageHub'
 import TriageRun from './screens/TriageRun'
-import Summary from './screens/Summary'
+import Wellbeing from './screens/Wellbeing'
 import Station from './screens/Station'
 import Demo from './screens/Demo'
 import { EarProvider, VitalsBanner } from './voice'
@@ -66,9 +66,7 @@ function Shell() {
         <NavLink to="/body"><PersonStanding size={I} /><span>{t('nav_body')}</span></NavLink>
         <NavLink to="/talk"><MessageCircle size={I} /><span>{t('nav_talk')}</span></NavLink>
         <NavLink to="/triage"><Siren size={I} /><span>{t('nav_triage')}</span></NavLink>
-        <NavLink to="/report"><Send size={I} /><span>{t('nav_report')}</span></NavLink>
-        <div className="grp">{t('group_station')}</div>
-        <NavLink to="/station"><LayoutDashboard size={I} /><span>{t('nav_station')}</span></NavLink>
+        <NavLink to="/report"><HeartPulse size={I} /><span>{t('nav_report')}</span></NavLink>
         </>}
         <NavLink to="/settings" className="rail-settings"><SettingsIcon size={I} /><span>{SETTINGS_LABEL[lang]}</span></NavLink>
       </nav>
@@ -83,7 +81,7 @@ function Shell() {
           <Route path="/triage" element={<TriageHub />} />
           <Route path="/triage/run" element={<TriageRun />} />
           <Route path="/sleep-air" element={<Navigate to="/trends" replace />} />
-          <Route path="/report" element={<Summary />} />
+          <Route path="/report" element={<Wellbeing />} />
           <Route path="/station" element={<Station />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/ground" element={<Ground />} />

@@ -2,7 +2,7 @@
 // Ground: the data a crew member's Metis has sent, laid out like a medical check-up form so the flight surgeon can
 // read it top to bottom: findings, vital signs, daily measurements against the personal baseline, sleep and air,
 // body systems, blood, mood, equipment, the reports received and the current duty decision.
-import { ArrowDown, ArrowRight, ArrowUp, ClipboardList } from 'lucide-react'
+import { ArrowDown, ArrowRight, ArrowUp, ClipboardList, Lock } from 'lucide-react'
 import { api, type CrewDetail, type Fitness, type GroundView, type Metric } from '../api'
 import { usePoll, useLoad } from '../hooks'
 import { useLang, useT, pick } from '../i18n'
@@ -12,29 +12,31 @@ import { useHotspots } from './Body'
 import { insightText, matchN } from './Greeting'
 import CrewAvatar from '../CrewAvatar'
 import EarpiecePair from '../EarpiecePair'
+import { QUESTIONS, WB_TXT, useCheckIns, useShareLevel } from '../wellbeing'
+import { computeRisks, WB_RISK_TXT } from './Wellbeing'
 
 const TXT = {
   en: {
-    title: 'Medical review', from: 'Sent by Metis on board', missionDay: 'Mission day', location: 'Location',
+    title: 'Medical review', from: 'Long-term record, compiled automatically on ground every 24 h', last: 'Last update', next: 'next in', missionDay: 'Mission day', location: 'Location',
     s1: 'Findings', s2: 'Vital signs now', s3: 'Daily measurements against the personal baseline', s4: 'Sleep and cabin air',
-    s5: 'Body systems', s6: 'Blood count (NASA OSDR)', s7: 'Mood', s8: 'Equipment', s9: 'Reports received', s10: 'Duty status',
+    s5: 'Body systems', s6: 'Blood count (NASA OSDR)', s7: 'Emotional wellbeing (filtered)', s8: 'Equipment', s9: 'Wellbeing check-ins shared', s10: 'Duty status',
     noFindings: 'Everything is inside the personal baseline today.', nights: (n: number) => (n === 1 ? '1 night' : `${n} nights in a row`),
     above: 'above', below: 'below', band: 'personal band', measure: 'Measurement', today: 'Today', mean7: '7-day mean', status: 'Status', trend: 'Trend',
     noLive: 'No live signal from the earpiece right now.', night: 'Night', sleep: 'Sleep', co2: 'Bunk CO₂ peak', limit: 'limit',
     outBand: 'outside the personal band', outRef: 'outside the reference range', analytes: 'analytes measured', moodScale: '1 low, 5 high',
-    noReports: 'No reports received yet.', notSet: 'Not set yet', fit: 'Fit for duty', limited: 'Limited duty', unfit: 'Not fit for duty',
+    noReports: 'Nothing shared. Check-ins stay private unless the crew member chooses to send them.', notSet: 'Not set yet', fit: 'Fit for duty', limited: 'Limited duty', unfit: 'Not fit for duty',
     by: { ground: 'flight surgeon', cmo: 'crew medical officer', commander: 'commander' } as Record<string, string>,
     ok: 'In range', watch: 'Attention', alarm: 'Urgent',
   },
   es: {
-    title: 'Revisión médica', from: 'Enviado por Metis a bordo', missionDay: 'Día de misión', location: 'Ubicación',
+    title: 'Revisión médica', from: 'Ficha de larga duración, se genera sola en Tierra cada 24 h', last: 'Última actualización', next: 'próxima en', missionDay: 'Día de misión', location: 'Ubicación',
     s1: 'Hallazgos', s2: 'Constantes ahora', s3: 'Medidas diarias frente a su línea base', s4: 'Sueño y aire de cabina',
-    s5: 'Sistemas del cuerpo', s6: 'Hemograma (NASA OSDR)', s7: 'Ánimo', s8: 'Equipo', s9: 'Informes recibidos', s10: 'Aptitud',
+    s5: 'Sistemas del cuerpo', s6: 'Hemograma (NASA OSDR)', s7: 'Bienestar emocional (filtrado)', s8: 'Equipo', s9: 'Registros de bienestar compartidos', s10: 'Aptitud',
     noFindings: 'Hoy todo está dentro de su línea base personal.', nights: (n: number) => (n === 1 ? '1 noche' : `${n} noches seguidas`),
     above: 'por encima de', below: 'por debajo de', band: 'su banda personal', measure: 'Medida', today: 'Hoy', mean7: 'Media 7 días', status: 'Estado', trend: 'Tendencia',
     noLive: 'Ahora no llega señal en directo del auricular.', night: 'Noche', sleep: 'Sueño', co2: 'Pico de CO₂ en litera', limit: 'límite',
     outBand: 'fuera de su banda personal', outRef: 'fuera del rango de referencia', analytes: 'analitos medidos', moodScale: '1 bajo, 5 alto',
-    noReports: 'Todavía no hay informes.', notSet: 'Sin decidir', fit: 'Apto', limited: 'Apto con limitaciones', unfit: 'No apto',
+    noReports: 'Nada compartido. Los registros son privados salvo que el tripulante decida enviarlos.', notSet: 'Sin decidir', fit: 'Apto', limited: 'Apto con limitaciones', unfit: 'No apto',
     by: { ground: 'cirujano de vuelo', cmo: 'oficial médico', commander: 'comandante' } as Record<string, string>,
     ok: 'En rango', watch: 'Atención', alarm: 'Urgente',
   },
@@ -83,6 +85,9 @@ export default function MedicalReview({ g, crewId, detail, live }: { g: GroundVi
   const crew = g.crew.find(c => c.id === crewId)!
   const { data: blood } = useLoad(api.blood)
   const st = usePoll(() => api.station(), 5000)
+  const shared = useCheckIns(crewId, true)
+  const allCheckIns = useCheckIns(crewId)
+  const shareLvl = useShareLevel(crewId)
   const hotspots = useHotspots(detail, live).filter(h => h.id !== 'eyes' && h.id !== 'bones' && h.level !== 'nodata')
   if (!detail) return null
   const days = detail.days, today = days[days.length - 1], last7 = days.slice(-7)
@@ -92,7 +97,10 @@ export default function MedicalReview({ g, crewId, detail, live }: { g: GroundVi
   const headset = st?.headsets?.find(h => h.crew_id === crewId)
   const room = st?.environment?.find(e => (crew.location ?? '').toLowerCase().startsWith((e.module_en ?? e.module).split(' ')[0].toLowerCase()))
   const bl = blood?.crew[crewId] ?? (blood ? Object.values(blood.crew)[0] : undefined)
-  const reports = g.inbox.filter(p => p.crew_id === crewId)
+  const wb = WB_TXT[lang]
+  // The record is compiled on ground every 24 h at 06:00 (local clock), with no action from the crew.
+  const nowD = new Date(), last = new Date(nowD); last.setHours(6, 0, 0, 0); if (last > nowD) last.setDate(last.getDate() - 1)
+  const left = Math.max(0, last.getTime() + 864e5 - nowD.getTime()), lh = Math.floor(left / 36e5), lm = Math.floor((left % 36e5) / 6e4)
   const co2Limit = detail.co2_limit_mmhg?.value ?? 3
   const maxSleep = Math.max(8, ...last7.map(d => d.sleep_h)), maxCo2 = Math.max(co2Limit * 1.3, ...last7.map(d => d.co2_night_peak_mmhg))
   const lvlText = (l: Level) => (l === 'nodata' ? '' : s[l])
@@ -106,7 +114,7 @@ export default function MedicalReview({ g, crewId, detail, live }: { g: GroundVi
     <article className="card mr" aria-label={`${s.title}, ${crew.name}`}>
       <header className="mr-head">
         <ClipboardList size={22} aria-hidden />
-        <div className="mr-title"><h3>{s.title}</h3><p>{s.from}</p></div>
+        <div className="mr-title"><h3>{s.title}</h3><p>{s.from}</p><p className="mr-auto">{s.last} {last.toLocaleTimeString(lang === 'es' ? 'es-ES' : 'en-GB', { hour: '2-digit', minute: '2-digit' })}, {s.next} {lh} h {lm} min</p></div>
         <dl className="mr-patient">
           <div><CrewAvatar id={crew.id} name={crew.name} size={40} /><span><strong>{crew.name}</strong><small>{pick(crew as never, 'role', lang) || crew.role}</small></span></div>
           <div><dt>{s.missionDay}</dt><dd>{today.mission_day}</dd></div>
@@ -191,8 +199,7 @@ export default function MedicalReview({ g, crewId, detail, live }: { g: GroundVi
       </Section>}
 
       <Section n={7} title={s.s7}>
-        <div className="mr-mood">{last7.map(d => <div key={d.mission_day}><span className="mr-mood-dots">{[1, 2, 3, 4, 5].map(i => <i key={i} className={i <= d.mood_1_5 ? 'on' : ''} />)}</span><small>{d.mission_day}</small></div>)}</div>
-        <p className="small muted">{s.moodScale}</p>
+        <Emotional detail={detail} last={allCheckIns[0]} level={shareLvl} name={crew.name} />
       </Section>
 
       <Section n={8} title={s.s8}>
@@ -200,10 +207,12 @@ export default function MedicalReview({ g, crewId, detail, live }: { g: GroundVi
       </Section>
 
       <Section n={9} title={s.s9}>
-        {!reports.length && <p className="small muted">{s.noReports}</p>}
-        <ul className="mr-reports">{reports.slice(-5).reverse().map((p, i) => <li key={p.id ?? i}>
-          <time>{p.ts ? new Date(p.ts).toLocaleString(lang === 'es' ? 'es-ES' : 'en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}</time>
-          <p>{(lang === 'es' ? p.text_es ?? p.summary_en ?? p.text_en : p.summary_en ?? p.text_en) ?? ''}</p>
+        {!shared.length && <p className="small muted" style={{ margin: 0 }}>{s.noReports}</p>}
+        <ul className="mr-reports">{shared.slice(0, 5).map(c => <li key={c.id}>
+          <time>{new Date(c.ts).toLocaleString(lang === 'es' ? 'es-ES' : 'en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</time>
+          <div className="mr-wb">{QUESTIONS.map(q => <span key={q} className={c.answers[q] <= 2 ? 'low' : ''}><small>{wb.q[q]}</small><b>{c.answers[q]}/5</b></span>)}</div>
+          {!!c.tags.length && <p>{c.tags.map(t => wb.tag[t]).join(', ')}</p>}
+          {c.noteShared && c.note.trim() && <p>“{c.note.trim()}”</p>}
         </li>)}</ul>
       </Section>
 
@@ -211,5 +220,44 @@ export default function MedicalReview({ g, crewId, detail, live }: { g: GroundVi
         <p className={`mr-fitness ${fit?.status ?? ''}`}>{fit ? <><strong>{s[fit.status]}</strong>{s.by[fit.by] && <small>({s.by[fit.by]})</small>}</> : s.notSet}</p>
       </Section>
     </article>
+  )
+}
+
+const EMO = {
+  en: { state: { ok: 'Stable', watch: 'Watch', high: 'Needs support' }, trend: 'Mood trend, last 7 days', up: 'improving', down: 'going down', flat: 'steady',
+    none: (n: string) => `${n} keeps how they feel private. Ground only receives a flag if Metis sees a severe risk.`, flagged: 'Metis flagged a severe risk. The details stay on board.',
+    areas: 'Areas that need attention', noAreas: 'No area needs attention.', chose: (n: string, w: string) => `${n} shares: ${w}`, what: { none: 'nothing', summary: 'a summary', signals: 'which areas need attention' } },
+  es: { state: { ok: 'Estable', watch: 'Vigilar', high: 'Necesita apoyo' }, trend: 'Tendencia del ánimo, últimos 7 días', up: 'mejorando', down: 'bajando', flat: 'estable',
+    none: (n: string) => `${n} mantiene en privado cómo se siente. Tierra solo recibe un aviso si Metis ve un riesgo grave.`, flagged: 'Metis ha marcado un riesgo grave. Los detalles se quedan a bordo.',
+    areas: 'Áreas que necesitan atención', noAreas: 'Ningún área necesita atención.', chose: (n: string, w: string) => `${n} comparte: ${w}`, what: { none: 'nada', summary: 'un resumen', signals: 'qué áreas necesitan atención' } },
+}
+
+/** What ground sees of a crew member's emotional state: only what that person chose to share, never answers or notes. */
+function Emotional({ detail, last, level, name }: { detail: CrewDetail; last: ReturnType<typeof useCheckIns>[number] | undefined; level: 'none' | 'summary' | 'signals'; name: string }) {
+  const { lang } = useLang(); const e = EMO[lang]; const rt = WB_RISK_TXT[lang]
+  const risks = computeRisks(detail, last, lang)
+  const overall = risks.some(r => r.level === 'high') ? 'high' : risks.some(r => r.level === 'watch') ? 'watch' : 'ok'
+  const m = detail.days.slice(-7).map(d => d.mood_1_5), d = (m[m.length - 1] + m[m.length - 2]) / 2 - (m[0] + m[1]) / 2
+  const trend = d > .4 ? 'up' : d < -.4 ? 'down' : 'flat'
+  const Arrow = trend === 'up' ? ArrowUp : trend === 'down' ? ArrowDown : ArrowRight
+  return (
+    <div className="mr-emo">
+      <p className="mr-emo-who"><Lock size={13} aria-hidden /> {e.chose(name, e.what[level])}</p>
+      {level === 'none' ? <>
+        <p className="small muted" style={{ margin: 0 }}>{e.none(name)}</p>
+        {overall === 'high' && <p className="mr-emo-flag">{e.flagged}</p>}
+      </> : <>
+        <div className="mr-emo-row">
+          <span className={`mr-emo-state ${overall}`}>{e.state[overall]}</span>
+          <span className="mr-emo-trend"><Arrow size={15} aria-hidden /> {e.trend}: <b>{e[trend]}</b></span>
+        </div>
+        {level === 'signals' && <div className="mr-emo-areas">
+          <span className="small muted">{e.areas}</span>
+          {risks.filter(r => r.level !== 'low').length
+            ? <div>{risks.filter(r => r.level !== 'low').map(r => <span key={r.id} className={`mr-emo-area ${r.level}`}>{rt.risk[r.id].name}<em>{rt.level[r.level]}</em></span>)}</div>
+            : <p className="small" style={{ margin: 0 }}>{e.noAreas}</p>}
+        </div>}
+      </>}
+    </div>
   )
 }
