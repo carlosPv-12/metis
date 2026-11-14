@@ -51,7 +51,8 @@ def baselines(crew_doc):
         b = c["baseline"]["resting_hr_bpm"]
         out[cid] = {"name": c["name"], "hr_bpm": (b["mean"], b["sd"])}
     for cid, c in station.EXTRA_CREW.items():
-        out[cid] = {"name": c["name"], "hr_bpm": (float(c["hr"]), 2.0)}
+        if cid not in out:   # respaldo solo si los datos no traen a esa persona (ya traen a Noor y Kenji)
+            out[cid] = {"name": c["name"], "hr_bpm": (float(c["hr"]), 2.0)}
     for cid in out:
         out[cid].update(ASSUMED)
     return out
@@ -212,14 +213,28 @@ def reset():
         _scen.clear(); _announced.clear(); _checks.clear()
 
 
-def status_text(crew_doc, cid=None, lang="en"):
-    """Resumen hablado y exacto («how is the crew?», «how is Marco?»). Sin IA: cifras tal cual."""
-    snap = snapshot(crew_doc)
+def status_text(crew_doc, cid=None, lang="en", viewer=None):
+    """Resumen hablado y exacto («how is the crew?», «how is Marco?»). Sin IA: cifras tal cual.
+    `viewer` (quién pregunta) aplica los permisos de roles.py: un tripulante solo oye lo suyo."""
+    import roles
+    snap = roles.filter_vitals(snapshot(crew_doc), viewer)
+    visible = {c["id"] for c in snap["crew"]}
+    if cid is not None and cid not in visible:
+        return ("I can only share your own health data. The medical officer can see your crewmates, and I'll tell you "
+                "straight away if anyone needs help." if lang != "es" else
+                "Solo puedo darte tus propios datos de salud. El oficial médico ve a tus compañeros, y te aviso al momento si alguien necesita ayuda.")
     rows = [c for c in snap["crew"] if cid is None or c["id"] == cid]
     by = {a["crew_id"]: a for a in snap["alerts"]}
     out = []
     for c in rows:
         n = c["now"]
+        if c.get("access") == "summary":           # comandante: rasgos principales
+            st = {"ok": "normal", "watch": "under watch", "warning": "early warning", "alarm": "EMERGENCY"}.get(c["status"], c["status"])
+            if not n.get("pulse", True):
+                out.append(f"{c['name']}: no pulse. Emergency." if lang != "es" else f"{c['name']}: sin pulso. Emergencia."); continue
+            out.append(f"{c['name']}: heart rate {n['hr_bpm']:.0f}, oxygen {n['spo2_pct']:.0f} percent, {st}." if lang != "es"
+                       else f"{c['name']}: pulso {n['hr_bpm']:.0f}, oxígeno {n['spo2_pct']:.0f} %, {st}.")
+            continue
         if not n["pulse"]:
             out.append(by[c["id"]]["text_es" if lang == "es" else "text_en"]); continue
         if c["id"] in by:
@@ -231,6 +246,9 @@ def status_text(crew_doc, cid=None, lang="en"):
         else:
             out.append(f"{c['name']}: heart rate {n['hr_bpm']:.0f}, breathing {n['rr_brpm']:.0f}, oxygen {n['spo2_pct']:.0f} percent"
                        + (", exercising." if act else ", normal for them."))
+    if viewer is not None and roles.role_of(viewer) == "crew" and cid is None:
+        out.append("For your crewmates, ask the medical officer; I'll tell you straight away if anyone needs help."
+                   if lang != "es" else "Para tus compañeros, pregunta al oficial médico; te aviso al momento si alguien necesita ayuda.")
     return " ".join(out)
 
 

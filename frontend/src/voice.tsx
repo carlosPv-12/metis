@@ -119,7 +119,7 @@ export function EarProvider({ children }: { children: ReactNode }) {
     const spoken = new Set<string>(); const queue: { text_en: string; text_es: string; go?: string; mine?: string }[] = []
     let alive = true, talking = false
     const tick = async () => {
-      const v = await api.vitals().catch(() => null)
+      const v = await api.vitals(me.current).catch(() => null)   // as this earpiece's owner: roles apply
       if (!alive || !v) return
       const rank = { watch: 1, warning: 2, alarm: 3 } as const
       const checks = v.checks ?? [], alerts = v.alerts ?? []   // an older backend has no checks: don't crash

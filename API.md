@@ -105,3 +105,50 @@ POST `{type, crew_id, payload}` → el evento creado. Tipos con texto por defect
 
 ### GET /api/brain/graph
 `{nodes:[{id,type,label_en,label_es}], edges:[{source,target,relation}]}`; 42 nodos y 59 aristas. Tipos: `hub`, `ground`, `crew`, `device` (auricular), `ai` (Metis de cada uno), `symptom`, `protocol`, `equipment`, `medication`, `source`. Relaciones: `wears`, `talks_to`, `learns_baseline_of`, `syncs_with`, `delayed_link`, `is_cmo_for`, `triggers`, `may_cause`, `may_worsen`, `evidence`, `flags`, `stocks`, `uses`, `only_via_flight_surgeon`, `cites`, …
+
+## Roles a bordo y Tierra (14-nov, Carlos)
+
+Decisión: `decisiones/2026-11-14-1630--nave-tierra-roles-y-alcance-del-backend.md` del brain. Código: `backend/roles.py`; toda la política está en `PERMISSIONS` y se puede cambiar si las leyes de protección de datos lo piden.
+
+| Rol | De sí mismo | De los demás | Nave | Avisos |
+|---|---|---|---|---|
+| `crew` (tripulante) | todo | nada | sí | emergencias escaladas de un compañero y de la nave |
+| `commander` | todo | **rasgos principales**: estado, aptitud, pulso, SpO₂, actividad; sin historia, sueño, ánimo ni detalle de avisos | sí | los mismos |
+| `cmo` (oficial médico) | todo | todo | sí | los mismos |
+| `ground` (Tierra) | — | todo, al momento | sí | todo |
+
+Roles por defecto: Kenji `commander`, Noor `cmo`, Lena y Marco `crew`. Se cambian en Ajustes.
+
+**Parámetro `viewer`** (id de tripulante o `ground`) en `GET /api/station`, `/api/station/events`, `/api/crew`, `/api/crew/{id}`, `/api/vitals` y `/api/vitals/{id}`. **Sin `viewer` se devuelve lo de siempre**, así las pantallas que aún no lo envían no se rompen. Con un `viewer` desconocido, 400. Si no tiene acceso, 403.
+
+- Cada tripulante de la lista lleva `access` (`full` | `summary`), `fitness` y `crew_role`.
+- Avisos de un compañero: el CMO y Tierra ven el texto completo. El comandante ve un texto genérico («Marco: watch. The medical officer has the details.»). El tripulante no los ve, **salvo que estén escalados**: entonces le llegan a todos con las instrucciones («Go to Marco now…»).
+- Eventos de emergencia (`crew_alert`, `no_pulse`, `collapse`, `cmo_alert`…): a todos.
+- Chat: «how is the crew?» y «how is Marco?» respetan el rol de quien pregunta (`crew_id`).
+
+| Método y ruta | Cuerpo | Respuesta |
+|---|---|---|
+| GET `/api/roles` | | `{roles, defaults, permissions, labels, summary_fields, emergency_events}` |
+| PUT `/api/roles` | `{crew_id, role}` (`crew`\|`commander`\|`cmo`) | igual que GET |
+| POST `/api/roles/reset` | | igual que GET, con los roles por defecto |
+| PUT `/api/crew/{id}/fitness` | `{status: fit\|limited\|unfit, viewer}` | `{status, by: cmo\|ground, ts}`. Solo el CMO o `ground`; si no, 403. Crea el evento `fitness`. |
+
+Ejemplos reales:
+```json
+// GET /api/station?viewer=kenji  -> crew[marco] (comandante: rasgos principales)
+{"id":"marco","name":"Marco","location":"Lab","status":"ok","vitals":{"t":1794670480,"hr_bpm":63.0,"spo2_pct":97.7,"pulse":true,"activity":0},
+ "note_en":"Fit for duty.","access":"summary","fitness":{"status":"fit","by":"default","ts":null},"crew_role":"crew"}
+// GET /api/station?viewer=lena  -> crew: solo [lena]
+// GET /api/crew/marco?viewer=lena  -> 403 {"detail":"solo puedes ver tu propia información; el oficial médico tiene el resto"}
+// PUT /api/crew/marco/fitness {"status":"limited","viewer":"noor"}  -> {"status":"limited","by":"cmo","ts":1794670480}
+// POST /api/metis/chat {"message":"How is Marco?","crew_id":"lena"}
+{"text":"I can only share your own health data. The medical officer can see your crewmates, and I'll tell you straight away if anyone needs help.","source":"rule"}
+```
+
+En `frontend/src/api.ts`: `api.station(viewer?)`, `api.vitals(viewer?)`, `api.roles()`, `api.setRole(crew_id, role)`, `api.resetRoles()`, `api.setFitness(crew_id, status, viewer)`, `api.crewAs(id, viewer)`, y los tipos `CrewRole`, `Viewer`, `Access`, `Fitness` y `RolesDoc`. El oído (`voice.tsx`) ya pide las constantes como el dueño del auricular.
+
+**Para Manuela (pantallas)**:
+- Ajustes: un selector de rol al lado de cada tripulante (`api.setRole`).
+- Pasar `viewer = crewId` en las pantallas de la nave, y `viewer = 'ground'` en la vista de Tierra.
+- Pintar `access: 'summary'` con menos detalle.
+- Mostrar `fitness` en las tarjetas.

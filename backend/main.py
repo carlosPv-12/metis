@@ -11,7 +11,7 @@ from fastapi.responses import Response, JSONResponse
 from pydantic import BaseModel
 
 import re
-import llm, station, vitals, voice_answer, voice_engine
+import llm, roles, station, vitals, voice_answer, voice_engine
 
 HERE = pathlib.Path(__file__).parent
 DATA = HERE.parent / "data"
@@ -37,6 +37,17 @@ def fb(topic, lang):
     return v.get(L(lang), v.get("en")) if isinstance(v, dict) else v
 
 
+def viewer_ok(viewer):
+    """Comprueba `viewer` (id de tripulante o "ground"); None = sin filtro, como antes."""
+    if viewer is None:
+        return None
+    try:
+        roles.role_of(viewer)
+    except KeyError:
+        raise HTTPException(400, "viewer desconocido: usa un id de tripulante o 'ground'")
+    return viewer
+
+
 def crew_doc():
     p = DATA / "crew_lena.json"
     if not p.exists(): raise HTTPException(503, "Falta data/crew_lena.json: ejecuta data/generate_crew.py")
@@ -51,18 +62,26 @@ def health(): return {"status": "ok", "llm_configured": bool(llm.LLM_URL), "offl
 
 
 @app.get("/api/crew")
-def crew():
+def crew(viewer: str | None = None):
     d = crew_doc()
-    return {"co2_limit_mmhg": d["co2_limit_mmhg"], "simulated": True, "baseline_window": d.get("baseline_window"),
-            "crew": [{"id": c["id"], "name": c["name"], "role": c["role"], "role_en": c.get("role_en", c["role"]),
-                      "today_out_of_band": c["today_out_of_band"]} for c in d["crew"].values()]}
+    items = [{"id": c["id"], "name": c["name"], "role": c["role"], "role_en": c.get("role_en", c["role"]),
+              "today_out_of_band": c["today_out_of_band"]} for c in d["crew"].values()]
+    if viewer_ok(viewer):
+        items = roles.filter_crew_items(items, viewer)
+    return {"co2_limit_mmhg": d["co2_limit_mmhg"], "simulated": True, "baseline_window": d.get("baseline_window"), "crew": items}
 
 
 @app.get("/api/crew/{cid}")
-def crew_one(cid: str):
+def crew_one(cid: str, viewer: str | None = None):
     d = crew_doc()
     if cid not in d["crew"]: raise HTTPException(404, "tripulante no encontrado")
-    return {**d["crew"][cid], "simulated": True, "co2_limit_mmhg": d["co2_limit_mmhg"]}
+    item = {**d["crew"][cid], "simulated": True, "co2_limit_mmhg": d["co2_limit_mmhg"]}
+    if not viewer_ok(viewer):
+        return item
+    try:
+        return roles.crew_detail(item, viewer)
+    except roles.Forbidden as e:
+        raise HTTPException(403, str(e))
 
 
 @app.get("/api/blood")
@@ -247,7 +266,7 @@ def chat(b: ChatIn):
     st_m = CREW_STATUS.search(b.message or "")
     if st_m:
         who = next((n for n in ("lena", "marco", "noor", "kenji") if re.search(rf"\b{n}\b", b.message, re.I)), None)
-        return {"text": vitals.status_text(crew_doc(), who, k), "source": "rule", "latency_ms": int((time.time() - t0) * 1000),
+        return {"text": vitals.status_text(crew_doc(), who, k, viewer=b.crew_id), "source": "rule", "latency_ms": int((time.time() - t0) * 1000),
                 "safety": "ok", "lang": k, "ai_generated": False, "note": "crew status is read from the sensors, never generated"}
     if llm.MEDQ.search(b.message or ""):
         return {"text": fb("medication", k), "source": "rule", "latency_ms": int((time.time() - t0) * 1000), "safety": "ok",
@@ -340,7 +359,7 @@ async def stt(audio: UploadFile = File(...), lang: str = Form("auto"), hint: str
 
 # ---------- centralita y grafo ----------
 @app.get("/api/station")
-def get_station(lang: str | None = None):
+def get_station(lang: str | None = None, viewer: str | None = None):
     doc = crew_doc()
     v = vitals.snapshot(doc)          # antes que station(): así los avisos nuevos ya salen en sus eventos
     st = station.station(doc)
@@ -353,22 +372,78 @@ def get_station(lang: str | None = None):
                 c["status"] = "alarm" if vc["status"] == "alarm" else "watch"
     st["alerts"] = [{**a, "source": "vitals"} for a in v["alerts"]] + st["alerts"]
     st["events"] = station.events()[:20]
+    if viewer_ok(viewer):
+        st["crew"] = roles.filter_crew_items(st["crew"], viewer)
+        st["alerts"] = roles.filter_alerts(st["alerts"], viewer)
+        st["events"] = roles.filter_events(st["events"], viewer)
+        st["viewer"] = {"id": viewer, "role": roles.role_of(viewer)}
     _with_lang(st["alerts"], lang); _with_lang(st["events"], lang)
     if st.get("packet"): _with_lang([st["packet"]], lang)
     return st
 
 
+# ---------- roles a bordo, Tierra y aptitud ----------
+@app.get("/api/roles")
+def get_roles():
+    """Quién tiene qué rol y qué ve cada rol (tripulante, comandante, oficial médico, Tierra). Ver backend/roles.py."""
+    return roles.permissions_doc()
+
+
+class RoleIn(BaseModel):
+    crew_id: str
+    role: str               # crew | commander | cmo
+
+
+@app.put("/api/roles")
+def put_role(b: RoleIn):
+    if b.crew_id not in crew_doc()["crew"]: raise HTTPException(404, "tripulante no encontrado")
+    try:
+        roles.set_role(b.crew_id, b.role)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return roles.permissions_doc()
+
+
+@app.post("/api/roles/reset")
+def roles_reset():
+    roles.reset()
+    return roles.permissions_doc()
+
+
+class FitnessIn(BaseModel):
+    status: str             # fit | limited | unfit
+    viewer: str             # quien decide: el oficial médico o "ground"
+
+
+@app.put("/api/crew/{cid}/fitness")
+def put_fitness(cid: str, b: FitnessIn):
+    """Apto / limitado / no apto. Lo deciden el CMO o Tierra, nunca la IA; el comandante lo ve."""
+    if cid not in crew_doc()["crew"]: raise HTTPException(404, "tripulante no encontrado")
+    viewer_ok(b.viewer)
+    try:
+        roles.set_fitness(cid, b.status, b.viewer)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except roles.Forbidden as e:
+        raise HTTPException(403, str(e))
+    station.add_event("fitness", cid, {"status": b.status, "by": roles.role_of(b.viewer)},
+                      f"Fitness for duty: {b.status}", f"Aptitud para el servicio: {b.status}")
+    return roles.fitness(cid)
+
+
 @app.get("/api/vitals")
-def get_vitals(lang: str | None = None, series: bool = False):
+def get_vitals(lang: str | None = None, series: bool = False, viewer: str | None = None):
     """Constantes en directo del auricular (simuladas) y avisos tempranos por persona. Ver backend/vitals.py."""
-    v = vitals.snapshot(crew_doc(), with_series=series)
+    v = roles.filter_vitals(vitals.snapshot(crew_doc(), with_series=series), viewer_ok(viewer))
     _with_lang(v["alerts"], lang)
     return v
 
 
 @app.get("/api/vitals/{cid}")
-def get_vitals_one(cid: str, lang: str | None = None):
-    v = vitals.snapshot(crew_doc(), with_series=True)
+def get_vitals_one(cid: str, lang: str | None = None, viewer: str | None = None):
+    if viewer_ok(viewer) and roles.access(viewer, cid) == "none":
+        raise HTTPException(403, "solo puedes ver tu propia información; el oficial médico tiene el resto")
+    v = roles.filter_vitals(vitals.snapshot(crew_doc(), with_series=True), viewer)
     c = next((x for x in v["crew"] if x["id"] == cid), None)
     if not c: raise HTTPException(404, "tripulante no encontrado")
     return {**c, "alerts": _with_lang([a for a in v["alerts"] if a["crew_id"] == cid], lang), "method": v["method"]}
@@ -416,9 +491,10 @@ class EventIn(BaseModel):
 
 
 @app.get("/api/station/events")
-def get_events(lang: str | None = None):
+def get_events(lang: str | None = None, viewer: str | None = None):
     crew_doc()
-    return _with_lang(station.events(), lang)
+    ev = station.events()
+    return _with_lang(roles.filter_events(ev, viewer) if viewer_ok(viewer) else ev, lang)
 
 
 @app.post("/api/station/events")

@@ -188,7 +188,7 @@ def graph(crew_doc, tree):
     n("station", "hub", "Habitat hub (station console)", "Centralita del hábitat")
     n("earth", "ground", "Earth: flight surgeon", "Tierra: cirujano de vuelo")
     e("station", "earth", "delayed_link")
-    people = [(cid, c["name"]) for cid, c in crew_doc["crew"].items()] + [(k, v["name"]) for k, v in EXTRA_CREW.items()]
+    people = [(cid, c["name"]) for cid, c in crew_doc["crew"].items()] + [(k, v["name"]) for k, v in EXTRA_CREW.items() if k not in crew_doc["crew"]]
     for cid, name in people:
         n(f"crew:{cid}", "crew", name, name)
         n(f"earpiece:{cid}", "device", f"{name}'s Metis earpiece", f"Auricular Metis de {name}")

@@ -26,6 +26,15 @@ export interface Say { text: string; source: 'llm' | 'fallback' | string; latenc
 export interface Chat { text: string; source: string; latency_ms?: number; safety: 'ok' | 'escalated' }
 export interface Status { llm: { ok: boolean; model?: string }; tts: { ok: boolean; engine?: string; voices?: unknown }; stt: { ok: boolean; engine?: string; model?: string }; offline: boolean }
 export interface Threshold { id: string; label_en: string; label_es: string; value: number | string; unit: string; rule?: string; source_title: string; source_url?: string; verified: boolean }
+// ---- Roles (backend/roles.py; contract in API.md, «Roles a bordo y Tierra») ----
+export type CrewRole = 'crew' | 'commander' | 'cmo'
+export type Viewer = string            // a crew id ('lena', 'kenji'…) or 'ground'
+export type Access = 'full' | 'summary'
+export interface Fitness { status: 'fit' | 'limited' | 'unfit'; by: 'default' | 'cmo' | 'ground'; ts: number | null }
+export interface RolesDoc { roles: Record<string, CrewRole>; defaults: Record<string, CrewRole>
+  permissions: Record<CrewRole | 'ground', { self: 'full' | 'summary' | 'none'; others: 'full' | 'summary' | 'none'; ship: boolean }>
+  labels: Record<CrewRole | 'ground', { en: string; es: string }>; summary_fields: string[]; emergency_events: string[] }
+const vq = (viewer?: Viewer) => (viewer ? `?viewer=${encodeURIComponent(viewer)}` : '')
 export interface LiveVitals { t: number; hr_bpm: number; rr_brpm: number; spo2_pct: number | null; temp_c: number; activity: number; pulse: boolean }
 export interface VitalsAlert { id: string; crew_id: string; level: 'watch' | 'warning' | 'alarm'; rule: string; metrics: string[]; text_en: string; text_es: string; text?: string }
 export interface VitalsCheck { crew_id: string; name: string; level: 'watch' | 'warning' | 'alarm'; state: 'asking' | 'escalated'; asked_at: number; answer: 'ok' | 'help' | null
@@ -49,11 +58,11 @@ export interface Graph { nodes: { id: string; type: string; label_en: string; la
  *  (no console noise, no waiting) and go straight to the local fallbacks. Served over http: unchanged. */
 export const NO_SERVER = typeof location !== 'undefined' && location.protocol === 'file:'
 
-async function j<T>(path: string, body?: unknown, timeout = 8000): Promise<T> {
+async function j<T>(path: string, body?: unknown, timeout = 8000, method = 'POST'): Promise<T> {
   if (NO_SERVER) throw new Error('no server (file://)')
   const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), timeout)
   try {
-    const r = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctl.signal } : { signal: ctl.signal })
+    const r = await fetch(path, body ? { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctl.signal } : { signal: ctl.signal })
     if (!r.ok) throw new Error(path + ' -> ' + r.status)
     return await r.json()
   } finally { clearTimeout(tm) }
@@ -73,7 +82,8 @@ export const api = {
   crewOne: (id: string) => withFallback(j<CrewDetail>('/api/crew/' + id), () => ({ ...(CF.crew[id] ?? CF.crew.lena), simulated: true, co2_limit_mmhg: CF.co2_limit_mmhg })),
   blood: () => withFallback(j<Blood>('/api/blood'), () => bloodFile as unknown as Blood),
   thresholds: () => withFallback(j<Threshold[]>('/api/thresholds'), () => FALLBACK_THRESHOLDS).then(r => (Array.isArray(r) ? r : FALLBACK_THRESHOLDS)),
-  station: () => withFallback(j<Station>('/api/station', undefined, 4000), () => FALLBACK_STATION),
+  // viewer (optional): who is looking — a crew id or 'ground'. The backend then applies the roles (see Roles below).
+  station: (viewer?: Viewer) => withFallback(j<Station>('/api/station' + vq(viewer), undefined, 4000), () => FALLBACK_STATION),
   // Events: backend first; if the endpoint is missing, a local store (localStorage) keeps the console working across tabs.
   events: () => j<StationEvent[] | { events: StationEvent[] }>('/api/station/events', undefined, 4000).then(r => (Array.isArray(r) ? r : r.events ?? [])).catch(() => localEvents()),
   postEvent: (type: string, crew_id: string, payload: Record<string, unknown> = {}) => j<unknown>('/api/station/events', { type, crew_id, payload }, 4000).catch(() => {
@@ -87,7 +97,15 @@ export const api = {
     j<TriageStep & { understood: boolean; heard: string; answer?: string; answer_label?: string; say?: string }>('/api/triage/voice', { flow, node_id, text, lang }, 8000),
   // Spoken orders on the triage result («alert the crew») and yes/no confirmations. Fixed rule, no AI.
   // Live earpiece vitals (simulated) and early warnings computed by fixed rules against each person's baseline.
-  vitals: () => j<VitalsSnapshot>('/api/vitals', undefined, 4000),
+  vitals: (viewer?: Viewer) => j<VitalsSnapshot>('/api/vitals' + vq(viewer), undefined, 4000),
+  // Roles on board and the Ground view (crew: own data only; commander: main traits of everyone; CMO and ground: all).
+  roles: () => j<RolesDoc>('/api/roles', undefined, 4000),
+  setRole: (crew_id: string, role: CrewRole) => j<RolesDoc>('/api/roles', { crew_id, role }, 4000, 'PUT'),
+  resetRoles: () => j<RolesDoc>('/api/roles/reset', {}, 4000),
+  // Fit / limited / unfit for duty: only the CMO or ground decide it (403 otherwise); the commander sees it.
+  setFitness: (crew_id: string, status: Fitness['status'], viewer: Viewer) =>
+    j<Fitness>(`/api/crew/${crew_id}/fitness`, { status, viewer }, 4000, 'PUT'),
+  crewAs: (id: string, viewer: Viewer) => j<CrewDetail & { access: Access; fitness: Fitness }>(`/api/crew/${id}` + vq(viewer), undefined, 4000),
   vitalsScenario: (crew_id: string, kind: 'normal' | 'deterioration' | 'exercise' | 'collapse') =>
     j<{ ok: boolean }>('/api/vitals/scenario', { crew_id, kind }, 4000),
   vitalsReset: () => j<{ ok: boolean }>('/api/vitals/reset', {}, 4000),
