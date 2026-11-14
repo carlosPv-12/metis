@@ -91,7 +91,8 @@ export function useSpeaker() {
       const run = () => withVoiceLock(async () => {
         if (finished) return
         if (opts.dedupe && alreadySaid(text)) { j.done(); return }
-        const blob = await blobP
+        // Never wait forever for the voice: after 8 s use the browser's voice, so the shared queue can't stall.
+        const blob = await Promise.race([blobP, new Promise<null>(r => setTimeout(() => r(null), 8000))])
         if (finished) return
         await new Promise<void>(res => {
           release = res                           // stop() frees the queue straight away
@@ -116,6 +117,19 @@ export function useSpeaker() {
   return { speak, stop, speaking }
 }
 
+// Which tab acts (listens, opens the checklist): the LAST ONE YOU USED. Not "the visible one": on Windows Chrome marks
+// a page hidden as soon as another window (the terminal) covers it, and then Metis stopped listening and acting.
+// With a single tab it is always that tab.
+const TAB = Math.random().toString(36).slice(2)
+const claim = () => { try { localStorage.setItem('metis.leader', TAB) } catch { /* private mode: single tab */ } }
+export const isLeader = () => { try { const l = localStorage.getItem('metis.leader'); return !l || l === TAB } catch { return true } }
+if (typeof window !== 'undefined') {
+  claim()
+  window.addEventListener('focus', claim); window.addEventListener('pointerdown', claim)
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') claim() })
+  window.addEventListener('pagehide', () => { try { if (localStorage.getItem('metis.leader') === TAB) localStorage.removeItem('metis.leader') } catch { /* ignore */ } })
+}
+
 // One microphone stream, opened once and reused by every take (always-on ear, triage, check-ins).
 let mic: MediaStream | null = null
 async function getMic(): Promise<MediaStream> {
@@ -124,16 +138,20 @@ async function getMic(): Promise<MediaStream> {
   return mic
 }
 
-/** Listen once without touching anything: records until the person stops talking (about 1 s of silence after speech),
- *  or gives up after `maxMs` / `waitMs` with no speech. Returns the audio, or null if nothing was said or the mic failed. */
+/** Listen once without touching anything: records until the person stops talking (`silenceMs` of silence after speech),
+ *  or gives up after `maxMs` / `waitMs` with no speech. Returns the audio, or null if nothing was said or the mic failed.
+ *  Voice detection runs on the AUDIO thread (every ~43 ms), which Chrome never slows down; a timer-based check
+ *  dropped to once per second whenever the page was covered and missed short answers like «yes». */
 export async function listenOnce(opts: { maxMs?: number; waitMs?: number; silenceMs?: number; signal?: AbortSignal; discardIf?: () => boolean } = {}): Promise<Blob | null> {
   const { maxMs = 10000, waitMs = 5000, silenceMs = 1400, signal, discardIf } = opts
   if (signal?.aborted) return null
   let stream: MediaStream
   try { stream = await getMic() } catch { return null }
-  const ctx = new AudioContext(); const an = ctx.createAnalyser(); an.fftSize = 1024
-  ctx.createMediaStreamSource(stream).connect(an)
-  const buf = new Float32Array(an.fftSize)
+  const ctx = new AudioContext()
+  ctx.resume().catch(() => {})
+  const src = ctx.createMediaStreamSource(stream)
+  const proc = ctx.createScriptProcessor(2048, 1, 1)
+  src.connect(proc); proc.connect(ctx.destination)          // output stays silent; the connection makes it run
   const rec = new MediaRecorder(stream); const chunks: Blob[] = []
   rec.ondataavailable = e => chunks.push(e.data)
   return new Promise(resolve => {
@@ -143,24 +161,32 @@ export async function listenOnce(opts: { maxMs?: number; waitMs?: number; silenc
     let floor = 0.01
     const end = (keep: boolean) => {
       if (ended) return; ended = true; clearInterval(id)
+      proc.onaudioprocess = null
+      try { src.disconnect(); proc.disconnect() } catch { /* ignore */ }
       // the mic stream stays open for the next take (opening it again each time added a delay)
       rec.onstop = () => { ctx.close().catch(() => {}); resolve(keep && spoke && !tainted ? new Blob(chunks, { type: rec.mimeType }) : null) }
       try { rec.stop() } catch { rec.onstop?.(new Event('stop')) }
     }
-    if (signal?.aborted) { end(false); return }                 // aborted while the mic was opening
-    signal?.addEventListener('abort', () => end(false))
-    id = setInterval(() => {
+    const check = () => {
+      if (ended) return
       if (discardIf?.()) { tainted = true; return }   // e.g. Metis is talking: whatever we record now is her voice
       if (tainted) { end(false); return }             // she finished: drop this take and let the caller listen again
-      an.getFloatTimeDomainData(buf)
-      let sum = 0; for (const v of buf) sum += v * v
-      const rms = Math.sqrt(sum / buf.length), now = Date.now()
-      floor = rms < floor ? floor * 0.7 + rms * 0.3 : floor * 0.995 + rms * 0.005
-      if (rms > Math.max(0.015, floor * 3)) { spoke = true; lastVoice = now }
+      const now = Date.now()
       if (spoke && now - lastVoice > silenceMs) end(true)
       else if (!spoke && now - t0 > waitMs) end(false)
       else if (now - t0 > maxMs) end(true)
-    }, 80)
+    }
+    if (signal?.aborted) { end(false); return }                 // aborted while the mic was opening
+    signal?.addEventListener('abort', () => end(false))
+    proc.onaudioprocess = e => {
+      const buf = e.inputBuffer.getChannelData(0)
+      let sum = 0; for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i]
+      const rms = Math.sqrt(sum / buf.length)
+      floor = rms < floor ? floor * 0.7 + rms * 0.3 : floor * 0.995 + rms * 0.005
+      if (!tainted && rms > Math.max(0.015, floor * 3)) { spoke = true; lastVoice = Date.now() }
+      check()
+    }
+    id = setInterval(check, 200)                      // backup for the time limits (fine even if slowed down)
     rec.start()
   })
 }

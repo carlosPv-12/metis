@@ -11,7 +11,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AlertTriangle, Ear, EarOff, MessageCircle, Volume2 } from 'lucide-react'
 import { api, NO_SERVER, type VitalsAlert } from './api'
-import { isSpeaking, listenOnce, useSpeaker } from './hooks'
+import { isLeader, isSpeaking, listenOnce, useSpeaker } from './hooks'
 import { useLang, useT } from './i18n'
 import { useCrew } from './ui'
 
@@ -37,8 +37,8 @@ export function EarProvider({ children }: { children: ReactNode }) {
   const busy = useRef(new Set<string>())
   const langRef = useRef(lang); const pathRef = useRef(loc.pathname)
   useEffect(() => { langRef.current = lang; pathRef.current = loc.pathname; me.current = crewId }, [lang, loc.pathname, crewId])
-  // Hidden browser tab: it stops listening (Chrome throttles it anyway) so only the tab you are looking at has the mic.
-  const paused = () => busy.current.size > 0 || pathRef.current.startsWith('/demo') || document.hidden
+  // With several tabs open only the one you used last listens (see isLeader in hooks.ts).
+  const paused = () => busy.current.size > 0 || pathRef.current.startsWith('/demo') || !isLeader()
   const conv = useRef(0)                  // > now while a conversation is open (shared with the vitals watcher)
   const [warning, setWarning] = useState<VitalsAlert | null>(null)
 
@@ -146,7 +146,8 @@ export function EarProvider({ children }: { children: ReactNode }) {
       const l = langRef.current
       // Queue the warning FIRST, then open the checklist: its first question waits its turn in the shared voice queue.
       const said = sp.speak(l === 'es' ? item.text_es : item.text_en, l, { dedupe: true })
-      if (item.go && !document.hidden && !pathRef.current.startsWith('/triage')) nav(item.go)   // only the tab you are looking at
+      if (item.go && isLeader() && !pathRef.current.startsWith('/triage')) nav(item.go)   // only the tab you used last
+      if (item.go) console.info('[metis] emergency →', item.go, isLeader() ? '(opening)' : '(another tab handles it)')
       await said
       if (item.mine) myCheck.current = item.mine            // the next thing I say is my answer
       conv.current = Date.now() + CONV_IDLE_MS

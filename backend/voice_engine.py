@@ -219,7 +219,7 @@ def _to_wav16k(audio: bytes, td: pathlib.Path) -> pathlib.Path:
 
 # Pista de vocabulario para whisper: sin ella oye «Maddie's» en vez de «Metis» y falla la palabra de activación.
 # Sin «Noor» ni «Kenji»: con «Noor» en la pista, whisper escribía «Noor» cuando alguien decía «No» (medido el 14-nov).
-STT_PROMPT = os.environ.get("METIS_STT_PROMPT", "Metis, Lena, Marco.")
+STT_PROMPT = os.environ.get("METIS_STT_PROMPT", "Metis, Lena, Marco, crew.")
 
 _pyw = None
 _pyw_lock = threading.Lock()
