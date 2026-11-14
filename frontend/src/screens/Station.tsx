@@ -1,7 +1,7 @@
 // Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026
 // "Station console": dashboard for the commander and CMOs. Polls /api/station and /api/station/events.
 import { useEffect, useState } from 'react'
-import { Activity, Battery, Dumbbell, Ear, FlaskConical, Orbit, Package, Radio, Thermometer, Wind } from 'lucide-react'
+import { Activity, Battery, Dumbbell, Ear, Orbit, Package, Radio, Thermometer, Wind } from 'lucide-react'
 import { api, type Station as S, type StationEvent } from '../api'
 import { usePoll } from '../hooks'
 import { useLang, useT, pick, placeL, habitatTime, type Lang } from '../i18n'
@@ -152,14 +152,6 @@ export default function Station() {
           </div>
         </Card>
         <div className="grid" style={{ gap: 18, alignContent: 'start' }}>
-        <Card title={<><FlaskConical size={14} />{t('demo_controls')}</>} right={<span className="small dim">{t('live_vitals_note')}</span>}>
-          <div className="row wrap" style={{ gap: 8 }}>
-            <button className="btn" onClick={() => api.vitalsScenario('marco', 'deterioration').catch(() => {})}>{t('sc_deteriorate')}</button>
-            <button className="btn" onClick={() => api.vitalsScenario('kenji', 'exercise').catch(() => {})}>{t('sc_exercise')}</button>
-            <button className="btn danger" onClick={() => api.vitalsScenario('marco', 'collapse').catch(() => {})}>{t('sc_collapse')}</button>
-            <button className="btn ghost" onClick={() => api.vitalsReset().catch(() => {})}>{t('sc_reset')}</button>
-          </div>
-        </Card>
         <Card title={t('med_kit')}>
           <table className="t"><thead><tr><th></th><th className="n">{t('qty_min')}</th>{hasExp && <th className="n">{t('expires')}</th>}</tr></thead>
             <tbody>{st.medkit.map((m, i) => <tr key={i}><td>{pick(m as never, 'item', lang) || m.item}</td><td className={`n ${m.min != null && m.qty < m.min ? 's-watch' : ''}`}>{m.qty}{m.min != null && <span className="dim">/{m.min}</span>}</td>{hasExp && <td className="n dim">{m.expires ?? ''}</td>}</tr>)}</tbody></table>

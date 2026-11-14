@@ -136,7 +136,7 @@ export function PrivateDetails({ crew }: { crew: StationCrew }) {
         <Link className="btn danger" to={`/triage?flow=${flow}`}><Siren size={15} />{s.start}</Link>
         <button type="button" className="btn" onClick={() => (sp.speaking ? sp.stop() : sp.speak(say, lang))}><Volume2 size={15} />{s.listen}</button>
       </div>
-      <Link className="small" to="/references">{s.based} {nRefs} {s.refs}</Link>
+      <Link className="small" to="/settings?section=references">{s.based} {nRefs} {s.refs}</Link>
     </div>
     {data && <div className="station-private-trends"><span className="small muted">{s.trends}</span>
       {([['resting_hr_bpm', s.hr], ['hrv_ms', s.hrv], ['sleep_h', s.sleep], ['co2_night_peak_mmhg', s.co2]] as const).map(([m, label]) =>

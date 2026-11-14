@@ -30,7 +30,7 @@ const COPY = {
   },
 }
 
-export default function References() {
+export default function References({ embedded = false }: { embedded?: boolean } = {}) {
   const { lang } = useLang()
   const t = COPY[lang]
   const [query, setQuery] = useState('')
@@ -44,8 +44,7 @@ export default function References() {
     return () => { alive = false }
   }, [])
   const visible = searchReferences(references, query)
-  return <Page title={t.title} sub={t.sub}>
-    <div className="metis-references">
+  const body = <div className="metis-references">
       <div className="card references-intro">
         <div className="references-search" role="search" aria-label={t.search}>
           <label htmlFor="references-search">{t.search}</label>
@@ -80,5 +79,8 @@ export default function References() {
         </section>
       })}
     </div>
-  </Page>
+  // Shown as a section inside Settings (embedded) or, for old links, as its own page.
+  return embedded
+    ? <section className="settings-references" id="references" aria-labelledby="references-title"><h2 id="references-title" className="h1 section-h">{t.title}</h2>{body}</section>
+    : <Page title={t.title}>{body}</Page>
 }

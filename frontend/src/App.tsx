@@ -1,7 +1,7 @@
 // Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026
 import { useEffect, useState } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
-import { Activity, BookMarked, LayoutDashboard, MessageCircle, PersonStanding, Send, Settings as SettingsIcon, Siren, Sun } from 'lucide-react'
+import { Activity, LayoutDashboard, MessageCircle, PersonStanding, Send, Settings as SettingsIcon, Siren, Sun } from 'lucide-react'
 import { LangCtx, useT, habitatTime, type Lang } from './i18n'
 import { CrewCtx } from './ui'
 import { useLang as useLangCtx } from './i18n'
@@ -9,8 +9,7 @@ import ConnectionPill from './Connection'
 import CrewSwitch from './CrewSwitch'
 import LinkChip from './LinkChip'
 import Settings from './screens/Settings'
-import References from './screens/References'
-import { REFERENCES_LABEL, SETTINGS_LABEL } from './settings'
+import { SETTINGS_LABEL } from './settings'
 import Greeting from './screens/Greeting'
 import Trend from './screens/Trend'
 import Body from './screens/Body'
@@ -77,8 +76,6 @@ function Shell() {
         <NavLink to="/report"><Send size={I} /><span>{t('nav_report')}</span></NavLink>
         <div className="grp">{t('group_station')}</div>
         <NavLink to="/station"><LayoutDashboard size={I} /><span>{t('nav_station')}</span></NavLink>
-        <div className="grp">{REFERENCES_LABEL[lang]}</div>
-        <NavLink to="/references"><BookMarked size={I} /><span>{REFERENCES_LABEL[lang]}</span></NavLink>
         <NavLink to="/settings" className="rail-settings"><SettingsIcon size={I} /><span>{SETTINGS_LABEL[lang]}</span></NavLink>
       </nav>
       <main className="content">
@@ -95,7 +92,7 @@ function Shell() {
           <Route path="/report" element={<Summary />} />
           <Route path="/station" element={<Station />} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="/references" element={<References />} />
+          <Route path="/references" element={<Navigate to="/settings" replace />} />
           <Route path="*" element={<Navigate to="/today" replace />} />
         </Routes>
       </main>

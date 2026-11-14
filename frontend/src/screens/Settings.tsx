@@ -4,10 +4,19 @@ import CrewAvatar from '../CrewAvatar'
 import { ENV_PROFILES, fmtLinkDelay } from '../link'
 import '../link.css'
 import { api } from '../api'
+import { useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useLoad } from '../hooks'
-import { useLang } from '../i18n'
+import { useLang, useT } from '../i18n'
 import { Card, Page } from '../ui'
+import References from './References'
 import { DEFAULT_SEX, setEnv, setMarsDelayMin, resetSettings, setCrewSex, sexOf, useSettings, type Sex } from '../settings'
+
+// Demo-only controls (moved here from the Station console): they drive the simulated live vitals on the backend.
+const MOCK = {
+  en: { title: 'Mockup simulation', note: 'Only for the mockup. These buttons simulate situations in the live vitals so you can show the demo; a real mission would not have them.' },
+  es: { title: 'Simulación del mockup', note: 'Solo para el mockup. Estos botones simulan situaciones en las constantes en directo para enseñar la demo; en una misión real no existirían.' },
+}
 
 const TXT = {
   en: {
@@ -23,7 +32,10 @@ const TXT = {
 }
 
 export default function Settings() {
-  const { lang } = useLang()
+  const { lang } = useLang(); const t = useT()
+  const loc = useLocation()
+  // /settings?section=references jumps straight to the References section.
+  useEffect(() => { if (new URLSearchParams(loc.search).get('section') === 'references') setTimeout(() => document.getElementById('references')?.scrollIntoView({ block: 'start' }), 300) }, [loc.search])
   const s = TXT[lang]
   const settings = useSettings()
   const { data } = useLoad(api.station)
@@ -66,6 +78,16 @@ export default function Settings() {
           })}
         </div>
       </Card>
+      <Card className="settings-card settings-mockup" title={MOCK[lang].title}>
+        <p className="small muted" style={{ marginTop: 0 }}>{MOCK[lang].note}</p>
+        <div className="row wrap" style={{ gap: 8 }}>
+          <button className="btn" onClick={() => api.vitalsScenario('marco', 'deterioration').catch(() => {})}>{t('sc_deteriorate')}</button>
+          <button className="btn" onClick={() => api.vitalsScenario('kenji', 'exercise').catch(() => {})}>{t('sc_exercise')}</button>
+          <button className="btn danger" onClick={() => api.vitalsScenario('marco', 'collapse').catch(() => {})}>{t('sc_collapse')}</button>
+          <button className="btn ghost" onClick={() => api.vitalsReset().catch(() => {})}>{t('sc_reset')}</button>
+        </div>
+      </Card>
+      <References embedded />
     </Page>
   )
 }
