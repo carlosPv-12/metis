@@ -20,8 +20,14 @@ import TriageRun from './screens/TriageRun'
 import Summary from './screens/Summary'
 import Station from './screens/Station'
 import Demo from './screens/Demo'
+import { EarProvider, EarSwitch, VitalsBanner } from './voice'
+
+// English only for the demo and the submission (decided by Carlos, 14-nov). The Spanish texts stay in i18n.ts:
+// set this to true to bring back the EN/ES switch.
+const SPANISH_ENABLED = false
 
 function readLang(): Lang {
+  if (!SPANISH_ENABLED) return 'en'
   try { const q = new URLSearchParams(location.hash.split('?')[1] ?? ''); const l = q.get('lang') ?? localStorage.getItem('metis.lang'); return l === 'es' ? 'es' : 'en' } catch { return 'en' }
 }
 
@@ -34,7 +40,7 @@ export default function App() {
   return (
     <LangCtx.Provider value={{ lang, setLang }}>
       <CrewCtx.Provider value={{ crewId, setCrewId }}>
-        {loc.pathname.startsWith('/demo') ? <Demo /> : <Shell />}
+        <EarProvider>{loc.pathname.startsWith('/demo') ? <Demo /> : <Shell />}</EarProvider>
       </CrewCtx.Provider>
     </LangCtx.Provider>
   )
@@ -55,10 +61,11 @@ function Shell() {
         <div className="brand"><span className="orb" />Metis</div>
         <div className="day day-inline"><span>{t('mission_day')} <b>112</b></span><span>{cap(t('habitat_time'))} <b>{hhmm}</b></span></div>
         <div className="spacer" />
+        <EarSwitch />
         <CrewSwitch />
         <ConnectionPill />
         <LinkChip />
-        <LangSwitch />
+        {SPANISH_ENABLED && <LangSwitch />}
       </header>
       <nav className="rail" aria-label="Main">
         <div className="grp">{t('group_astronaut')}</div>
@@ -75,6 +82,7 @@ function Shell() {
         <NavLink to="/settings" className="rail-settings"><SettingsIcon size={I} /><span>{SETTINGS_LABEL[lang]}</span></NavLink>
       </nav>
       <main className="content">
+        <VitalsBanner />
         <Routes>
           <Route path="/" element={<Navigate to="/today" replace />} />
           <Route path="/today" element={<Greeting />} />

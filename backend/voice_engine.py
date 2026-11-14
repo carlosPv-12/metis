@@ -9,6 +9,8 @@ import io, os, pathlib, shutil, subprocess, tempfile, threading, time, wave
 
 HOME = pathlib.Path(os.path.expanduser(os.environ.get("METIS_HOME", "~/.local/share/metis")))
 THREADS = int(os.environ.get("METIS_THREADS", "4"))
+# whisper aprovecha más núcleos (medido el 14-nov en 16 CPU: «Yes» 830 -> 570 ms con 8); Kokoro va peor con 8, se queda en THREADS.
+STT_THREADS = int(os.environ.get("METIS_STT_THREADS", str(max(THREADS, min(8, os.cpu_count() or 4)))))
 KOKORO_DIR = pathlib.Path(os.path.expanduser(os.environ.get("METIS_KOKORO_DIR", str(HOME / "kokoro"))))
 PIPER_DIR = HOME / "piper"
 def _default_whisper():
@@ -215,11 +217,15 @@ def _to_wav16k(audio: bytes, td: pathlib.Path) -> pathlib.Path:
     return wav
 
 
+# Pista de vocabulario para whisper: sin ella oye «Maddie's» en vez de «Metis» y falla la palabra de activación.
+# Sin «Noor» ni «Kenji»: con «Noor» en la pista, whisper escribía «Noor» cuando alguien decía «No» (medido el 14-nov).
+STT_PROMPT = os.environ.get("METIS_STT_PROMPT", "Metis, Lena, Marco.")
+
 _pyw = None
 _pyw_lock = threading.Lock()
 
 
-def _stt_pywhispercpp(wav: pathlib.Path, l: str):
+def _stt_pywhispercpp(wav: pathlib.Path, l: str, prompt: str = STT_PROMPT):
     """whisper.cpp vía pywhispercpp con el mismo ggml-base.bin; el modelo se carga una vez."""
     global _pyw
     import numpy as np
@@ -228,9 +234,9 @@ def _stt_pywhispercpp(wav: pathlib.Path, l: str):
     with _pyw_lock:
         if _pyw is None:
             from pywhispercpp.model import Model
-            _pyw = Model(str(WHISPER_MODEL), redirect_whispercpp_logs_to=None, n_threads=THREADS,
+            _pyw = Model(str(WHISPER_MODEL), redirect_whispercpp_logs_to=None, n_threads=STT_THREADS,
                          print_progress=False, print_realtime=False)
-        segs = _pyw.transcribe(pcm, language=l)
+        segs = _pyw.transcribe(pcm, language=l, **({"initial_prompt": prompt} if prompt else {}))
         detected = l
         if l == "auto":
             try:
@@ -241,7 +247,9 @@ def _stt_pywhispercpp(wav: pathlib.Path, l: str):
     return " ".join(" ".join(s.text for s in segs).split()), detected
 
 
-def stt(audio: bytes, lang: str = "auto"):
+def stt(audio: bytes, lang: str = "auto", hint: str = ""):
+    """hint: respuestas esperadas («Yes. No.»); se suman a la pista de vocabulario y whisper acierta más en frases cortas."""
+    prompt = " ".join(x for x in (STT_PROMPT, (hint or "")[:200]) if x)
     """Audio (webm/ogg/wav/mp3/mp4) -> (texto, idioma detectado o pedido). Lanza RuntimeError si falla."""
     if not stt_status()["ok"]:
         raise RuntimeError("whisper.cpp (o pywhispercpp), su modelo o el decodificador de audio (ffmpeg o PyAV) no están disponibles")
@@ -250,10 +258,10 @@ def stt(audio: bytes, lang: str = "auto"):
         l = lang if lang in ("en", "es") else "auto"
         if _stt_engine() == "pywhispercpp":
             try:
-                return _stt_pywhispercpp(wav, l)
+                return _stt_pywhispercpp(wav, l, prompt)
             except Exception as e:
                 raise RuntimeError(f"pywhispercpp falló: {e!r}"[:300])
-        r = subprocess.run([str(WHISPER_BIN), "-m", str(WHISPER_MODEL), "-t", str(THREADS), "-l", l, "-nt", "-f", str(wav)], capture_output=True, timeout=120)
+        r = subprocess.run([str(WHISPER_BIN), "-m", str(WHISPER_MODEL), "-t", str(STT_THREADS), "-l", l, "-nt", *(["--prompt", prompt] if prompt else []), "-f", str(wav)], capture_output=True, timeout=120)
         if r.returncode != 0:
             raise RuntimeError("whisper.cpp falló: " + r.stderr.decode(errors="ignore")[-200:])
         text = " ".join(r.stdout.decode(errors="ignore").split())

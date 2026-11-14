@@ -82,6 +82,8 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .metis-line .orb { flex: none; width: 44px; height: 44px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #e6fffa, var(--metis) 30%, #1a5d55 72%, #0b2622); box-shadow: 0 0 30px rgba(158, 233, 220, .35) }
 .metis-line .orb.speaking { animation: pulse 1.2s ease-in-out infinite }
 @keyframes pulse { 50% { box-shadow: 0 0 46px rgba(158, 233, 220, .7) } }
+.dot.pulse { animation: blink 1s ease-in-out infinite }
+@keyframes blink { 50% { opacity: .25 } }
 .quote { font-size: 21px; line-height: 1.45; font-weight: 400; letter-spacing: -.005em }
 
 /* stats */

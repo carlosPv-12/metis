@@ -1,7 +1,7 @@
 // Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026
 // "Station console": dashboard for the commander and CMOs. Polls /api/station and /api/station/events.
 import { useEffect, useState } from 'react'
-import { Battery, Orbit, Package, Radio, Wind } from 'lucide-react'
+import { Activity, Battery, Dumbbell, Ear, FlaskConical, Orbit, Package, Radio, Thermometer, Wind } from 'lucide-react'
 import { api, type Station as S, type StationEvent } from '../api'
 import { usePoll } from '../hooks'
 import { useLang, useT, pick, placeL, habitatTime, type Lang } from '../i18n'
@@ -55,7 +55,7 @@ const TXT = {
 export default function Station() {
   const t = useT(); const { lang } = useLang(); const s = TXT[lang]
   const link = useLink(); const { crewId } = useCrew()
-  const raw = usePoll(api.station, 3000)
+  const raw = usePoll(api.station, 2000)
   const evs = usePoll(() => api.events().catch(() => [] as StationEvent[]), 2500)
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id) }, [])
@@ -81,16 +81,29 @@ export default function Station() {
       <div className="grid g4">
         {st.crew.map(c => {
           const l = lvl(c.status)
+          const hs = st.headsets.find(h => h.crew_id === c.id)
           const entry = c.id !== crewId ? access.active(c.id, crewId) : undefined
           return (
             <div key={c.id} className={`crewcard ${l}`}>
               <div className="row between"><div className="row"><CrewAvatar id={c.id} name={c.name} size={44} /><div style={{ fontSize: 20, fontWeight: 600 }}>{c.name}</div></div>
                 <span className={`tag ${l}`}><Shape level={l} />{l === 'ok' ? s.fit : l === 'watch' ? s.limited : l === 'nodata' ? s.unknown : s.unfit}</span></div>
               <div className="small muted">{pick(c as never, 'role', lang) || c.role}</div>
+              <div className="row between" style={{ marginTop: 14, alignItems: 'baseline' }}>
+                <span className={`mono ${c.vitals && !c.vitals.pulse ? 's-alarm' : ''}`} style={{ fontSize: 26 }}><Activity size={16} style={{ verticalAlign: -1, marginRight: 6, opacity: .7 }} />
+                  {c.vitals ? (c.vitals.pulse ? Math.round(c.vitals.hr_bpm) : t('no_pulse')) : c.hr ?? '—'} {(!c.vitals || c.vitals.pulse) && <span className="small muted">{t('u_bpm')}</span>}</span>
+                {hs && <span className="small muted"><Ear size={13} style={{ verticalAlign: -2 }} /> {hs.battery_pct}%</span>}
+              </div>
+              {c.vitals?.pulse && (
+                <div className="row small mono muted" style={{ gap: 12, marginTop: 6 }}>
+                  <span><Wind size={12} style={{ verticalAlign: -1 }} /> {Math.round(c.vitals.rr_brpm)} {t('u_brpm')}</span>
+                  <span>SpO₂ {c.vitals.spo2_pct != null ? Math.round(c.vitals.spo2_pct) : '—'}%</span>
+                  <span><Thermometer size={12} style={{ verticalAlign: -1 }} />{c.vitals.temp_c.toFixed(1)}°</span>
+                  {c.vitals.activity > 0 && <span className="s-ok"><Dumbbell size={12} style={{ verticalAlign: -1 }} /> {t('exercising')}</span>}
+                </div>
+              )}
               <div className="small muted">{placeL(c.location, lang)}</div><EmergencyDetails key={c.id} crew={c} />
               {entry && <><PrivateDetails crew={c} /><AccessCountdown entry={entry} now={now} access={access} /></>}
               {!entry && actor && c.id !== crewId && <EmergencyButton crew={c} actor={actor} access={access} requests={requests} />}
-
             </div>
           )
         })}
@@ -138,10 +151,20 @@ export default function Station() {
             {!events.length && <div className="dim">{t('no_events')}</div>}
           </div>
         </Card>
+        <div className="grid" style={{ gap: 18, alignContent: 'start' }}>
+        <Card title={<><FlaskConical size={14} />{t('demo_controls')}</>} right={<span className="small dim">{t('live_vitals_note')}</span>}>
+          <div className="row wrap" style={{ gap: 8 }}>
+            <button className="btn" onClick={() => api.vitalsScenario('marco', 'deterioration').catch(() => {})}>{t('sc_deteriorate')}</button>
+            <button className="btn" onClick={() => api.vitalsScenario('kenji', 'exercise').catch(() => {})}>{t('sc_exercise')}</button>
+            <button className="btn danger" onClick={() => api.vitalsScenario('marco', 'collapse').catch(() => {})}>{t('sc_collapse')}</button>
+            <button className="btn ghost" onClick={() => api.vitalsReset().catch(() => {})}>{t('sc_reset')}</button>
+          </div>
+        </Card>
         <Card title={t('med_kit')}>
           <table className="t"><thead><tr><th></th><th className="n">{t('qty_min')}</th>{hasExp && <th className="n">{t('expires')}</th>}</tr></thead>
             <tbody>{st.medkit.map((m, i) => <tr key={i}><td>{pick(m as never, 'item', lang) || m.item}</td><td className={`n ${m.min != null && m.qty < m.min ? 's-watch' : ''}`}>{m.qty}{m.min != null && <span className="dim">/{m.min}</span>}</td>{hasExp && <td className="n dim">{m.expires ?? ''}</td>}</tr>)}</tbody></table>
         </Card>
+        </div>
       </div>
       <AccessLog access={access} />
     </Page>

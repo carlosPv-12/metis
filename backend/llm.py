@@ -31,7 +31,8 @@ PSYCH = re.compile(
     r"sin esperanza|no quiero seguir|no puedo más|no puedo mas|quiero morir|me quiero morir|matarme|acabar con todo|quitarme la vida|"
     r"no tiene sentido vivir|hacerme daño", re.I)
 EMERGENCY = re.compile(
-    r"chest (pain|pressure)|can'?t breathe|cannot breathe|not breathing|isn'?t breathing|short(ness)? of breath|collaps|unconscious|"
+    r"chest (pain|pressure)|chest\W+(\w+\W+){0,3}(tight|tied|tide|hurts?|aches?|squeez|crush|heavy)|tight(ness|ening)?\W+(in\W+)?(my\W+|his\W+|her\W+)?chest|can'?t breathe|cannot breathe|not breathing|isn'?t breathing|short(ness)? of breath|collaps|unconscious|"
+    r"[ck]o[lj]+[ae]ps|emergenc|mayday|man down|\b(he|she|marco|lena|noor|kenji|someone|somebody|crewmate)( is|\'s| has gone| went)? down\b|"
     r"unresponsive|not responding|isn'?t responding|doesn'?t respond|won'?t (answer|respond|wake)|not answering|passed out|faint|"
     r"\bfell\b|fallen|on the floor|seizure|bleeding|heart attack|stroke|choking|"
     r"pecho|no (puedo )?respir|no respira|me ahogo|desmay|desplom|inconsciente|no contesta|no responde|no reacciona|no se despierta|"

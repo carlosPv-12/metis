@@ -10,7 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse
 from pydantic import BaseModel
 
-import llm, station, voice_engine
+import re
+import llm, station, vitals, voice_answer, voice_engine
 
 HERE = pathlib.Path(__file__).parent
 DATA = HERE.parent / "data"
@@ -109,6 +110,74 @@ def triage_step(b: TriageIn):
             "escalate": bool(n.get("escalate")), "deterministic": True}
 
 
+# Preguntas del tipo «¿responde?» / «¿respira con normalidad?»: ahí «he is breathing» es un sí.
+STATE_YES_NODES = {"c1", "c2", "c2r"}
+REPROMPT = {"en": "Sorry, I didn't catch that. Please answer yes or no.", "es": "Perdona, no te he entendido. Responde sí o no."}
+REPROMPT_TIME = {"en": "Sorry, I didn't catch that. Less than ten minutes, or more?", "es": "Perdona, no te he entendido. ¿Menos de diez minutos o más?"}
+
+
+class TriageVoiceIn(BaseModel):
+    flow: str
+    node_id: str               # pregunta que se está respondiendo
+    text: str                  # lo que transcribió /api/voice/stt
+    lang: str = "en"
+
+
+@app.post("/api/triage/voice")
+def triage_voice(b: TriageVoiceIn):
+    """Manos libres: empareja la respuesta hablada con una opción (regla fija, sin IA) y avanza el triaje.
+    Si no está claro, understood=false y una frase para repetir la pregunta; los botones siguen valiendo."""
+    flow = TREE["flows"].get(b.flow)
+    if not flow: raise HTTPException(404, "flujo desconocido")
+    cur = flow["nodes"].get(b.node_id)
+    if not cur or cur["type"] != "question": raise HTTPException(400, "nodo actual no válido")
+    k, heard = L(b.lang), voice_answer.clean_transcript(b.text)
+    opt = voice_answer.match_option(heard, cur["options"], b.node_id in STATE_YES_NODES)
+    if opt is None:
+        ids = {o["id"] for o in cur["options"]}
+        q = cur.get(f"text_{k}", cur.get("text_en", ""))
+        again = (REPROMPT_TIME if ids == {"lt10", "gt10"} else REPROMPT)[k]
+        return {"understood": False, "heard": heard, "node_id": b.node_id, "say": f"{again} {q}", "lang": k, "deterministic": True}
+    o = next(x for x in cur["options"] if x["id"] == opt)
+    res = triage_step(TriageIn(flow=b.flow, node_id=b.node_id, answer=opt, lang=k))
+    return {**res, "understood": True, "heard": heard, "answer": opt,
+            "answer_label": o.get(f"label_{k}", o.get("label_en", o.get("label", opt)))}
+
+
+class TriageCommandIn(BaseModel):
+    text: str
+    lang: str = "en"
+
+
+@app.post("/api/triage/command")
+def triage_command(b: TriageCommandIn):
+    """Órdenes habladas en el resultado del triaje: qué avisos pide («alert the crew») y si es un sí o un no
+    (para «¿aviso al oficial médico?»). Regla fija, sin IA; quien envía los avisos es la pantalla, como con los botones."""
+    heard = voice_answer.clean_transcript(b.text)
+    yn = voice_answer.match_option(heard, [{"id": "si"}, {"id": "no"}])
+    return {"heard": heard, "actions": voice_answer.match_commands(heard), "confirm": {"si": True, "no": False}.get(yn),
+            "lang": L(b.lang), "deterministic": True}
+
+
+class WakeIn(BaseModel):
+    text: str
+    lang: str = "en"
+
+
+@app.post("/api/voice/wake")
+def voice_wake(b: WakeIn):
+    """Escucha continua: ¿han dicho «Metis»? ¿Es una emergencia? ¿Quiere acabar la conversación (end)? Las emergencias no necesitan la palabra de
+    activación: en un desplome nadie se acuerda de decir «Metis». Regla fija, sin IA."""
+    heard = voice_answer.clean_transcript(b.text)
+    wake, command = voice_answer.match_wake(heard)
+    emergency = bool(heard and llm.EMERGENCY.search(heard))
+    # En la terminal, para ver qué entiende Metis sin abrir nada (solo texto ya transcrito; no se guarda).
+    print(f"[metis oído] «{heard}»" + (" · METIS" if wake else "") + (" · EMERGENCIA" if emergency else ""), flush=True)
+    return {"heard": heard, "wake": wake, "command": command if wake else "",
+            "emergency": emergency, "end": voice_answer.match_end(heard),
+            "lang": L(b.lang), "deterministic": True}
+
+
 # ---------- IA ----------
 TOPIC_TASK = {
     "greeting": {"en": "Greet {name} by name, mention ONE change from the facts exactly as stated (higher or lower), and gently ask how they feel.",
@@ -155,6 +224,10 @@ class ChatIn(BaseModel):
     history: list[dict] | None = None  # [{role: user|assistant, content}]
 
 
+# «How is the crew?», «how is Marco?», «status report»: lo contesta una regla con las cifras de los sensores, no la IA.
+CREW_STATUS = re.compile(r"\bhow(\'s| is| are)? (the )?(crew|everyone|everybody|team)\b|\bcrew (status|vitals)\b|\bstatus report\b|"
+                         r"\bhow(\'s| is| are)? (marco|lena|noor|kenji)( doing)?\b|\b(marco|lena|noor|kenji)\'?s? (status|vitals)\b|"
+                         r"\bcómo (está|esta|están|estan) (la tripulación|el equipo|todos|marco|lena|noor|kenji)\b", re.I)
 COMPANION = __import__("re").compile(r"\b(he|she|they|crewmate|marco|lena|noor|kenji|compañer|él|ella|se ha|se desplom)\b", __import__("re").I)
 
 
@@ -170,6 +243,11 @@ def chat(b: ChatIn):
         flow = "companion_collapse" if COMPANION.search(b.message) else "self_chest_pressure"
         return {"text": fb("escalate", k), "source": "rule", "latency_ms": int((time.time() - t0) * 1000), "safety": "escalated",
                 "suggest_flow": flow, "lang": k, "ai_generated": False}
+    st_m = CREW_STATUS.search(b.message or "")
+    if st_m:
+        who = next((n for n in ("lena", "marco", "noor", "kenji") if re.search(rf"\b{n}\b", b.message, re.I)), None)
+        return {"text": vitals.status_text(crew_doc(), who, k), "source": "rule", "latency_ms": int((time.time() - t0) * 1000),
+                "safety": "ok", "lang": k, "ai_generated": False, "note": "crew status is read from the sensors, never generated"}
     if llm.MEDQ.search(b.message or ""):
         return {"text": fb("medication", k), "source": "rule", "latency_ms": int((time.time() - t0) * 1000), "safety": "ok",
                 "lang": k, "ai_generated": False, "note": "medication questions are never answered by the model"}
@@ -245,24 +323,89 @@ def tts(b: TTSIn):
 
 
 @app.post("/api/voice/stt")
-async def stt(audio: UploadFile = File(...), lang: str = Form("auto")):
+async def stt(audio: UploadFile = File(...), lang: str = Form("auto"), hint: str = Form("")):
     data = await audio.read()
     t0 = time.time()
     try:
         from starlette.concurrency import run_in_threadpool
-        text, detected = await run_in_threadpool(voice_engine.stt, data, lang)
+        text, detected = await run_in_threadpool(voice_engine.stt, data, lang, hint)
     except Exception as e:
         return JSONResponse({"error": str(e)[:300], "text": ""}, status_code=503)
+    text = voice_answer.clean_transcript(text)  # sin [BLANK_AUDIO] ni (music): si no hubo voz, text = ""
+    if hint and voice_answer._norm(text).split() == voice_answer._norm(hint).split():
+        text = ""                                 # whisper ha copiado la pista («Yes. No.»): no es una respuesta
     return {"text": text, "lang": detected, "latency_ms": int((time.time() - t0) * 1000), "engine": "whisper.cpp"}
 
 
 # ---------- centralita y grafo ----------
 @app.get("/api/station")
 def get_station(lang: str | None = None):
-    st = station.station(crew_doc())
+    doc = crew_doc()
+    v = vitals.snapshot(doc)          # antes que station(): así los avisos nuevos ya salen en sus eventos
+    st = station.station(doc)
+    by = {c["id"]: c for c in v["crew"]}
+    for c in st["crew"]:
+        vc = by.get(c["id"])
+        if vc:
+            c["vitals"] = vc["now"]
+            if vc["status"] != "ok":
+                c["status"] = "alarm" if vc["status"] == "alarm" else "watch"
+    st["alerts"] = [{**a, "source": "vitals"} for a in v["alerts"]] + st["alerts"]
+    st["events"] = station.events()[:20]
     _with_lang(st["alerts"], lang); _with_lang(st["events"], lang)
     if st.get("packet"): _with_lang([st["packet"]], lang)
     return st
+
+
+@app.get("/api/vitals")
+def get_vitals(lang: str | None = None, series: bool = False):
+    """Constantes en directo del auricular (simuladas) y avisos tempranos por persona. Ver backend/vitals.py."""
+    v = vitals.snapshot(crew_doc(), with_series=series)
+    _with_lang(v["alerts"], lang)
+    return v
+
+
+@app.get("/api/vitals/{cid}")
+def get_vitals_one(cid: str, lang: str | None = None):
+    v = vitals.snapshot(crew_doc(), with_series=True)
+    c = next((x for x in v["crew"] if x["id"] == cid), None)
+    if not c: raise HTTPException(404, "tripulante no encontrado")
+    return {**c, "alerts": _with_lang([a for a in v["alerts"] if a["crew_id"] == cid], lang), "method": v["method"]}
+
+
+class ScenarioIn(BaseModel):
+    crew_id: str
+    kind: str                 # normal | deterioration | exercise | collapse
+    ramp_s: int = vitals.DEFAULT_RAMP_S
+
+
+@app.post("/api/vitals/scenario")
+def vitals_scenario(b: ScenarioIn):
+    """Para la demo: «Marco empeora» (deterioration), ejercicio, desplome o volver a normal."""
+    if b.kind not in ("normal", "deterioration", "exercise", "collapse"): raise HTTPException(400, "escenario desconocido")
+    if b.crew_id not in vitals.baselines(crew_doc()): raise HTTPException(404, "tripulante no encontrado")
+    vitals.set_scenario(b.crew_id, b.kind, b.ramp_s)
+    return {"ok": True, "crew_id": b.crew_id, "kind": b.kind, "ramp_s": b.ramp_s}
+
+
+class CheckinIn(BaseModel):
+    crew_id: str
+    text: str
+
+
+@app.post("/api/vitals/checkin")
+def vitals_checkin(b: CheckinIn):
+    """Respuesta hablada del afectado a «¿estás bien?». «Help», «alert the crew», «no»… -> se avisa a la tripulación."""
+    r = vitals.checkin(b.crew_id, b.text)
+    if r["answer"] == "help":
+        vitals.snapshot(crew_doc())   # escala ya, sin esperar a la siguiente consulta
+    return r
+
+
+@app.post("/api/vitals/reset")
+def vitals_reset():
+    vitals.reset()
+    return {"ok": True}
 
 
 class EventIn(BaseModel):
