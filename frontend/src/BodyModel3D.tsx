@@ -160,6 +160,9 @@ function build(source: GLTF, sex: Sex): Model {
     for (let i = 0; i < 3; i++) tube([[s*(male?.13:.115),.36-i*.06,.06],[s*(male?.15:.135),.34-i*.06,.1],[s*(male?.16:.145),.31-i*.06,.05]], .0005)
   }
   tube([[0,.51,-.2],[0,.66,-.23],[0,.81,-.18],[0,.88,-.12]], .003, pale)
+  // Only the veins are shown inside the body (user request): heart and lungs stay built for positions/status, but hidden.
+  heart.visible = false
+  anatomy.children.forEach(o => { if (o instanceof THREE.Mesh && o.material === lungMaterial) o.visible = false })
   const points = { skin: p(-.36,.585,.12), heart: heart.position.clone(), lungs: p(-.095,.75,.24), brain: p(0,.974,.12), eyes: p(-.035,.941,.42), ear: p(.105,.925,.01), bones: p(-(male?.14:.124),.31,.12), muscle: p(male?.13:.11,.435,.25) }
   const materials = new Map<THREE.Material, number>()
   group.traverse(o => { if (o instanceof THREE.Mesh) for (const m of Array.isArray(o.material) ? o.material : [o.material]) { materials.set(m, m.opacity); m.transparent = true } })
@@ -222,7 +225,7 @@ export default function BodyModel3D(props: Props) {
   const host = useRef<HTMLDivElement>(null), buttons = useRef<Record<string, HTMLButtonElement | null>>({})
   const latest = useRef(props)
   useEffect(() => { latest.current = props }, [props])
-  const engine = useRef<{ swap: (sex: Sex) => void; zoom: (factor: number) => void; focus: (id: string, side?: 'left' | 'right') => void; reset: () => void } | null>(null)
+  const engine = useRef<{ swap: (sex: Sex) => void; zoom: (factor: number) => void; focus: (id: string, side?: 'left' | 'right') => void; restore: () => void; reset: () => void } | null>(null)
   const [fallback, setFallback] = useState(false), [loading, setLoading] = useState(true), [zoom, setZoomValue] = useState(1)
   useEffect(() => {
     const el = host.current
@@ -257,6 +260,7 @@ export default function BodyModel3D(props: Props) {
     let angle = 0, tilt = 0, velocity = 0, magnification = 1, pan = 0, panX = 0, lastInteraction = 0, opened = false
     let focus: { mag: number; pan: number; angle: number; panX: number; speed?: number } | null = null
     let introDone = false
+    let before: { mag: number; pan: number; angle: number; panX: number } | null = null
     const limY = () => Math.max(.35, (magnification-1)*.9), limX = () => Math.max(.3, (magnification-1)*.5)
     const clampPan = () => { pan=clamp(pan,-limY(),limY()); panX=clamp(panX,-limX(),limX()) }
     const motion = matchMedia('(prefers-reduced-motion: reduce)')
@@ -277,7 +281,7 @@ export default function BodyModel3D(props: Props) {
         visible.forEach(m => { m.target=0 }); visible.push(model); active=model; pivot.add(model.group); setLoading(false)
         // Opening shot: start on the whole body, then glide in to a half-body view (waist up), centred on the chest.
         if (!introDone) { introDone = true; magnification = 1; pan = 0; panX = 0; setZoomValue(1)
-          focus = { mag: 1.85, pan: model.height * (.51 - .74), angle, panX: 0, speed: 1.6 }; interact() }
+          focus = { mag: 1.3, pan: model.height * (.51 - .64), angle, panX: 0, speed: 1.6 }; interact() }
       }).catch(() => { if (alive && request === ticket) setFallback(true) })
     }
     const focusOn = (id: string, side?: 'left' | 'right') => {
@@ -289,9 +293,11 @@ export default function BodyModel3D(props: Props) {
       const fit = Math.max(h*1.18/2/Math.tan(vfov/2), h*.64/2/Math.tan(vfov/2)/camera.aspect)
       const half = (fit/mag)*Math.tan(vfov/2)*camera.aspect
       const shiftX = side === 'left' ? half*.4 : side === 'right' ? -half*.4 : 0
+      if (!before) before = { mag: magnification, pan, angle, panX }
       focus = { mag, pan: h*.51 - point.y, angle: target, panX: shiftX }; velocity = 0; tilt = 0; interact()
     }
-    engine.current = { swap, zoom: setZoom, focus: focusOn, reset: () => { focus=null; angle=tilt=velocity=pan=panX=0; magnification=1; setZoomValue(1); interact() } }
+    const restore = () => { if (!before) return; focus = { ...before, speed: 4 }; before = null; velocity = 0; interact() }
+    engine.current = { swap, zoom: setZoom, focus: focusOn, restore, reset: () => { focus=null; angle=tilt=velocity=pan=panX=0; magnification=1; setZoomValue(1); interact() } }
     swap(latest.current.sex)
     const resize = () => { const w=el.clientWidth,h=el.clientHeight; renderer.setSize(w,h); camera.aspect=w/Math.max(h,1); camera.updateProjectionMatrix() }
     const observer = new ResizeObserver(resize); observer.observe(el); resize()
@@ -389,6 +395,8 @@ export default function BodyModel3D(props: Props) {
     }
   }, [fallback])
   useEffect(() => { engine.current?.swap(props.sex) }, [props.sex])
+  // Closing the detail panel puts the body back where it was before the zoom.
+  useEffect(() => { if (!props.selected) engine.current?.restore() }, [props.selected])
   useEffect(() => { host.current?.querySelector('canvas')?.setAttribute('aria-label',copy.figure) }, [copy.figure,loading])
   if (fallback) return <BodyFallback {...props} />
   return <>

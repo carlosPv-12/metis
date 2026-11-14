@@ -12,6 +12,7 @@ import { packetStatus } from '../station/packet'
 import { useReportQueue } from '../station/reportQueue'
 import { AccessCountdown, AccessLog, AccessNotices, AccessRequests, EmergencyButton, EmergencyDetails, PrivateDetails } from '../station/EmergencyAccess'
 import { useAccessRequests, useEmergencyAccess } from '../station/accessStore'
+import { roleOf, useSettings } from '../settings'
 import '../link.css'
 import { FALLBACK_STATION } from '../fallback'
 
@@ -60,6 +61,7 @@ export default function Station() {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id) }, [])
   const access = useEmergencyAccess(now)
+  const settings = useSettings()
   const requests = useAccessRequests()
   const st = normStation(raw)
   const actor = st.crew.find(c => c.id === crewId)
@@ -87,7 +89,7 @@ export default function Station() {
             <div key={c.id} className={`crewcard ${l}`}>
               <div className="row between"><div className="row"><CrewAvatar id={c.id} name={c.name} size={44} /><div style={{ fontSize: 20, fontWeight: 600 }}>{c.name}</div></div>
                 {l !== 'nodata' && <span className={`tag ${l}`}><Shape level={l} />{l === 'ok' ? s.fit : l === 'watch' ? s.limited : s.unfit}</span>}</div>
-              <div className="small muted">{pick(c as never, 'role', lang) || c.role}</div>
+              <div className="small muted">{roleOf(settings, c, lang)}</div>
               {(c.vitals || c.hr != null) && <div className="row between" style={{ marginTop: 14, alignItems: 'baseline' }}>
                 <span className={`mono ${c.vitals && !c.vitals.pulse ? 's-alarm' : ''}`} style={{ fontSize: 26 }}><Activity size={16} style={{ verticalAlign: -1, marginRight: 6, opacity: .7 }} />
                   {c.vitals ? (c.vitals.pulse ? Math.round(c.vitals.hr_bpm) : t('no_pulse')) : c.hr} {(!c.vitals || c.vitals.pulse) && <span className="small muted">{t('u_bpm')}</span>}</span>

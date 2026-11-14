@@ -15,13 +15,15 @@ export const DEFAULT_SEX: Record<string, Sex> = { lena: 'female', noor: 'female'
 
 export interface Settings {
   sex: Record<string, Sex>
+  /** Crew roles edited in Settings (overrides the role from the crew data). */
+  roles: Record<string, string>
   /** Mission environment / Earth link profile (see link.ts). Default 'mars' = the demo's 5-min scenario. */
   env: EnvId
   /** One-way light delay to Earth for the Mars profile, in minutes (5–20). */
   marsDelayMin: number
 }
 
-const DEFAULTS: Settings = { sex: {}, env: 'mars', marsDelayMin: 5 }
+const DEFAULTS: Settings = { sex: {}, roles: {}, env: 'mars', marsDelayMin: 5 }
 const ENVS: EnvId[] = ['iss', 'eva', 'moon', 'mars', 'blackout']
 const KEY = 'metis.settings'
 const listeners = new Set<() => void>()
@@ -32,10 +34,11 @@ function read(): Settings {
     const p = raw ? (JSON.parse(raw) as Partial<Settings>) : {}
     return {
       sex: { ...(p.sex ?? {}) },
+      roles: { ...(p.roles ?? {}) },
       env: ENVS.includes(p.env as EnvId) ? (p.env as EnvId) : DEFAULTS.env,
       marsDelayMin: typeof p.marsDelayMin === 'number' ? Math.min(20, Math.max(5, p.marsDelayMin)) : DEFAULTS.marsDelayMin,
     }
-  } catch { return { ...DEFAULTS, sex: {} } }
+  } catch { return { ...DEFAULTS, sex: {}, roles: {} } }
 }
 
 let current: Settings = read()
@@ -57,4 +60,13 @@ export function useCrewSex(crewId: string): Sex { return sexOf(useSettings(), cr
 export function setCrewSex(crewId: string, sex: Sex) { write({ ...current, sex: { ...current.sex, [crewId]: sex } }) }
 export function setEnv(env: EnvId) { write({ ...current, env }) }
 export function setMarsDelayMin(min: number) { write({ ...current, marsDelayMin: Math.min(20, Math.max(5, Math.round(min))) }) }
-export function resetSettings() { write({ ...DEFAULTS, sex: {} }) }
+export function resetSettings() { write({ ...DEFAULTS, sex: {}, roles: {} }) }
+export function setCrewRole(crewId: string, role: string) {
+  const roles = { ...current.roles }
+  if (role.trim()) roles[crewId] = role; else delete roles[crewId]
+  write({ ...current, roles })
+}
+/** The role to show for a crew member: the edited one, else the one from the crew data in the current language. */
+export function roleOf(s: Settings, c: { id: string; role?: string; role_en?: string; role_es?: string }, lang: 'en' | 'es'): string {
+  return s.roles[c.id] ?? (lang === 'es' ? c.role_es ?? c.role : c.role_en ?? c.role) ?? ''
+}

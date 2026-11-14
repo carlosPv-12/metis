@@ -7,6 +7,7 @@ import { useLoad } from './hooks'
 import { useLang } from './i18n'
 import { useCrew } from './ui'
 import CrewAvatar from './CrewAvatar'
+import { roleOf, useSettings } from './settings'
 
 const TXT = {
   en: { pick: 'Choose crew member', crew: 'Crew' },
@@ -17,6 +18,7 @@ export default function CrewSwitch() {
   const { lang } = useLang()
   const s = TXT[lang]
   const { crewId, setCrewId } = useCrew()
+  const settings = useSettings()
   const { data } = useLoad(api.station)
   const crew = data?.crew ?? [{ id: 'lena', name: 'Lena', role_en: '', role_es: '' }, { id: 'marco', name: 'Marco', role_en: '', role_es: '' }]
   const cur = crew.find(c => c.id === crewId) ?? crew[0]
@@ -44,7 +46,7 @@ export default function CrewSwitch() {
       {open && (
         <div className="crew-menu" role="listbox" aria-label={s.crew}>
           {crew.map(c => {
-            const role = lang === 'es' ? c.role_es : c.role_en
+            const role = roleOf(settings, c, lang)
             return (
               <button key={c.id} type="button" role="option" aria-selected={c.id === crewId} className={c.id === crewId ? 'on' : ''} onClick={() => choose(c.id)}>
                 <CrewAvatar id={c.id} name={c.name} size={36} />

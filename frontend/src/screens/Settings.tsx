@@ -11,11 +11,16 @@ import { useLoad } from '../hooks'
 import { useLang, useT } from '../i18n'
 import { useCrew } from '../ui'
 import References from './References'
-import { DEFAULT_SEX, SETTINGS_LABEL, setEnv, setMarsDelayMin, resetSettings, setCrewSex, sexOf, useSettings, type Sex } from '../settings'
+import { DEFAULT_SEX, SETTINGS_LABEL, setEnv, setMarsDelayMin, resetSettings, setCrewSex, sexOf, useSettings, type Sex, roleOf, setCrewRole } from '../settings'
 import '../settings-page.css'
 
 const TABS = ['crew', 'connection', 'environment', 'bodies', 'mockup', 'references'] as const
 type Tab = typeof TABS[number]
+
+const ROLE_TXT = {
+  en: { title: 'Roles', field: 'Role of' },
+  es: { title: 'Roles', field: 'Rol de' },
+}
 
 const COPY = {
   en: {
@@ -116,9 +121,18 @@ export default function Settings() {
             {crew.map(c => <button key={c.id} type="button" className={`settings-crew-card ${crewId === c.id ? 'is-selected' : ''}`}
               aria-pressed={crewId === c.id} onClick={() => setCrewId(c.id)}>
               <CrewAvatar id={c.id} name={c.name} size={80} />
-              <span className="settings-crew-copy"><strong>{c.name}</strong><span>{lang === 'es' ? c.role_es : c.role_en}</span></span>
+              <span className="settings-crew-copy"><strong>{c.name}</strong><span>{roleOf(settings, c, lang)}</span></span>
               {crewId === c.id && <span className="settings-selected"><span aria-hidden="true">✓ </span>{s.selected}</span>}
             </button>)}
+          </div>}
+          {tab === 'crew' && <div className="settings-roles">
+            <h3>{ROLE_TXT[lang].title}</h3>
+            {crew.map(c => <label key={c.id} className="settings-role-row">
+              <CrewAvatar id={c.id} name={c.name} size={36} />
+              <span className="settings-role-name">{c.name}</span>
+              <input type="text" value={roleOf(settings, c, lang)} maxLength={60} aria-label={`${ROLE_TXT[lang].field} ${c.name}`}
+                onChange={e => setCrewRole(c.id, e.target.value)} />
+            </label>)}
           </div>}
 
           {tab === 'connection' && <div className="settings-control-list">
