@@ -1,4 +1,5 @@
 // Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026
+import { useEffect, useState } from 'react'
 // "Today": Metis speaks first, status vs. personal baseline, key deviations, earpiece, Earth delay.
 import { useNavigate } from 'react-router-dom'
 import { Ear, Orbit, Play, Square, MessageCircle, Siren, BatteryMedium } from 'lucide-react'
@@ -6,7 +7,7 @@ import { api, type Metric } from '../api'
 import { IndicatorButton } from '../IndicatorSheet'
 import { fmtLinkDelay, useLink } from '../link'
 import { useLoad, useSpeaker } from '../hooks'
-import { useLang, useT } from '../i18n'
+import { habitatTime, useLang, useT } from '../i18n'
 import { Card, DEC, LevelTag, Loading, METRICS, MetisLine, Page, Shape, Spark, UNIT, fmt, levelOf, useCrew } from '../ui'
 
 /** Sentence for the sleep × CO₂ match: n = 0 (no match), 1 or 2–3 (plural). */
@@ -27,6 +28,8 @@ export function matchN(days: { mission_day: number; sleep_h: number; co2_night_p
 
 export default function Greeting() {
   const t = useT(); const { lang } = useLang(); const { crewId } = useCrew(); const nav = useNavigate()
+  const [clock, setClock] = useState(() => Date.now())
+  useEffect(() => { const id = setInterval(() => setClock(Date.now()), 30000); return () => clearInterval(id) }, [])
   const { data: c } = useLoad(() => api.crewOne(crewId), [crewId])
   const { data: say } = useLoad(() => api.say(crewId, lang), [crewId, lang])
   const { data: st } = useLoad(api.station)
@@ -45,7 +48,7 @@ export default function Greeting() {
     return `${220 + Math.cos(angle) * radius},${80 + Math.sin(angle) * radius}`
   }
   return (
-    <Page title={`${t('good_morning')}, ${c.name}`}>
+    <Page title={`${t('good_morning')}, ${c.name}`} sub={`${t('mission_day')} 112, ${t('habitat_time')} ${habitatTime(clock)}`}>
       <div className="grid today-hero">
         <Card className="today-intro" title={t('metis_says')}>
           <MetisLine speaking={sp.speaking}>

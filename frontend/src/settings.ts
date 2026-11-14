@@ -7,7 +7,7 @@ import { useSyncExternalStore } from 'react'
 export type Sex = 'female' | 'male'
 export type EnvId = 'iss' | 'eva' | 'moon' | 'mars' | 'blackout'
 
-export const SETTINGS_LABEL = { en: 'Settings', es: 'Ajustes' } as const
+export const SETTINGS_LABEL = { en: 'Simulator settings', es: 'Ajustes del simulador' } as const
 export const REFERENCES_LABEL = { en: 'References', es: 'Referencias' } as const
 
 /** Defaults from the crew data (Spanish roles: "Ingeniera (ficticia)", "Oficial médica (ficticia)", "(ficticio)"). */

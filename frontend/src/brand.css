@@ -19,7 +19,7 @@
 }
 body { background: white; color: var(--text); font-weight: 400 }
 body::before { content: none }
-.shell { height: 100dvh; margin: 0; grid-template-columns: 216px minmax(0,1fr); grid-template-rows: 86px minmax(0,1fr); border-radius: 0; overflow: hidden; background: white; box-shadow: none }
+.shell { height: 100dvh; margin: 0; grid-template-columns: 216px minmax(0,1fr); grid-template-rows: minmax(0,1fr); border-radius: 0; overflow: hidden; background: white; box-shadow: none }
 header.top { background: white; backdrop-filter: none; border: 0; padding: 0 28px; gap: 18px }
 .brand { font-family: var(--display); font-weight: 900; text-transform: uppercase; letter-spacing: .06em; font-size: 23px; width: 170px; flex-shrink: 0 }
 .brand .orb { width: 35px; height: 35px; background: none; border: 3px solid var(--deep); box-shadow: none }
@@ -350,7 +350,7 @@ input.field::placeholder { color: #4A5468 }
 .bodywrap.figure:has(.body-model) {
   margin-right: -30px; margin-bottom: -40px;
   border-radius: 30px 0 0 30px;
-  --figure-height: calc(100dvh - 86px - 118px); height: var(--figure-height);
+  --figure-height: calc(100dvh - 118px); height: var(--figure-height);
 }
 @media (max-width: 1400px) { .bodywrap.figure:has(.body-model) { margin-right: -24px; margin-bottom: -36px } }
 
@@ -379,7 +379,7 @@ input.field::placeholder { color: #4A5468 }
 .page:has(.body-model) > .row { position: relative; z-index: 3; pointer-events: none }
 .bodywrap.figure:has(.body-model) {
   margin-top: calc(-1 * (24px + 85px));
-  --figure-height: calc(100dvh - 86px); height: var(--figure-height);
+  --figure-height: 100dvh; height: var(--figure-height);
   border-radius: 0 0 0 30px;
 }
 @media (max-width: 1400px) { .bodywrap.figure:has(.body-model) { margin-top: calc(-1 * (22px + 85px)) } }
@@ -447,3 +447,33 @@ input.field::placeholder { color: #4A5468 }
 /* No visible scrollbars anywhere: every screen and inner panel still scrolls (wheel, trackpad, keyboard, touch). */
 html, body, main.content, * { scrollbar-width: none; -ms-overflow-style: none }
 html::-webkit-scrollbar, body::-webkit-scrollbar, main.content::-webkit-scrollbar, *::-webkit-scrollbar { display: none; width: 0; height: 0 }
+
+/* No top bar: the Metis mark sits at the top of the left rail; content uses the full height */
+header.top { display: none }
+.rail { grid-row: 1 / -1; padding-top: 22px }
+.rail .rail-brand { width: auto; padding: 4px 14px 18px; display: flex; align-items: center; gap: 10px }
+main.content { grid-row: 1 / -1 }
+/* Today: small mission day + habitat time under the greeting */
+.page:has(.today-hero) .sub { font-family: var(--mono); font-size: 13px; color: var(--muted); margin: 2px 0 18px }
+
+/* More breathing room above page titles now that there is no top bar */
+main.content { padding-top: 48px }
+@media (max-width: 1400px) { main.content { padding-top: 40px } }
+.bodywrap.figure:has(.body-model) { margin-top: calc(-1 * (48px + 85px)) }
+@media (max-width: 1400px) { .bodywrap.figure:has(.body-model) { margin-top: calc(-1 * (40px + 85px)) } }
+
+/* Always win: no scrollbars anywhere (panels keep scrolling) and no border/focus frame around scrolling panels */
+*, *::before, *::after { scrollbar-width: none !important; -ms-overflow-style: none !important }
+*::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important }
+.body-details, .body-details:focus, .body-details:focus-visible,
+dialog, dialog:focus, dialog:focus-visible,
+[tabindex="-1"]:focus, [tabindex="-1"]:focus-visible,
+.chat:focus, .log:focus, main.content:focus { outline: none !important }
+.body-details { border: 0 !important }
+
+/* Scrolling panels: no hard border, the content fades softly at the top and bottom edges instead */
+.bodywrap.figure .body-panel, .body-details, .chat, .log {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+          mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+  border: 0 !important;
+}

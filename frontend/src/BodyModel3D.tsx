@@ -24,10 +24,10 @@ const COPY = {
   es: { figure: 'Cuerpo completo interactivo. Arrastra para girar; usa la rueda o pellizca para ampliar.', zoomIn: 'Acercar', zoomOut: 'Alejar', reset: 'Restablecer vista', controls: 'Controles del cuerpo', loading: 'Cargando cuerpo…', level: { ok: 'normal', watch: 'atención', alarm: 'urgente', nodata: 'sin medir' } },
 }
 const clamp = THREE.MathUtils.clamp
-type Model = { group: THREE.Group; heart: THREE.Group; height: number; points: Record<string, THREE.Vector3>; opacity: number; target: number; materials: Map<THREE.Material, number> }
+type Model = { group: THREE.Group; heart: THREE.Group; height: number; points: Record<string, THREE.Vector3>; opacity: number; target: number; materials: Map<THREE.Material, number>; glows: Map<string, THREE.Sprite> }
 function dispose(group: THREE.Object3D) {
   const geometries = new Set<THREE.BufferGeometry>(), materials = new Set<THREE.Material>()
-  group.traverse(o => { if (o instanceof THREE.Mesh) { geometries.add(o.geometry); for (const m of Array.isArray(o.material) ? o.material : [o.material]) materials.add(m) } })
+  group.traverse(o => { if (o instanceof THREE.Mesh || o instanceof THREE.Sprite) { if (o instanceof THREE.Mesh) geometries.add(o.geometry); for (const m of Array.isArray(o.material) ? o.material : [o.material]) materials.add(m) } })
   geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose())
 }
 function build(source: GLTF, sex: Sex): Model {
@@ -102,7 +102,7 @@ function build(source: GLTF, sex: Sex): Model {
   const points = { heart: heart.position.clone(), lungs: p(-.095,.75,.24), brain: p(0,.974,.12), eyes: p(-.035,.941,.42), ear: p(.105,.925,.01), bones: p(-(male?.14:.124),.31,.12), muscle: p(male?.13:.11,.435,.25) }
   const materials = new Map<THREE.Material, number>()
   group.traverse(o => { if (o instanceof THREE.Mesh) for (const m of Array.isArray(o.material) ? o.material : [o.material]) { materials.set(m, m.opacity); m.transparent = true } })
-  return { group, heart, height: h, points, opacity: 0, target: 1, materials }
+  return { group, heart, height: h, points, opacity: 0, target: 1, materials, glows: new Map() }
 }
 
 type Props = { hotspots: Hotspot[]; selected?: string | null; onSelect: (id: string) => void; sex: Sex }
@@ -111,7 +111,7 @@ export default function BodyModel3D(props: Props) {
   const host = useRef<HTMLDivElement>(null), buttons = useRef<Record<string, HTMLButtonElement | null>>({})
   const latest = useRef(props)
   useEffect(() => { latest.current = props }, [props])
-  const engine = useRef<{ swap: (sex: Sex) => void; zoom: (factor: number) => void; focus: (id: string) => void; reset: () => void } | null>(null)
+  const engine = useRef<{ swap: (sex: Sex) => void; zoom: (factor: number) => void; focus: (id: string, side?: 'left' | 'right') => void; reset: () => void } | null>(null)
   const [fallback, setFallback] = useState(false), [loading, setLoading] = useState(true), [zoom, setZoomValue] = useState(1)
   useEffect(() => {
     const el = host.current
@@ -133,10 +133,19 @@ export default function BodyModel3D(props: Props) {
     const shadowTexture = new THREE.CanvasTexture(shadowCanvas)
     const shadow = new THREE.Mesh(new THREE.PlaneGeometry(.85,.55),new THREE.MeshBasicMaterial({ map: shadowTexture, transparent: true, depthWrite: false }))
     shadow.rotation.x=-Math.PI/2; shadow.position.y=-.006; scene.add(shadow)
+    // One shared soft texture; each model owns sprites at its calibrated organ points.
+    const glowCanvas = document.createElement('canvas'); glowCanvas.width = glowCanvas.height = 128
+    const glowContext = glowCanvas.getContext('2d')!
+    const glowGradient = glowContext.createRadialGradient(64,64,0,64,64,64)
+    glowGradient.addColorStop(0, 'rgba(255,255,255,1)')
+    glowGradient.addColorStop(.35, 'rgba(255,255,255,.65)')
+    glowGradient.addColorStop(1, 'rgba(255,255,255,0)')
+    glowContext.fillStyle = glowGradient; glowContext.fillRect(0,0,128,128)
+    const glowTexture = new THREE.CanvasTexture(glowCanvas)
     let alive = true, ticket = 0, raf = 0, previous = 0, active: Model | undefined
     const visible: Model[] = []
     let angle = 0, tilt = 0, velocity = 0, magnification = 1, pan = 0, panX = 0, lastInteraction = 0, opened = false
-    let focus: { mag: number; pan: number; angle: number } | null = null
+    let focus: { mag: number; pan: number; angle: number; panX: number } | null = null
     const limY = () => Math.max(.35, (magnification-1)*.9), limX = () => Math.max(.3, (magnification-1)*.5)
     const clampPan = () => { pan=clamp(pan,-limY(),limY()); panX=clamp(panX,-limX(),limX()) }
     const motion = matchMedia('(prefers-reduced-motion: reduce)')
@@ -148,14 +157,25 @@ export default function BodyModel3D(props: Props) {
       load(sex).then(source => {
         if (!alive || request !== ticket) return
         const model = build(source,sex)
+        for (const [id, point] of Object.entries(model.points)) {
+          const material = new THREE.SpriteMaterial({ map: glowTexture, transparent: true, opacity: 0, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending })
+          const glow = new THREE.Sprite(material)
+          glow.position.copy(point); glow.scale.setScalar(model.height * .14); glow.renderOrder = 5
+          model.group.add(glow); model.glows.set(id, glow)
+        }
         visible.forEach(m => { m.target=0 }); visible.push(model); active=model; pivot.add(model.group); setLoading(false)
       }).catch(() => { if (alive && request === ticket) setFallback(true) })
     }
-    const focusOn = (id: string) => {
+    const focusOn = (id: string, side?: 'left' | 'right') => {
       const point = active?.points[id]; if (!point || !active) return
-      // Turn that part towards the camera, centre it and zoom in.
+      // Turn that part towards the camera and zoom in. The detail panel opens on `side`, so the body slides the other
+      // way: panel on the left -> the zone ends up on the right of the view, and vice versa.
       let target = Math.atan2(-point.x, point.z); const turn = ((target - angle + Math.PI) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI) - Math.PI; target = angle + turn
-      focus = { mag: 2.2, pan: active.height*.51 - point.y, angle: target }; panX = 0; velocity = 0; tilt = 0; interact()
+      const mag = 2.2, vfov = THREE.MathUtils.degToRad(camera.fov), h = active.height
+      const fit = Math.max(h*1.18/2/Math.tan(vfov/2), h*.64/2/Math.tan(vfov/2)/camera.aspect)
+      const half = (fit/mag)*Math.tan(vfov/2)*camera.aspect
+      const shiftX = side === 'left' ? half*.4 : side === 'right' ? -half*.4 : 0
+      focus = { mag, pan: h*.51 - point.y, angle: target, panX: shiftX }; velocity = 0; tilt = 0; interact()
     }
     engine.current = { swap, zoom: setZoom, focus: focusOn, reset: () => { focus=null; angle=tilt=velocity=pan=panX=0; magnification=1; setZoomValue(1); interact() } }
     swap(latest.current.sex)
@@ -193,8 +213,8 @@ export default function BodyModel3D(props: Props) {
       const height=active?.height??1.65
       if (focus) {
         const k = still() ? 1 : 1 - Math.exp(-dt*6)
-        magnification += (focus.mag-magnification)*k; pan += (focus.pan-pan)*k; angle += (focus.angle-angle)*k
-        if (Math.abs(focus.mag-magnification)<.01 && Math.abs(focus.pan-pan)<.002 && Math.abs(focus.angle-angle)<.002) { magnification=focus.mag; pan=focus.pan; angle=focus.angle; focus=null; setZoomValue(magnification) }
+        magnification += (focus.mag-magnification)*k; pan += (focus.pan-pan)*k; angle += (focus.angle-angle)*k; panX += (focus.panX-panX)*k
+        if (Math.abs(focus.mag-magnification)<.01 && Math.abs(focus.pan-pan)<.002 && Math.abs(focus.angle-angle)<.002 && Math.abs(focus.panX-panX)<.002) { magnification=focus.mag; pan=focus.pan; angle=focus.angle; panX=focus.panX; focus=null; setZoomValue(magnification) }
       }
       floor.position.set(panX,pan-.005,0); shadow.position.set(panX,pan-.006,0)
       pivot.position.set(panX,height/2+pan,0); pivot.rotation.set(tilt,angle,0)
@@ -202,6 +222,16 @@ export default function BodyModel3D(props: Props) {
         model.group.position.y=-height/2
         model.opacity=still()?model.target:THREE.MathUtils.damp(model.opacity,model.target,8,dt)
         for (const [material,base] of model.materials) { material.opacity=base*model.opacity; if (material instanceof THREE.ShaderMaterial) material.uniforms.opacity.value=model.opacity }
+        for (const [id, glow] of model.glows) {
+          const level = latest.current.hotspots.find(h => h.id === id)?.level
+          glow.visible = level === 'watch' || level === 'alarm'
+          if (glow.visible) {
+            glow.material.color.set(level === 'alarm' ? '#FF5A36' : '#F59E0B')
+            const pulse = still() ? .5 : (1 + Math.sin(now * Math.PI * 2 / 2400 + [...model.glows.keys()].indexOf(id))) / 2
+            glow.material.opacity = (.35 + .1 * pulse) * model.opacity
+            glow.scale.setScalar(model.height * (.13 + .015 * pulse))
+          }
+        }
         const beat=still()?1:1+.035*Math.pow(Math.max(0,Math.sin(now*.0068)),8); model.heart.scale.setScalar(beat)
       }
       for (let i=visible.length-1;i>=0;i--) if (!visible[i].target && visible[i].opacity<.01) { pivot.remove(visible[i].group); dispose(visible[i].group); visible.splice(i,1) }
@@ -232,7 +262,7 @@ export default function BodyModel3D(props: Props) {
     return () => {
       alive=false; ticket++; cancelAnimationFrame(raf); observer.disconnect(); document.removeEventListener('visibilitychange',visibility)
       el.removeEventListener('wheel',wheel); el.removeEventListener('pointerdown',down); el.removeEventListener('pointermove',move); el.removeEventListener('pointerup',up); el.removeEventListener('pointercancel',up); el.removeEventListener('lostpointercapture',up); canvas.removeEventListener('keydown',key); canvas.removeEventListener('webglcontextlost',lost)
-      dispose(scene); shadowTexture.dispose(); renderer.dispose(); renderer.forceContextLoss(); canvas.remove(); engine.current=null
+      dispose(scene); shadowTexture.dispose(); glowTexture.dispose(); renderer.dispose(); renderer.forceContextLoss(); canvas.remove(); engine.current=null
     }
   }, [fallback])
   useEffect(() => { engine.current?.swap(props.sex) }, [props.sex])
@@ -241,7 +271,7 @@ export default function BodyModel3D(props: Props) {
   return <>
     <div ref={host} className="body-figure body-model" aria-label={copy.figure}>
       {loading && <span className="body-model-loading" role="status">{copy.loading}</span>}
-      {props.hotspots.map(h => <button key={h.id} ref={el=>{buttons.current[h.id]=el}} type="button" aria-label={`${h.label}, ${copy.level[h.level]}`} aria-pressed={props.selected===h.id} aria-haspopup="dialog" className={`figure-hotspot${props.selected===h.id?' selected':''}`} style={{visibility:loading?'hidden':undefined}} onClick={e=>{e.currentTarget.focus({preventScroll:true});engine.current?.focus(h.id);props.onSelect(h.id)}}><span className="figure-marker" aria-hidden="true">+</span><span className={`figure-label lvl-${h.level}`}>{h.label}</span></button>)}
+      {props.hotspots.map(h => <button key={h.id} ref={el=>{buttons.current[h.id]=el}} type="button" aria-label={`${h.label}, ${copy.level[h.level]}`} aria-pressed={props.selected===h.id} aria-haspopup="dialog" className={`figure-hotspot lvl-${h.level}${props.selected===h.id?' selected':''}`} style={{visibility:loading?'hidden':undefined}} onClick={e=>{e.currentTarget.focus({preventScroll:true});const r=e.currentTarget.getBoundingClientRect(),hb=host.current?.getBoundingClientRect();const side:'left'|'right'=hb&&r.left+r.width/2-hb.left<hb.width/2?'left':'right';if(host.current)host.current.dataset.panelSide=side;engine.current?.focus(h.id,side);props.onSelect(h.id)}}><span className="figure-marker" aria-hidden="true">+</span><span className={`figure-label lvl-${h.level}`}>{h.label}</span></button>)}
     </div>
     <div className="figure-zoom" role="group" aria-label={copy.controls}>
       <button type="button" aria-label={copy.zoomOut} title={copy.zoomOut} disabled={zoom<=.8} onClick={()=>engine.current?.zoom(1/1.2)}>−</button>
