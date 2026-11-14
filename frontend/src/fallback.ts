@@ -20,7 +20,7 @@ export const FALLBACK_THRESHOLDS: Threshold[] = [
 export const FALLBACK_STATION: Station = {
   mission_day: 112,
   crew: [
-    { id: 'lena', name: 'Lena', role_en: 'Flight engineer', role_es: 'Ingeniera de vuelo', status: 'watch', location: 'Crew quarters', hr: 66, alerts: ['sleep', 'co2'], note_en: 'Short sleep · bunk CO₂ peaks', note_es: 'Poco sueño · picos de CO₂ en la litera' },
+    { id: 'lena', name: 'Lena', role_en: 'Flight engineer', role_es: 'Ingeniera de vuelo', status: 'watch', location: 'Crew quarters', hr: 66, alerts: ['sleep', 'co2'], note_en: 'Short sleep, bunk CO₂ peaks', note_es: 'Poco sueño, picos de CO₂ en la litera' },
     { id: 'marco', name: 'Marco', role_en: 'Non-medical crewmember', role_es: 'Tripulante no médico', status: 'ok', location: 'Lab', hr: 63, alerts: [] },
     { id: 'noor', name: 'Noor', role_en: 'Crew medical officer', role_es: 'Oficial médica', status: 'ok', location: 'Galley', hr: 61, alerts: [] },
     { id: 'kenji', name: 'Kenji', role_en: 'Commander', role_es: 'Comandante', status: 'ok', location: 'Node', hr: 57, alerts: [] },
@@ -55,10 +55,10 @@ export const FALLBACK_GRAPH: Graph = {
     { id: 'marco', type: 'crew', label_en: 'Marco', label_es: 'Marco' },
     { id: 'noor', type: 'crew', label_en: 'Noor (CMO)', label_es: 'Noor (CMO)' },
     { id: 'kenji', type: 'crew', label_en: 'Kenji (CDR)', label_es: 'Kenji (CDR)' },
-    { id: 'metis_lena', type: 'metis', label_en: 'Metis · Lena', label_es: 'Metis · Lena' },
-    { id: 'metis_marco', type: 'metis', label_en: 'Metis · Marco', label_es: 'Metis · Marco' },
-    { id: 'metis_noor', type: 'metis', label_en: 'Metis · Noor', label_es: 'Metis · Noor' },
-    { id: 'metis_kenji', type: 'metis', label_en: 'Metis · Kenji', label_es: 'Metis · Kenji' },
+    { id: 'metis_lena', type: 'metis', label_en: 'Lena’s Metis', label_es: 'Metis de Lena' },
+    { id: 'metis_marco', type: 'metis', label_en: 'Marco’s Metis', label_es: 'Metis de Marco' },
+    { id: 'metis_noor', type: 'metis', label_en: 'Noor’s Metis', label_es: 'Metis de Noor' },
+    { id: 'metis_kenji', type: 'metis', label_en: 'Kenji’s Metis', label_es: 'Metis de Kenji' },
     { id: 'console', type: 'station', label_en: 'Station console', label_es: 'Centralita' },
     { id: 'triage', type: 'knowledge', label_en: 'Triage tree', label_es: 'Árbol de triaje' },
     { id: 'baseline', type: 'knowledge', label_en: 'Personal baselines', label_es: 'Líneas base personales' },

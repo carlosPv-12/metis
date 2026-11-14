@@ -183,7 +183,7 @@ export function EarSwitch() {
     <>
       {!canSpeak && ear.on && <span className="tag sim" title={t('audio_click_tip')}><Volume2 size={13} style={{ verticalAlign: -2 }} /> {t('audio_click')}</span>}
       <button className={`pill ${ear.on ? 'ok' : ''}`} onClick={ear.toggle} style={{ cursor: 'pointer' }}
-        title={`${ear.on ? t('ear_mute_tip') : t('ear_unmute_tip')}${ear.heard ? ` · ${t('heard')}: «${ear.heard}»` : ''}`}>
+        title={`${ear.on ? t('ear_mute_tip') : t('ear_unmute_tip')}${ear.heard ? `. ${t('heard')}: «${ear.heard}»` : ''}`}>
         {ear.on && <span className={`dot ${live ? 'pulse' : ''}`} style={{ background: live ? 'var(--metis)' : 'var(--ok)' }} />}
         {!ear.on ? <EarOff size={14} /> : ear.state === 'conversation' ? <MessageCircle size={14} /> : <Ear size={14} />}{label}
       </button>

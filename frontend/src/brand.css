@@ -1,0 +1,449 @@
+/* Metis · Space Apps 2026. Clinical status hues are the safety exception. */
+/* Use system side-bearings only for the middle-dot separator, in every font stack. */
+@font-face {
+  font-family: 'Metis Sep';
+  src: local('Helvetica Neue'), local('Helvetica'), local('Arial');
+  font-style: normal;
+  font-weight: 100 900;
+  unicode-range: U+00B7;
+}
+:root {
+  --bg: #FFFFFF; --bg2: #F1F5FB; --panel: #FFFFFF; --panel2: #EEF2F8;
+  --line: #E3E9F2; --line2: #D7DFEC; --text: #07173F; --muted: #4A5468; --dim: #4A5468;
+  --ok: #0A7A52; --ok-bg: #EDF8F2; --warn: #B45309; --warn-bg: #FFF4E8;
+  --alarm: #E43700; --alarm-bg: #FFF1EC; --info: #0960E1; --info-bg: #EDF4FF;
+  --metis: #0960E1; --holo: #2E96F5; --yellow: #EAFE07; --deep: #07173F;
+  --r: 28px; --r-sm: 20px; --sans: 'Metis Sep', 'Overpass', system-ui, sans-serif; --mono: 'Metis Sep', 'Fira Code', monospace;
+  --display: 'Metis Sep', 'Fira Sans', sans-serif;
+  color-scheme: light;
+}
+body { background: white; color: var(--text); font-weight: 400 }
+body::before { content: none }
+.shell { height: 100dvh; margin: 0; grid-template-columns: 216px minmax(0,1fr); grid-template-rows: 86px minmax(0,1fr); border-radius: 0; overflow: hidden; background: white; box-shadow: none }
+header.top { background: white; backdrop-filter: none; border: 0; padding: 0 28px; gap: 18px }
+.brand { font-family: var(--display); font-weight: 900; text-transform: uppercase; letter-spacing: .06em; font-size: 23px; width: 170px; flex-shrink: 0 }
+.brand .orb { width: 35px; height: 35px; background: none; border: 3px solid var(--deep); box-shadow: none }
+/* Every Metis mark shares the logo's breathing orbit and travelling moon.
+   Percentages scale the same geometry from the 32px mark to the 96px PTT. */
+.orb, .ptt { position: relative; rotate: -25deg; --halo-color: var(--deep); --halo-period: 12s }
+.ptt > * { rotate: 25deg }
+.orb::before, .ptt::before {
+  content: ''; position: absolute; inset: 20% -23%; border: 1px solid var(--halo-color);
+  border-radius: 50%; pointer-events: none; animation: brand-precession var(--halo-period) ease-in-out infinite;
+}
+.orb::after, .ptt::after {
+  content: ''; position: absolute; width: 31.43%; height: 31.43%; left: 0; top: 0;
+  border-radius: 50%; background: var(--yellow); box-shadow: 0 0 0 3px white;
+  offset-path: ellipse(65% 20% at 50% 50%); offset-distance: 12.5%; offset-rotate: 0deg;
+  pointer-events: none; animation: brand-moon var(--halo-period) ease-in-out infinite;
+}
+.top .day { font-size: 11px; gap: 16px }
+.top .day > span { display: flex; flex-direction: column; gap: 2px }
+.seg, .pill { background: #EEF2F8; border-color: transparent; padding: 4px; color: var(--deep) }
+.seg button { font-weight: 600; padding: 7px 12px; color: var(--muted) }
+.seg button.on { background: var(--deep); color: white; box-shadow: none }
+.pill { padding: 8px 13px; font-weight: 600 }
+.pill.ok { background: #EEF2F8; color: var(--deep); border-color: transparent }
+.top .pill.ok:not(.conn) { flex-direction: row-reverse; padding: 4px 4px 4px 14px }
+.top .pill:not(.conn) .dot { width: 32px; height: 32px; background: var(--deep) !important; position: relative }
+.top .pill:not(.conn) .dot::after { content: ''; position: absolute; inset: 12px; background: var(--yellow); border-radius: 50% }
+.pill.conn { min-height: 42px; padding: 8px 13px; gap: 9px; color: var(--deep); background: #EEF2F8; border-color: transparent }
+.pill.conn .dot { position: relative; flex: none; width: 8px; height: 8px; border-radius: 50%; animation: none }
+.pill.conn.online .dot { background: #0A7A52 }
+.pill.conn.online .dot::after { content: ''; position: absolute; inset: -3px; border: 1px solid #0A7A52; border-radius: 50%; pointer-events: none; animation: connection-live 4s ease-in-out infinite }
+.pill.conn.standalone .dot { background: transparent; border: 2px solid #B45309 }
+.pill.conn.checking { color: #4A5468 }
+.pill.conn.checking .dot { background: #697386; animation: connection-checking 3s ease-in-out infinite }
+.dot.pulse { animation: signal 1.6s ease-in-out infinite }
+nav.rail { border: 0; background: white; padding: 14px 12px 20px 20px; gap: 4px }
+.rail .grp { font-weight: 600; font-size: 10px; letter-spacing: .13em; padding: 18px 16px 8px }
+.rail a { border-radius: 999px; padding: 11px 15px; font-size: 14px; font-weight: 600 }
+.rail a:hover { background: #EEF2F8 }
+.rail a.active { color: white; background: var(--deep); box-shadow: none }
+.rail a.active svg { color: var(--yellow); opacity: 1 }
+.rail .foot { background: #F1F5FB; border-radius: 22px; padding: 16px; margin-top: 26px }
+main.content { min-width: 0; padding: 24px 30px 40px; background: white; scrollbar-color: #D7DFEC transparent }
+.page { max-width: 1440px }
+.page-heading { margin-bottom: 26px }
+.h1 { font-family: var(--display); font-size: clamp(32px, 3vw, 44px); font-weight: 900; text-transform: uppercase; letter-spacing: .05em; line-height: 1.12; margin-bottom: 10px; overflow-wrap: anywhere }
+.sub { font-size: 17px; font-weight: 400; margin-bottom: 0; max-width: 780px }
+.grid { gap: 20px; min-width: 0 }
+.grid > *, .row > * { min-width: 0 }
+.card, .crewcard { background: white; border: 1px solid #E3E9F2; border-radius: 28px; padding: 24px; box-shadow: 0 7px 30px #07173F05 }
+.card h3 { font-size: 12px; font-weight: 600; letter-spacing: .1em; gap: 8px; margin-bottom: 20px; flex-wrap: wrap }
+.card h3 .r { font-size: 11px }
+.feature { background: var(--deep); color: white; border-color: transparent; --muted: #FFFFFF; --dim: #FFFFFF; --text: #FFFFFF; --metis: #EAFE07; --info: #EAFE07; --line: #FFFFFF40 }
+.feature h3 { color: white }
+.feature .s-ok, .feature .s-watch, .feature .s-alarm { color: var(--yellow) }
+.feature .tag { --muted: #07173F; color: var(--deep) }
+.feature a { color: var(--yellow) }
+.feature-gradient { background: linear-gradient(135deg,#0042A6,#07173F) }
+a { color: #0960E1; text-underline-offset: 4px }
+a:hover { color: #E43700 }
+.btn { background: #EEF2F8; border-color: transparent; border-radius: 999px; padding: 12px 18px; color: var(--deep); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .04em }
+.btn:hover { background: #E3E9F2; border-color: #D7DFEC }
+.btn.primary, .btn.primary:hover { background: #EAFE07; color: #07173F; border-color: transparent }
+.btn.primary:hover { box-shadow: 0 4px 18px #07173F18 }
+.btn.danger, .btn.danger:hover { background: #E43700; color: white; font-weight: 700 }
+.btn.big { border-radius: 999px; font-size: 14px }
+.btn.ghost { color: var(--info); text-decoration: underline }
+.btn:disabled { opacity: 1; filter: grayscale(1); color: #4A5468; background: #EEF2F8 }
+.tag { font-weight: 600; font-size: 11px; border: 0; padding: 5px 9px; white-space: normal }
+.tag.real { background: #EDF4FF; color: #0042A6 }
+.tag.sim { color: #4A5468; background: #EEF2F8 }
+.metis-line .orb { position: relative; background: radial-gradient(circle, #EAFE07 0 12%, #07173F 14% 30%, #ffffff88 31% 32%, #07173F 34% 48%, #ffffff66 49% 50%, #07173F 52%); box-shadow: 0 0 0 5px #07173F07 }
+.metis-line .orb.speaking { animation: orbit-ripple 1.8s ease-out infinite }
+.quote { font-size: 22px; line-height: 1.5; font-weight: 300 }
+.stat .lbl { font-size: 13px; font-weight: 600 }
+/* Proportional punctuation keeps decimals compact; tabular digits keep readings steady. */
+.stat .val, .metric-value, .timer {
+  font-family: var(--display); font-weight: 800;
+  font-variant-numeric: tabular-nums; letter-spacing: normal;
+}
+.metric-value .small { font-family: var(--sans); font-weight: 400 }
+.stat .val { color: var(--text); font-size: 38px; line-height: 1.5 }
+.stat .val small { font-weight: 400; font-family: var(--sans); font-size: 13px }
+.stat svg { margin-top: 14px }
+/* Sparkline spacing must not push severity symbols down inside tags. */
+.tag > svg, .stat .tag > svg { display: block; flex: none; align-self: center; margin: 0 }
+.earpiece-viewer {
+  position: relative; height: 300px; border-radius: 24px; overflow: hidden;
+  background: radial-gradient(ellipse at 40% 35%, #0042A6, #07173F 75%);
+}
+.earpiece-viewer canvas { display: block }
+.earpiece-fallback { position: absolute; inset: 0; width: 100%; height: 100% }
+.earpiece-viewer[data-webgl="ready"] .earpiece-fallback { display: none }
+
+.bar { height: 4px; background: #E3E9F2 }
+.bar > i { background: #0960E1 }
+table.t { font-size: 13px; table-layout: auto }
+table.t th { color: #4A5468; font-weight: 600; font-size: 10px; padding: 12px 8px }
+table.t td { border-color: #E3E9F2; padding: 13px 8px; overflow-wrap: anywhere }
+table.t tbody tr:hover { background: #F1F5FB }
+.tooltip, .tip .tooltip { background: #07173F; color: white; border: none; border-radius: 18px; box-shadow: 0 12px 35px #07173F25; z-index: 30; --muted: #FFFFFF; --dim: #FFFFFF; --text: #FFFFFF; --ok: #FFFFFF; --warn: #EAFE07 }
+.recharts-default-tooltip { color: white !important; background: #07173F !important; border: 0 !important; border-radius: 18px !important; padding: 14px !important; box-shadow: 0 12px 35px #07173F25 }
+.recharts-tooltip-item, .recharts-tooltip-label { color: white !important }
+.recharts-cartesian-grid line { stroke: #E3E9F2; stroke-dasharray: 3 5 }
+.recharts-cartesian-axis text { fill: #4A5468; font-family: var(--mono); font-size: 10px }
+.bubble.metis { background: #F1F5FB; border-color: transparent; color: #07173F; border-radius: 22px 22px 22px 6px }
+.bubble.me { background: #07173F; border-color: transparent; color: white; border-radius: 22px 22px 6px 22px }
+.chip { background: #EEF2F8; border-color: transparent; color: #07173F }
+.chip:hover { border-color: #07173F }
+input.field { background: #EEF2F8; color: #07173F; border-color: transparent; border-radius: 999px; padding: 15px 20px }
+input.field::placeholder { color: #4A5468 }
+.ptt { position: relative; background: #EAFE07; color: #07173F; box-shadow: 0 0 0 10px #07173F08, 0 0 0 24px #07173F04, 0 0 0 25px #07173F12 }
+.ptt.rec { background: #E43700; color: white; box-shadow: 0 0 0 12px #E4370015, 0 0 0 25px #E4370009 }
+.tq { font-family: var(--display); font-weight: 800; color: #07173F }
+.opt { background: white; border: 1px solid #E3E9F2; border-radius: 20px; color: #07173F; padding: 22px 26px; transition: box-shadow .2s, border-color .2s }
+.opt:hover { background: white; border-color: #07173F; box-shadow: inset 6px 0 #EAFE07 }
+.lvl { color: #07173F; background: white; border: 1px solid #E3E9F2; border-left: 7px solid var(--level-color); background-image: linear-gradient(var(--level-tint),var(--level-tint)); background-size: 100% 80px; background-repeat: no-repeat }
+.lvl.rojo { --level-color: #E43700; --level-tint: #FFF1EC }
+.lvl.naranja, .lvl.amarillo { --level-color: #B45309; --level-tint: #FFF4E8 }
+.lvl.verde { --level-color: #0A7A52; --level-tint: #EDF8F2 }
+.crewcard.alarm { background: white; border-color: #E43700; box-shadow: inset 0 5px #E43700 }
+.crewcard.watch { border-color: #B45309 }
+.crew-avatar { display: inline-grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: #07173F; color: #EAFE07; font-family: var(--display); font-weight: 900; font-size: 15px; flex: none }
+.log { font-family: var(--sans); gap: 0 }
+.log .e { background: white; border-left: 1px solid #D7DFEC; border-radius: 0; position: relative; margin-left: 6px; padding: 13px 15px }
+.log .e::before { content: ''; position: absolute; left: -4px; top: 20px; width: 7px; height: 7px; background: #0960E1; border-radius: 50%; box-shadow: 0 0 0 4px white }
+.log .e > :first-child { font-family: var(--mono); font-size: 11px }
+.bodywrap { background: radial-gradient(ellipse at 50% 40%, #0042A6, #07173F 75%); border: 0; border-radius: 30px; height: max(580px,calc(100dvh - 275px)) }
+.hotlist button { border-radius: 999px; padding: 14px 16px; margin: 4px 0 }
+.hotlist button.on { color: white; background: #07173F; box-shadow: none }
+.hotlist button.on > svg { color: #EAFE07 }
+.hotspot { background: white; color: #07173F; border: 1px solid white; border-radius: 999px; box-shadow: 0 0 0 4px #FFFFFF20; padding: 6px 10px 6px 5px }
+.hotspot.selected { background: #EAFE07; border-color: #EAFE07; box-shadow: 0 0 0 5px #EAFE0720,0 0 0 10px #EAFE0710 }
+.hotspot-plus { display: grid; place-items: center; width: 21px; height: 21px; border-radius: 50%; border: 1px solid #07173F30; font-size: 16px; font-weight: 600 }
+.today-hero { grid-template-columns: minmax(0,1.4fr) minmax(300px,1fr); align-items: stretch }
+.today-intro { padding: 12px 8px 12px 0; box-shadow: none; border: 0 }
+.page:has(.today-hero) .h1 { font-size: clamp(42px,4vw,60px); max-width: 850px }
+.today-intro .btn:not(.primary) svg { padding: 7px; width: 30px; height: 30px; background: #EAFE07; border-radius: 50% }
+.today-intro .btn:not(.primary) { padding: 5px 16px 5px 5px }
+.baseline-visual { width: 100%; height: 155px; margin: -5px 0 }
+.metric-action { display: block; width: 100%; text-align: left; padding: 0 }
+.metric-action .row { flex-wrap: wrap }
+.report-metric { grid-template-columns: minmax(120px,1.5fr) minmax(80px,1fr) minmax(60px,1fr) auto; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line) }
+.demo { color: #07173F }
+.demo .cap { background: #07173F; color: white }
+.demo .cap .who, .demo .cap .who.lena { color: #EAFE07 }
+@keyframes orbit-ripple { 0% { box-shadow: 0 0 0 0 #0960E140,0 0 0 5px #0960E115 } 100% { box-shadow: 0 0 0 15px #0960E100,0 0 0 25px #0960E100 } }
+@keyframes signal { 50% { opacity: .35 } }
+@keyframes brand-precession {
+  0%, 100% { transform: rotate(-6deg) scale(1); opacity: .85 }
+  50% { transform: rotate(6deg) scale(1.025); opacity: 1 }
+}
+@keyframes brand-moon { from { offset-distance: 12.5% } to { offset-distance: 112.5% } }
+@keyframes connection-live {
+  0%, 100% { transform: scale(1); opacity: .25 }
+  50% { transform: scale(1.35); opacity: .55 }
+}
+@keyframes connection-checking { 0%, 100% { opacity: 1 } 50% { opacity: .45 } }
+@media (max-width: 1400px) {
+  .shell { grid-template-columns: 196px minmax(0,1fr) }
+  header.top { gap: 12px; padding: 0 24px }
+  .brand { width: 148px }
+  main.content { padding: 22px 24px 36px }
+  .g4 { grid-template-columns: repeat(4,minmax(0,1fr)) }
+  .card, .crewcard { padding: 20px }
+  .stat .val { font-size: 32px }
+  .top > .row > .muted { display: none }
+  .station-modules { grid-template-columns: repeat(2,minmax(0,1fr)) !important }
+  .station-modules > :first-child { grid-row: span 2 }
+  .report-grid { grid-template-columns: minmax(0,1.5fr) minmax(270px,1fr) !important }
+}
+@media (max-width: 1100px) {
+  .shell { grid-template-columns: 72px minmax(0,1fr); margin: 0; height: 100dvh; border-radius: 0 }
+  nav.rail { padding: 10px 14px; gap: 8px }
+  .rail a { width: 44px; height: 44px; padding: 13px; border-radius: 16px }
+  .brand { width: auto; margin-right: 10px }
+  .top .day { font-size: 10px }
+  .g4 { grid-template-columns: repeat(2,minmax(0,1fr)) }
+  .report-grid { grid-template-columns: minmax(0,1fr) !important }
+  .card h3 .r { margin-left: 0 }
+}
+@media (max-width: 850px) {
+  header.top { flex-wrap: wrap; height: auto; padding: 16px; gap: 8px }
+  .shell { grid-template-rows: auto minmax(0,1fr) }
+  .top .day { display: none }
+  .g2, .g3, .today-hero, .body-grid, .how-grid, .station-modules { grid-template-columns: minmax(0,1fr) !important }
+  .station-modules > :first-child { grid-row: auto }
+  .page-heading { flex-wrap: wrap }
+  .page > .grid:has(.chat) { grid-template-columns: minmax(0,1fr) !important; height: auto !important }
+  .chat { min-height: 360px }
+  .arch-row { flex-wrap: wrap }
+  .arch-row > .row { flex-basis: 40% !important }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important }
+}
+.capture *, .capture *::before, .capture *::after { animation: none !important; transition: none !important }
+/* Keep the result panels white despite legacy severity-specific background shorthands. */
+.lvl.rojo, .lvl.naranja, .lvl.amarillo, .lvl.verde {
+  background: linear-gradient(var(--level-tint),var(--level-tint)) 0 0 / 100% 80px no-repeat, white;
+  border-color: #E3E9F2; border-left-color: var(--level-color);
+}
+.feature .bar { background: #FFFFFF30 }
+.feature .stat .val small { color: white }
+.feature .small.dim { color: white }
+/* Rocket Red/white is 4.33:1: use large bold danger labels (AA >= 3:1).
+   Small alarm text uses brand Martian Red; the safety symbol stays Rocket Red. */
+.s-alarm, .tag.alarm { color: #8E1100 }
+.s-alarm > svg, .tag.alarm > svg { color: #E43700 }
+.btn.danger, .btn.danger.big { font-size: 19px; font-weight: 700 }
+
+/* Medical figure is exclusive to /body; director mode retains the hologram. */
+.bodywrap.figure {
+  --figure-height: max(680px, calc(100dvh - 275px));
+  height: var(--figure-height); overflow: hidden; isolation: isolate;
+  background:
+    radial-gradient(ellipse at 58% 29%, #EAFE0726, transparent 40%),
+    radial-gradient(ellipse at 77% 54%, #F5C9DB45, transparent 48%),
+    radial-gradient(ellipse at 30% 67%, #2E96F514, transparent 46%), #FFFFFF;
+}
+.body-figure { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; touch-action: none; overflow: hidden }
+.body-figure.pannable { cursor: grab }
+.body-figure.pannable:active { cursor: grabbing }
+.body-figure-stage { position: relative; flex: none; width: min(72%, calc(var(--figure-height) * .75)); aspect-ratio: 3 / 4; will-change: transform }
+.body-figure-stage > img { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; user-select: none }
+.figure-hotspot {
+  position: absolute; transform: translate(-50%, -50%) scale(calc(1 / var(--figure-zoom, 1))); width: 44px; height: 44px;
+  display: grid; place-items: center; padding: 0; border: 1px solid #FFFFFF80;
+  border-radius: 50%; background: #9C9FA42B; color: #07173F; cursor: pointer;
+  box-shadow: 0 0 0 5px #D4D6D81A; z-index: 1;
+}
+.figure-marker { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: white; color: #07173F; font: 600 17px/1 var(--sans); box-shadow: 0 2px 8px #07173F12 }
+.figure-hotspot.selected .figure-marker { background: #EAFE07 }
+.figure-hotspot.selected { animation: figure-pulse 3s ease-in-out infinite; z-index: 2 }
+.figure-label {
+  position: absolute; left: calc(100% + 6px); top: 50%; transform: translateY(-50%);
+  display: flex; align-items: center; gap: 6px; width: max-content; max-width: 150px;
+  padding: 7px 10px; border: 1px solid #E3E9F280; border-radius: 999px;
+  background: #FFFFFFEB; color: #07173F; box-shadow: 0 4px 18px #07173F06;
+  font: 400 12px/1.3 var(--sans); text-align: left;
+}
+.figure-label > span { display: flex; flex: none }
+.figure-hotspot.label-left .figure-label { left: auto; right: calc(100% + 6px) }
+.figure-hotspot:hover, .figure-hotspot:focus-visible { background: #07173F20; z-index: 3 }
+.figure-hotspot:focus-visible { outline: 2px solid #07173F; outline-offset: 5px }
+@keyframes figure-pulse { 50% { box-shadow: 0 0 0 8px #D4D6D830, 0 0 24px #EAFE0720 } }
+@media (max-width: 600px) {
+  .figure-label { max-width: 112px; font-size: 11px; padding: 6px 8px }
+}
+@media (prefers-reduced-motion: reduce) { .figure-hotspot.selected { animation: none } }
+.capture .figure-hotspot.selected { animation: none }
+
+.figure-hint { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); border: 1px solid var(--line); border-radius: 999px; padding: 9px 16px; background: #FFFFFFE8; color: var(--muted); font-size: 13px; pointer-events: none; white-space: nowrap }
+.figure-zoom { position: absolute; right: 18px; bottom: 18px; display: flex; gap: 8px; z-index: 5 }
+.figure-zoom button, .body-details-close { display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border-radius: 50%; background: var(--deep); color: white; font-size: 25px; line-height: 1 }
+.figure-zoom button:disabled { opacity: .45; cursor: default }
+.figure-zoom button:focus-visible, .body-details-close:focus-visible { outline: 3px solid var(--info); outline-offset: 3px }
+.body-details { position: absolute; z-index: 6; top: 76px; right: 18px; width: min(330px, calc(100% - 36px)); max-height: calc(100% - 150px); overflow: auto; border-radius: 28px; background: white; box-shadow: 0 18px 65px #07173F20; animation: body-details-in .22s ease-out }
+.body-details .card { padding: 25px; border-radius: inherit; box-shadow: none }
+.body-details .card h3 { padding-right: 28px }
+.body-details-close { position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; font-size: 23px; background: var(--bg2); color: var(--deep) }
+.body-details:focus-visible { outline: 2px solid var(--info); outline-offset: -2px }
+@keyframes body-details-in { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
+@media (max-width: 600px) {
+  .bodywrap.figure { --figure-height: 600px }
+  .body-figure-stage { width: 88% }
+  .figure-hotspot { width: 34px; height: 34px }
+  .figure-label { max-width: 82px; font-size: 10px; padding: 5px 7px }
+  .figure-hint { bottom: 76px }
+  .body-details { top: auto; bottom: 76px; max-height: 65%; right: 12px; width: calc(100% - 24px) }
+}
+
+/* Full-body studio view; /demo keeps its separate hologram. */
+.body-model { display: block; cursor: grab }
+.body-model:active { cursor: grabbing }
+.body-model > canvas { display: block; width: 100%; height: 100%; touch-action: none }
+.body-model > canvas:focus-visible { outline: 2px solid var(--info); outline-offset: -6px; border-radius: 28px }
+.body-model .figure-hotspot { transition: opacity .18s; visibility: hidden }
+.body-model-loading { position: absolute; inset: 45% 0 auto; text-align: center; color: var(--muted); font-size: 13px; pointer-events: none }
+.body-model ~ .figure-hint { left: 20px; transform: none; font-size: 12px }
+.settings-card { max-width: 960px; background: #F5F7FB; border-radius: 28px }
+.settings-list { display: grid; gap: 12px; margin-top: 22px }
+.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 20px 24px; border-radius: 22px; border: 1px solid #E5EAF3; background: white; box-shadow: 0 5px 20px #07173F03 }
+.settings-who { display: flex; align-items: center; gap: 15px; min-width: 0 }
+.settings-avatar { display: grid; place-items: center; flex: 0 0 46px; width: 46px; height: 46px; border-radius: 50%; background: var(--deep); color: white; font-weight: 600; font-size: 19px }
+.settings-name { color: var(--deep); font-size: 17px; font-weight: 600; margin-bottom: 3px }
+.settings-field { display: flex; align-items: center; justify-content: flex-end; gap: 16px; flex-shrink: 0 }
+.settings-field .seg button { min-height: 38px; padding-inline: 16px }
+.rail a.rail-settings { margin-top: auto }
+@media (max-width: 700px) {
+  .settings-row { padding: 18px; flex-wrap: wrap; gap: 16px }
+  .settings-field { width: 100%; justify-content: space-between; gap: 8px }
+  .settings-field .seg button { padding-inline: 12px }
+  .body-model ~ .figure-hint { left: 50%; transform: translateX(-50%); bottom: 76px; max-width: calc(100% - 24px); white-space: normal; text-align: center }
+}
+@media (prefers-reduced-motion: reduce) { .body-model .figure-hotspot, .body-details { transition: none; animation: none } }
+.capture .body-details { animation: none }
+
+/* crew picker (top bar): only the active crew member + "+" to choose another */
+.crew-switch { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 4px 4px 4px 6px; border-radius: 999px; background: #EEF2F8 }
+.crew-current { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--deep); padding-right: 4px }
+.crew-avatar { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--deep); color: white; font-family: var(--display); font-weight: 800; font-size: 13px; flex: none }
+.crew-more { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--yellow); color: var(--deep); transition: transform .15s }
+.crew-more:hover { transform: scale(1.06) }
+.crew-more[aria-expanded="true"] { transform: rotate(45deg) }
+.crew-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 40; min-width: 270px; padding: 8px; border-radius: 22px; background: white; border: 1px solid #E3E9F2; box-shadow: 0 18px 50px #07173F22; display: grid; gap: 2px; animation: crew-menu-in .16s ease-out both }
+.crew-menu button { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 16px; text-align: left; color: var(--deep) }
+.crew-menu button:hover { background: #EEF2F8 }
+.crew-menu button.on { background: var(--deep); color: white }
+.crew-menu button.on .crew-avatar { background: var(--yellow); color: var(--deep) }
+.crew-name { display: block; font-weight: 700 }
+.crew-role { display: block; font-size: 12.5px; opacity: .75 }
+@keyframes crew-menu-in { from { opacity: 0; transform: translateY(-4px) } to { opacity: 1; transform: none } }
+@media (prefers-reduced-motion: reduce) { .crew-menu { animation: none } .crew-more { transition: none } }
+
+/* top bar: "Día 112 · Hora del hábitat 07:03" on one line */
+.top .day.day-inline { display: flex; flex-direction: row; align-items: baseline; gap: 8px; white-space: nowrap; font-size: 13px }
+.top .day.day-inline span { display: inline }
+.top .day.day-inline b { font-weight: 600; color: var(--deep) }
+.crew-avatar.has-photo { background: #EEF2F8; overflow: hidden; box-shadow: 0 0 0 2px white, 0 0 0 3px #07173F22 }
+.crew-avatar.has-photo img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 50% }
+
+/* body labels: no status dot — the whole pill carries the status colour (white text ≥ 5:1) */
+.figure-label.lvl-alarm { background: #C42F00; color: white; border-color: transparent; font-weight: 600; box-shadow: 0 6px 18px #C42F0033 }
+.figure-label.lvl-watch { background: #B45309; color: white; border-color: transparent; font-weight: 600; box-shadow: 0 6px 18px #B4530933 }
+
+/* 3D body panel: full bleed to the right, top and bottom of the content area; only the left keeps its margin */
+.bodywrap.figure:has(.body-model) {
+  margin-right: -30px; margin-bottom: -40px;
+  border-radius: 30px 0 0 30px;
+  --figure-height: calc(100dvh - 86px - 118px); height: var(--figure-height);
+}
+@media (max-width: 1400px) { .bodywrap.figure:has(.body-model) { margin-right: -24px; margin-bottom: -36px } }
+
+/* left rail: everything fits, no scrolling, no scrollbar */
+.rail { overflow: hidden; scrollbar-width: none }
+.rail::-webkit-scrollbar { display: none }
+.rail a { padding-block: clamp(6px, 1.05vh, 11px) }
+.rail .grp { padding-top: clamp(8px, 1.6vh, 18px); padding-bottom: clamp(4px, .7vh, 8px) }
+
+/* top bar: day on top, habitat time underneath */
+.top .day.day-inline { flex-direction: column; align-items: flex-start; gap: 2px }
+
+/* Sleep × cabin air, now a section inside Trends */
+.sleepair-section { margin-top: 36px }
+.sleepair-section .section-h { font-size: 28px; margin-bottom: 4px }
+/* no blue frame around the 3D panel after dragging; the zoom buttons keep their own focus ring */
+.body-model > canvas:focus, .body-model > canvas:focus-visible, .bodywrap.figure:focus-within { outline: none }
+
+/* Today, status on the blue card: urgency colour (light tints so they read on blue; ≥ 3:1 for large text) */
+.feature .overall-mark.s-ok { color: #5EE0A6 !important }
+.feature .overall-mark.s-watch { color: #FFB547 !important }
+.feature .overall-mark.s-alarm { color: #FF8A65 !important }
+
+/* Body map: the 3D panel reaches the very top of the content area and runs behind the page title,
+   so the body never gets cut when you move it up. Only the left side keeps its margin. */
+.page:has(.body-model) > .row { position: relative; z-index: 3; pointer-events: none }
+.bodywrap.figure:has(.body-model) {
+  margin-top: calc(-1 * (24px + 85px));
+  --figure-height: calc(100dvh - 86px); height: var(--figure-height);
+  border-radius: 0 0 0 30px;
+}
+@media (max-width: 1400px) { .bodywrap.figure:has(.body-model) { margin-top: calc(-1 * (22px + 85px)) } }
+
+/* Today, key deviations: five cards in one row, status tag and "How is it measured?" aligned in every card */
+.grid.metrics-row { grid-template-columns: repeat(5, minmax(0, 1fr)) }
+@media (max-width: 1400px) { .grid.metrics-row { grid-template-columns: repeat(3, minmax(0, 1fr)) } }
+@media (max-width: 900px) { .grid.metrics-row { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+.metrics-row .card.stat { display: flex; flex-direction: column }
+.metrics-row .metric-action { flex: 1; display: flex; flex-direction: column; text-align: left }
+.metrics-row .metric-action > .row.between { align-items: flex-start; flex-wrap: nowrap; gap: 8px; min-height: 2.6em }
+.metrics-row .metric-action > .row.between .lbl { min-width: 0 }
+.metrics-row .metric-action > .row.between .tag { flex: none }
+.metrics-row .metric-action svg:last-child { margin-top: auto }
+.metrics-row .indicator-button { margin-top: 14px; align-self: flex-start }
+
+/* Today, top row: Metis | status | earpiece + Earth delay stacked */
+.grid.today-hero { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.1fr) minmax(0, .75fr); align-items: stretch }
+.today-side { display: grid; gap: 18px; grid-template-rows: 1fr 1fr; min-width: 0 }
+.today-side > .card { margin: 0 }
+@media (max-width: 1400px) { .grid.today-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) } .today-side { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; grid-template-rows: none } }
+@media (max-width: 900px) { .grid.today-hero { grid-template-columns: minmax(0, 1fr) } .today-side { grid-template-columns: 1fr } }
+/* six cards in the key-deviations row (5 metrics + sleep × air) */
+.grid.metrics-row { grid-template-columns: repeat(6, minmax(0, 1fr)) }
+@media (max-width: 1500px) { .grid.metrics-row { grid-template-columns: repeat(3, minmax(0, 1fr)) } }
+@media (max-width: 900px) { .grid.metrics-row { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+.metrics-row .sleepair-mini { display: flex; flex-direction: column }
+.metrics-row .sleepair-mini > .btn { margin-top: auto; align-self: flex-start }
+
+/* Today: Sleep × Air mini sketch (own class names: .bar is the app's progress bar) */
+.sleepair-sketch { margin: 4px 0 10px }
+.sleepair-sketch .sa-sleep { fill: #9CC3F5 }
+.sleepair-sketch .sa-sleep.sa-hot { fill: #0960E1 }
+.sleepair-sketch .sa-band { fill: #EAFE07; opacity: .4 }
+.sleepair-sketch .sa-co2 { fill: none; stroke: #B45309; stroke-width: 1.6; stroke-linejoin: round }
+.sleepair-sketch .sa-dot { fill: #B45309; stroke: white; stroke-width: 1.2 }
+.sleepair-sketch figcaption { display: grid; gap: 3px; font-size: 11px; color: var(--muted); margin-top: 6px }
+.sleepair-sketch figcaption span { display: flex; align-items: center; gap: 6px }
+.sleepair-sketch .sa-k { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 3px }
+.sleepair-sketch .sa-k-co2 { height: 2px; border-radius: 0; background: #B45309 }
+.sleepair-sketch .sa-k-sleep { background: #9CC3F5 }
+.sleepair-sketch .sa-k-hot { background: #EAFE07; box-shadow: inset 0 0 0 1px #07173F22 }
+
+/* Today: Listen / Talk with Metis / Triage always on one line */
+.today-intro .row.wrap { flex-wrap: nowrap; gap: 8px }
+.today-intro .row.wrap .btn { white-space: nowrap; flex: none; padding-inline: clamp(10px, .9vw, 18px); font-size: clamp(10.5px, .78vw, 13px) }
+
+/* Today, top row: Metis (wide) | earpiece + Earth delay (small, stacked) | status */
+.grid.today-hero { grid-template-columns: minmax(0, 1.45fr) minmax(0, .58fr) minmax(0, 1fr) }
+.today-side { gap: 14px }
+.today-side > .card { padding: 14px 16px; border-radius: 22px }
+.today-side .card h3 { font-size: 10.5px; margin-bottom: 8px }
+.today-side .row.between { font-size: 12.5px }
+.today-side .bar { margin: 6px 0 10px !important }
+.today-side .stat .val, .today-side .metric-value { font-size: 28px }
+@media (max-width: 1400px) { .grid.today-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) } }
+/* earpiece card: two tidy rows, label left / value right, same height */
+.today-side .earpiece-row { align-items: center; min-height: 26px; flex-wrap: nowrap }
+.today-side .earpiece-row .tag { font-size: 11.5px; padding: 3px 9px }
+
+/* References, now a section at the end of Settings */
+.settings-references { margin-top: 36px; max-width: 1200px }
+.settings-references .section-h { font-size: 28px; margin-bottom: 14px }
+
+/* No visible scrollbars anywhere: every screen and inner panel still scrolls (wheel, trackpad, keyboard, touch). */
+html, body, main.content, * { scrollbar-width: none; -ms-overflow-style: none }
+html::-webkit-scrollbar, body::-webkit-scrollbar, main.content::-webkit-scrollbar, *::-webkit-scrollbar { display: none; width: 0; height: 0 }

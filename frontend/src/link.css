@@ -1,0 +1,32 @@
+.link-chip { color: #07173f; text-decoration: none; gap: 7px; white-space: nowrap; }
+.link-dot { width: 8px; height: 8px; background: #0042a6; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.link-chip.link-offline { color: #b45309; background: #fff7ed; }
+.link-offline .link-dot { background: transparent; border: 2px solid currentColor; }
+.mission-profiles { display: grid; grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); gap: 12px; }
+.mission-profile { font: inherit; color: #07173f; background: white; border: 2px solid #d5dfed; border-radius: 22px; padding: 18px; text-align: left; display: flex; flex-direction: column; gap: 9px; cursor: pointer; }
+.mission-profile.selected { border-color: #0042a6; background: #f4f8ff; box-shadow: inset 0 5px #eafe07; }
+.mission-profile:focus-visible, .link-chip:focus-visible { outline: 3px solid #0960e1; outline-offset: 3px; }
+.mars-slider { display: block; margin-top: 20px; }
+.mars-slider input { display: block; width: min(100%,500px); margin-top: 12px; accent-color: #0042a6; }
+.station-access-note { margin: 12px 0; padding: 14px 18px; border-radius: 18px; background: #fff7ed; color: #07173f; }
+.station-access-note .btn { margin-left: 12px; }
+.station-access-dialog { color: #07173f; border: 0; border-radius: 28px; padding: 28px; width: min(520px,calc(100% - 32px)); max-height: 85vh; overflow: auto; }
+.station-access-dialog::backdrop { background: #07173f99; }
+.station-access-dialog label { display: grid; gap: 8px; margin: 20px 0; }
+.station-access-dialog input, .station-access-dialog select { width: 100%; font: inherit; color: #07173f; padding: 12px; border: 1px solid #8b9db9; border-radius: 12px; background: white; }
+.station-access-dialog h2 { font-family: 'Fira Sans',sans-serif; font-weight: 900; text-transform: uppercase; }
+.station-access-detail { border-top: 1px solid #d5dfed; margin-top: 14px; padding-top: 12px; }
+.station-access-log { overflow-wrap: anywhere; }
+.station-access-log li { margin-top: 14px; }
+.station-access-countdown { font-variant-numeric: tabular-nums; }
+
+.station-private { margin-top: 12px; padding: 14px 16px; border-radius: 18px; background: #FFF7ED; border: 1px solid #B4530933; display: grid; gap: 8px }
+.station-private p { margin: 0; font-size: 13.5px; color: var(--deep) }
+.station-private-diary { margin: 4px 0 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13.5px; color: var(--deep) }
+.station-guidance { display: grid; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid #B4530922 }
+.station-private-trends { display: grid; gap: 6px }
+.station-requests ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px }
+.station-requests li { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 14px; border-radius: 16px; background: #FFF4EF; border: 1px solid #C42F0033 }
+.station-request-sent { margin: 10px 0 0; padding: 8px 12px; border-radius: 12px; background: #EEF2F8; color: var(--deep) }
+.station-guidance .btn { font-size: 12.5px; line-height: 1.25; padding: 10px 14px; text-decoration: none; width: fit-content }
+.station-guidance a.btn:hover { text-decoration: none }

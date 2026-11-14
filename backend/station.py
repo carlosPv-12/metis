@@ -47,7 +47,8 @@ def baseline_text(c, lang):
 
 MMHG_TO_PPM = 1e6 / 760.0  # supone presión total de cabina de 760 mmHg (1 atm); conversión nuestra, no de NASA
 
-EXTRA_CREW = {  # tripulantes 3 y 4: ficticios, datos generados sencillos
+LOCATION = {"lena": "Crew quarters", "marco": "Lab", "noor": "Galley", "kenji": "Node"}
+EXTRA_CREW = {  # tripulantes 3 y 4 de respaldo, por si crew_lena.json aún no los trae
     "noor": {"name": "Noor", "role_en": "Crew Medical Officer (fictional)", "role_es": "Oficial médica de tripulación (ficticia)", "hr": 61, "sleep_h": 6.4},
     "kenji": {"name": "Kenji", "role_en": "Commander (fictional)", "role_es": "Comandante (ficticio)", "hr": 57, "sleep_h": 6.2},
 }
@@ -139,11 +140,13 @@ def station(crew_doc):
         t = c["days"][-1]
         oob = c["today_out_of_band"]
         crew.append({"id": cid, "name": c["name"], "role": c["role"], "role_en": c.get("role_en", c["role"]), "role_es": c["role"],
-                     "status": "watch" if len(oob) >= 2 else ("ok" if not oob else "watch"), "location": "Crew quarters" if cid == "lena" else "Lab",
+                     "status": "watch" if len(oob) >= 2 else ("ok" if not oob else "watch"), "location": LOCATION.get(cid, "Lab"),
                      "hr": t["resting_hr_bpm"], "sleep_h": t["sleep_h"], "alerts": oob, "simulated": True,
                      "note_en": (f"{len(oob)} metrics outside personal band" if oob else "Within personal baseline"),
                      "note_es": (f"{len(oob)} métricas fuera de su banda personal" if oob else "Dentro de su línea base personal")})
     for cid, c in EXTRA_CREW.items():
+        if cid in crew_doc["crew"]:  # ya tiene datos completos en crew_lena.json: no duplicar
+            continue
         crew.append({"id": cid, "name": c["name"], "role": c["role_es"], "role_en": c["role_en"], "role_es": c["role_es"], "status": "ok",
                      "location": "Node" if cid == "kenji" else "Galley", "hr": c["hr"], "sleep_h": c["sleep_h"], "alerts": [], "simulated": True,
                      "note_en": "Within personal baseline (simple generated data)", "note_es": "Dentro de su línea base personal (datos generados sencillos)"})

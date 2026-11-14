@@ -31,7 +31,7 @@ export default function Talk() {
     const r = await api.chat(crewId, text, lang, hist)
     const src = r.source === 'llm' || r.source?.startsWith?.('llm') ? t('src_llm') : t('src_fallback')
     const flow = (r as { suggest_flow?: string }).suggest_flow
-    setMsgs(m => [...m, { who: 'metis', text: r.text, meta: `${src}${r.latency_ms ? ` · ${(r.latency_ms / 1000).toFixed(1)} s` : ''}`, escalated: r.safety === 'escalated', flow }])
+    setMsgs(m => [...m, { who: 'metis', text: r.text, meta: `${src}${r.latency_ms ? `, ${(r.latency_ms / 1000).toFixed(1)} s` : ''}`, escalated: r.safety === 'escalated', flow }])
     setPhase('idle')
     // Emergency: no time to tap anything. Say it and open the triage straight away (hands-free there too).
     if (r.safety === 'escalated' && flow) { setOpening(true); await sp.speak(r.text, lang); nav('/triage?flow=' + flow); return }
@@ -49,7 +49,7 @@ export default function Talk() {
         stream.getTracks().forEach(tr => tr.stop())
         setPhase('stt')
         const r = await api.stt(new Blob(chunks.current, { type: mr.mimeType }), lang)
-        if (r?.text) send(r.text, `STT${r.latency_ms ? ' · ' + (r.latency_ms / 1000).toFixed(1) + ' s' : ''}`)
+        if (r?.text) send(r.text, `STT${r.latency_ms ? ', ' + (r.latency_ms / 1000).toFixed(1) + ' s' : ''}`)
         else { setPhase('idle'); setErr(r ? t('didnt_hear') : t('mic_denied')) }
       }
       mr.start(); rec.current = mr; setPhase('rec')

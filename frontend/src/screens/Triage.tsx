@@ -2,7 +2,7 @@
 // "Triage": deterministic tree from the backend; the AI only speaks it. Big steps, timer, sources, crew alerts.
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Bell, ChevronLeft, HeartHandshake, Mic, MicOff, RotateCcw, Send, ShieldAlert, Stethoscope, Volume2, WifiOff } from 'lucide-react'
+import { Bell, ChevronLeft, HeartHandshake, Mic, MicOff, RotateCcw, Send, ShieldAlert, Stethoscope, Volume2 } from 'lucide-react'
 import { api, NO_SERVER, type FlowId, type TriageStep, type TriageNode } from '../api'
 import { listenOnce, useSpeaker } from '../hooks'
 import { useLang, useT, type Key } from '../i18n'
@@ -53,7 +53,10 @@ export default function Triage() {
   const cur = hist[hist.length - 1]?.step
   // Hands-free: Metis asks out loud, listens on its own, and the backend matches the answer (fixed rule, no AI).
   // In an emergency your hands are busy; the buttons still work at any moment.
-  const [handsFree, setHandsFree] = useState(!NO_SERVER)
+  // From the triage hub: ?voice=1 → talk with Metis (reads each step, hands-free); ?voice=0 → on screen only, silent.
+  const qVoice = new URLSearchParams(loc.search).get('voice')
+  const silent = qVoice === '0'
+  const [handsFree, setHandsFree] = useState(!NO_SERVER && !silent)
   const [ls, setLs] = useState<'idle' | 'listening' | 'stt'>('idle')
   const [heard, setHeard] = useState<string | null>(null)
   const abort = useRef<AbortController | null>(null)
@@ -176,7 +179,7 @@ export default function Triage() {
     // In an emergency nobody is asked: red AND orange results alert everyone straight away.
     if (n.type === 'result' && (n.level === 'rojo' || n.level === 'naranja')) { fireMany(ACTIONS); setAutoAlerted(true) }
     ;(async () => {
-      await sp.speak(cur.say ?? (n.type === 'question' ? n.text : `${n.title}. ${n.steps[0] ?? ''}`), lang)
+      if (!silent) await sp.speak(cur.say ?? (n.type === 'question' ? n.text : `${n.title}. ${n.steps[0] ?? ''}`), lang)
       if (ac.signal.aborted) return
       if (n.type === 'question') { if (handsFree) await listenLoop(ac, s) }
       else await resultFlow(ac, s)
@@ -189,7 +192,7 @@ export default function Triage() {
   const mmss = `${String(Math.floor(el / 60)).padStart(2, '0')}:${String(el % 60).padStart(2, '0')}`
 
   if (!flow) return (
-    <Page title={t('triage_title')} sub={t('triage_sub')}>
+    <Page title={t('triage_title')}>
       <div className="grid g2">
         {([['companion_collapse', 'flow_companion', 'flow_companion_sub', HeartHandshake, 'alarm'], ['self_chest_pressure', 'flow_self', 'flow_self_sub', ShieldAlert, 'watch']] as const).map(([id, k, ks, Icon, c]) => (
           <button key={id} className="card" onClick={() => setFlow(id)} style={{ textAlign: 'left', padding: 32, cursor: 'pointer', borderColor: c === 'alarm' ? 'rgba(255,90,95,.45)' : 'rgba(243,180,67,.4)' }}>
@@ -199,13 +202,12 @@ export default function Triage() {
           </button>
         ))}
       </div>
-      <p className="small dim" style={{ marginTop: 20 }}><WifiOff size={13} style={{ verticalAlign: -2 }} /> {t('triage_offline')} · {t('not_diagnosis')}</p>
     </Page>
   )
 
   const n = cur?.node
   return (
-    <Page title={cur?.flow_title ?? t('triage_title')} sub={t('triage_sub')}
+    <Page title={cur?.flow_title ?? t('triage_title')}
       right={<div style={{ textAlign: 'right' }}><div className="small muted">{t('elapsed')}</div><div className="timer">{mmss}</div></div>}>
       <div className="grid" style={{ gridTemplateColumns: '1.6fr 1fr', alignItems: 'start' }}>
         <div>
@@ -233,7 +235,7 @@ export default function Triage() {
           )}
           {n?.type === 'result' && (
             <div className={`lvl ${n.level}`}>
-              <div className="small" style={{ textTransform: 'uppercase', letterSpacing: '.1em', fontWeight: 600 }}>{t('result')} · {t(`lvl_${n.level}`)}</div>
+              <div className="small" style={{ textTransform: 'uppercase', letterSpacing: '.1em', fontWeight: 600 }}>{t('result')}: {t(`lvl_${n.level}`)}</div>
               <div style={{ fontSize: 28, fontWeight: 600, margin: '6px 0 4px', lineHeight: 1.25 }}>{n.title}</div>
               <ol className="steps">{n.steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
               {n.warning && <div className="small" style={{ marginTop: 10, opacity: .85 }}>{n.warning}</div>}
@@ -266,16 +268,10 @@ export default function Triage() {
             <MetisLine small speaking={sp.speaking}><div style={{ fontSize: 17 }}>{cur?.say ?? (n?.type === 'question' ? n.text : n?.title)}</div></MetisLine>
             <button className="btn" style={{ marginTop: 12 }} onClick={() => cur && sp.speak(cur.say ?? (n?.type === 'question' ? n.text : n?.title ?? ''), lang)}><Volume2 size={15} />{t('listen')}</button>
           </Card>
-          <Card title={t('sources')}>
-            {(cur?.sources?.length ? cur.sources : [{ title: 'NASA-STD-3001 Vol. 1 Rev C [V1 3006] — two Crew Medical Officers per vehicle', url: 'https://standards.nasa.gov/sites/default/files/standards/NASA/C//nasa-std-3001-vol-1-rev-c-signature.pdf' }, { title: 'NASA HRP — Cardiovascular Adaptations', url: 'https://www.nasa.gov/hrp/risks/' }]).map((s, i) => (
-              <div key={i} className="small" style={{ marginBottom: 8 }}>{s.url ? <a href={s.url} target="_blank" rel="noreferrer">{s.title}</a> : s.title}</div>
-            ))}
-          </Card>
           {n?.type === 'result' && <Card title={<><Stethoscope size={14} />{t('surgeon_summary')}</>}><div className="small">{n.surgeon_summary}</div></Card>}
           {hist.length > 1 && <Card title={t('r_answers')}>
             {hist.filter(h => h.answer).map((h, i) => <div key={i} className="small" style={{ marginBottom: 6 }}><span className="muted">{h.step.node.type === 'question' ? h.step.node.text : ''}</span> → <b>{h.answer}</b></div>)}
           </Card>}
-          <div className="small dim"><WifiOff size={13} style={{ verticalAlign: -2 }} /> {t('triage_offline')}</div>
         </div>
       </div>
     </Page>

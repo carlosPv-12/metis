@@ -77,6 +77,78 @@
         "source": "supuesto del prototipo"
       },
       "role_en": "Non-medical crewmember (fictional)"
+    },
+    "noor": {
+      "name": "Noor",
+      "role": "Oficial médica de tripulación (ficticia)",
+      "fictional": true,
+      "resting_hr_bpm": {
+        "mean": 61,
+        "sd": 2.2,
+        "drift": 0,
+        "source": "Anclado a Hughson et al. 2017 (PMC5792103), FC en vuelo 60.0 ± 10.6 lpm, supina pre-vuelo 55.2 ± 8.4 (n=9). La media individual es simulada."
+      },
+      "hrv_ms": {
+        "mean": 58,
+        "sd": 5.0,
+        "drift": 0,
+        "source": "SUPUESTO: no hay valor de HRV en ms de astronautas en fuente abierta verificada; serie sintética."
+      },
+      "sleep_h": {
+        "mean": 6.4,
+        "sd": 0.35,
+        "drift": 0,
+        "source": "Anclado a Barger et al. 2014 (PMC4188436), sueño en ISS 6.09 ± 0.67 h/noche. La media individual es simulada."
+      },
+      "co2_night_peak_mmhg": {
+        "mean": 2.0,
+        "sd": 0.2,
+        "drift": 0,
+        "source": "Anclado a OCHMO-TB-004 Rev D: límite de diseño 3 mmHg (media 1 h, NASA-STD-3001 Vol. 2 [V2 6004]); media 7 d < 2.5 mmHg para riesgo de cefalea < 1 %. El pico nocturno de la litera es simulado."
+      },
+      "mood_1_5": {
+        "mean": 4.1,
+        "sd": 0.5,
+        "drift": 0,
+        "source": "supuesto del prototipo"
+      },
+      "role_en": "Crew Medical Officer (fictional)"
+    },
+    "kenji": {
+      "name": "Kenji",
+      "role": "Comandante (ficticio)",
+      "fictional": true,
+      "resting_hr_bpm": {
+        "mean": 57,
+        "sd": 2.0,
+        "drift": 0,
+        "source": "Anclado a Hughson et al. 2017 (PMC5792103), FC en vuelo 60.0 ± 10.6 lpm, supina pre-vuelo 55.2 ± 8.4 (n=9). La media individual es simulada."
+      },
+      "hrv_ms": {
+        "mean": 64,
+        "sd": 5.0,
+        "drift": 0,
+        "source": "SUPUESTO: no hay valor de HRV en ms de astronautas en fuente abierta verificada; serie sintética."
+      },
+      "sleep_h": {
+        "mean": 6.2,
+        "sd": 0.35,
+        "drift": 0,
+        "source": "Anclado a Barger et al. 2014 (PMC4188436), sueño en ISS 6.09 ± 0.67 h/noche. La media individual es simulada."
+      },
+      "co2_night_peak_mmhg": {
+        "mean": 1.9,
+        "sd": 0.2,
+        "drift": 0,
+        "source": "Anclado a OCHMO-TB-004 Rev D: límite de diseño 3 mmHg (media 1 h, NASA-STD-3001 Vol. 2 [V2 6004]); media 7 d < 2.5 mmHg para riesgo de cefalea < 1 %. El pico nocturno de la litera es simulado."
+      },
+      "mood_1_5": {
+        "mean": 3.9,
+        "sd": 0.4,
+        "drift": 0,
+        "source": "supuesto del prototipo"
+      },
+      "role_en": "Commander (fictional)"
     }
   },
   "thresholds": {
