@@ -227,3 +227,8 @@
 .bodywrap.figure .figure-hotspot::before { width: 50px !important; height: 50px !important }
 .bodywrap.figure .figure-hotspot.selected::before { width: 64px !important; height: 64px !important }
 .bodywrap.figure .figure-hotspot:is(.lvl-watch, .lvl-alarm) .figure-marker::after { inset: -4px !important }
+
+/* Halo in a lighter tint of the point's own red, so it clearly comes from it */
+.bodywrap.figure .figure-hotspot.lvl-watch::before { background: #F0643A33 !important; border-color: #F0643A66 !important }
+.bodywrap.figure .figure-hotspot.lvl-alarm::before { background: #FF5A3633 !important; border-color: #FF5A3670 !important }
+.bodywrap.figure .figure-hotspot:is(.lvl-watch, .lvl-alarm) .figure-marker::after { border-color: #F0643A !important; opacity: .45 !important }
