@@ -224,7 +224,9 @@ function buildShip(mli: THREE.Texture, cells: THREE.Texture, rad: THREE.Texture,
 export default function ShipModel3D({ modules, crew, selected = null, onSelect }: ShipModel3DProps) {
   const host = useRef<HTMLDivElement>(null)
   const latest = useRef({ modules, crew, selected, onSelect })
-  useEffect(() => { latest.current = { modules, crew, selected, onSelect } }, [modules, crew, selected, onSelect])
+  // Redraw on demand (see the render loop): new data -> one frame, and the labels are measured again.
+  const wake = useRef<(remeasure?: boolean) => void>(() => {})
+  useEffect(() => { latest.current = { modules, crew, selected, onSelect }; wake.current(true) }, [modules, crew, selected, onSelect])
   const labelEls = useRef(new Map<string, HTMLElement>()), crewEls = useRef(new Map<string, HTMLElement>())
   const [fallback, setFallback] = useState(false)
 
@@ -250,20 +252,41 @@ export default function ShipModel3D({ modules, crew, selected = null, onSelect }
 
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
     let yaw = -.65, elev = .42, dist = 30, fit = 1, w = 1, h = 1, last = performance.now() - 3000, raf = 0, prev = performance.now(), t = 0
+    // Render loop on demand: drawing 60 frames a second non-stop kept the main thread busy and the voice detector
+    // (listenOnce, hooks.ts) heard late. Full rate only while the user drags or zooms; 15 fps while it only spins
+    // or pulses; nothing at all when nothing moves (reduced motion, all OK), when hidden or scrolled off screen.
+    const IDLE_MS = 1000 / 15, BUSY_MS = 2500
+    let timer: ReturnType<typeof setTimeout> | undefined, pending = false, onScreen = true, measure = true, ready = false
+    const cancel = () => { cancelAnimationFrame(raf); clearTimeout(timer); timer = undefined; pending = false }
+    const schedule = (delay: number) => {
+      if (!ready || pending || document.hidden || !onScreen) return   // ready: `frame` is defined further down
+      pending = true
+      const go = () => { timer = undefined; raf = requestAnimationFrame(frame) }
+      if (delay > 0) timer = setTimeout(go, delay); else go()
+    }
+    const now0 = (remeasure = false) => { if (remeasure) measure = true; if (timer !== undefined) cancel(); schedule(0) }
+    wake.current = now0
     const resize = () => {
       w = Math.max(1, el.clientWidth); h = Math.max(1, el.clientHeight)
       renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix()
       fit = camera.aspect < 1.5 ? 1.5 / camera.aspect : 1
+      now0(true)
     }
     const observer = new ResizeObserver(resize); observer.observe(el); resize()
+    const seen = new IntersectionObserver(([e]) => { onScreen = e.isIntersecting; if (onScreen) { prev = performance.now(); now0() } else cancel() })
+    seen.observe(el)
+    // Label sizes, measured only when they change (reading offsetWidth every frame forced a page layout each time).
+    const sizes = new WeakMap<HTMLElement, { w: number; h: number }>()
+    const labelObs = new ResizeObserver(() => now0(true))
+    const watched = new WeakSet<HTMLElement>()
 
     const pointers = new Map<number, { x: number; y: number }>()
     let moved = 0, pinch = 0
     const ray = new THREE.Raycaster(), ndc = new THREE.Vector2()
-    const down = (e: PointerEvent) => { if (e.button !== 0 && e.pointerType === 'mouse') return; el.setPointerCapture(e.pointerId); pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); moved = 0; last = performance.now() }
+    const down = (e: PointerEvent) => { if (e.button !== 0 && e.pointerType === 'mouse') return; el.setPointerCapture(e.pointerId); pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); moved = 0; last = performance.now(); now0() }
     const move = (e: PointerEvent) => {
       const p = pointers.get(e.pointerId); if (!p) return
-      const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY; moved += Math.abs(dx) + Math.abs(dy); last = performance.now()
+      const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY; moved += Math.abs(dx) + Math.abs(dy); last = performance.now(); now0()
       if (pointers.size === 2) {
         const [a, b] = [...pointers.values()], d = Math.hypot(a.x - b.x, a.y - b.y)
         if (pinch) dist = THREE.MathUtils.clamp(dist * (pinch / d), 12, 48); pinch = d; return
@@ -280,7 +303,7 @@ export default function ShipModel3D({ modules, crew, selected = null, onSelect }
         if (hit) latest.current.onSelect?.(hit.object.userData.moduleId as string)
       }
     }
-    const wheel = (e: WheelEvent) => { e.preventDefault(); dist = THREE.MathUtils.clamp(dist * Math.exp(e.deltaY * .0012), 12, 48); last = performance.now() }
+    const wheel = (e: WheelEvent) => { e.preventDefault(); dist = THREE.MathUtils.clamp(dist * Math.exp(e.deltaY * .0012), 12, 48); last = performance.now(); now0() }
     el.addEventListener('pointerdown', down); el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up)
     el.addEventListener('wheel', wheel, { passive: false })
     const lost = (e: Event) => { e.preventDefault(); setFallback(true) }
@@ -295,7 +318,8 @@ export default function ShipModel3D({ modules, crew, selected = null, onSelect }
       node.style.opacity = behind ? '0' : ''
     }
     const frame = (now: number) => {
-      const dt = Math.min(.05, (now - prev) / 1000); prev = now; t += dt
+      pending = false
+      const dt = Math.min(.1, (now - prev) / 1000); prev = now; t += dt  // .1: at 15 fps a frame is ~67 ms
       if (!reduce && !pointers.size && now - last > 2500) yaw += dt * .08
       const d = dist * fit
       camera.position.set(d * Math.cos(elev) * Math.sin(yaw), d * Math.sin(elev), d * Math.cos(elev) * Math.cos(yaw)); camera.lookAt(0, 0, 0)
@@ -316,11 +340,14 @@ export default function ShipModel3D({ modules, crew, selected = null, onSelect }
       pivot.updateMatrixWorld()
       // Module labels, pushed apart vertically when they would overlap on screen.
       const placed: { node: HTMLElement; x: number; y: number; w: number; hh: number }[] = []
+      if (measure) { for (const node of labelEls.current.values()) sizes.set(node, { w: node.offsetWidth, h: node.offsetHeight }); measure = false }
       for (const [id, node] of labelEls.current) {
+        if (!watched.has(node)) { watched.add(node); labelObs.observe(node) }
         const p = parts[id]; if (!p) { node.style.opacity = '0'; continue }
         v.copy(centre.copy(p.anchor).applyMatrix4(ship.matrixWorld)).project(camera)
         node.style.opacity = v.z > 1 ? '0' : ''
-        placed.push({ node, x: (v.x * .5 + .5) * w, y: (-v.y * .5 + .5) * h, w: node.offsetWidth, hh: node.offsetHeight })
+        const s = sizes.get(node) ?? { w: node.offsetWidth, h: node.offsetHeight }; sizes.set(node, s)
+        placed.push({ node, x: (v.x * .5 + .5) * w, y: (-v.y * .5 + .5) * h, w: s.w, hh: s.h })
       }
       placed.sort((a, b) => b.y - a.y)  // bottom first; the ones above move up
       for (let i = 0; i < placed.length; i++) for (let j = 0; j < i; j++) {
@@ -339,12 +366,17 @@ export default function ShipModel3D({ modules, crew, selected = null, onSelect }
           centre.y += .1; centre.applyMatrix4(ship.matrixWorld); place(node, centre, 10)
         })
       }
-      raf = requestAnimationFrame(frame)
+      // Next frame: full rate while dragging/zooming, 15 fps while it spins or pulses, otherwise wait for wake().
+      const busy = pointers.size > 0 || performance.now() - last < BUSY_MS
+      const pulsing = !reduce && mods.some(m => m.status !== 'ok')
+      if (busy) schedule(0); else if (!reduce || pulsing) schedule(IDLE_MS)
     }
-    const visibility = () => { cancelAnimationFrame(raf); pointers.clear(); if (!document.hidden) { prev = performance.now(); raf = requestAnimationFrame(frame) } }
-    document.addEventListener('visibilitychange', visibility); if (!document.hidden) raf = requestAnimationFrame(frame)
+    const visibility = () => { cancel(); pointers.clear(); if (!document.hidden) { prev = performance.now(); now0() } }
+    document.addEventListener('visibilitychange', visibility)
+    ready = true; now0(true)
     return () => {
-      cancelAnimationFrame(raf); observer.disconnect(); document.removeEventListener('visibilitychange', visibility)
+      wake.current = () => {}
+      cancel(); observer.disconnect(); seen.disconnect(); labelObs.disconnect(); document.removeEventListener('visibilitychange', visibility)
       el.removeEventListener('pointerdown', down); el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up)
       el.removeEventListener('wheel', wheel); canvas.removeEventListener('webglcontextlost', lost)
       dispose(scene); Object.values(tex).forEach(x => x.dispose()); envTex.dispose(); pmrem.dispose()
