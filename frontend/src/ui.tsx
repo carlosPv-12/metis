@@ -1,7 +1,7 @@
 // Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026
 import { createContext, useContext, type ReactNode } from 'react'
 import type { Baseline, Day, Metric } from './api'
-import { useT, useLang, pick, type Key } from './i18n'
+import { useT, type Key } from './i18n'
 
 export const CrewCtx = createContext<{ crewId: string; setCrewId: (id: string) => void }>({ crewId: 'lena', setCrewId: () => {} })
 export const useCrew = () => useContext(CrewCtx)
@@ -49,8 +49,9 @@ export function Spark({ days, m, b, w = 220, h = 54, color }: { days: Day[]; m: 
   const last = vals[vals.length - 1]
   return (
     <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden>
-      {b && <rect x={0} width={w} y={y(b.band_high)} height={Math.max(1, y(b.band_low) - y(b.band_high))} fill="rgba(158,233,220,.09)" />}
+      {b && <rect x={0} width={w} y={y(b.band_high)} height={Math.max(1, y(b.band_low) - y(b.band_high))} fill="rgba(46,150,245,.10)" />}
       <path d={d} fill="none" stroke={color ?? 'var(--metis)'} strokeWidth={1.8} vectorEffect="non-scaling-stroke" />
+      {vals.length > 0 && <circle cx={x(vals.indexOf(Math.max(...vals)))} cy={y(Math.max(...vals))} r={3.5} fill={color ?? 'var(--metis)'} stroke="white" strokeWidth={1.5} />}
       <circle cx={x(vals.length - 1)} cy={y(last)} r={3.2} fill={color ?? 'var(--metis)'} />
     </svg>
   )
@@ -72,7 +73,7 @@ export function Card({ title, right, children, className = '', style }: { title?
 export function Page({ title, sub, right, children }: { title: string; sub?: string; right?: ReactNode; children: ReactNode }) {
   return (
     <div className="page">
-      <div className="row between" style={{ alignItems: 'flex-start', gap: 20 }}>
+      <div className="row between page-heading" style={{ alignItems: 'flex-start', gap: 20 }}>
         <div><h1 className="h1">{title}</h1>{sub && <p className="sub">{sub}</p>}</div>
         {right}
       </div>
@@ -84,15 +85,6 @@ export function Page({ title, sub, right, children }: { title: string; sub?: str
 export function Loading() { const t = useT(); return <div className="muted" style={{ padding: 40 }}>{t('loading')}</div> }
 
 /** Earth delay with its scenario label, the Mars range and the HRP source (tooltip). */
-export function DelayInfo({ comms }: { comms?: { one_way_delay_s?: number; range_max_s?: number; scenario_en?: string; scenario_es?: string } | null }) {
-  const t = useT(); const { lang } = useLang()
-  const max = Math.round((comms?.range_max_s ?? 1200) / 60)
-  const scen = pick(comms as never, 'scenario', lang)
-  return (
-    <div className="small muted" style={{ marginTop: 6 }}>
-      <span className="tip" tabIndex={0}>{t('delay_scenario')} · {t('delay_range').replace('{n}', String(max))}
-        <span className="tooltip">{scen && <>{scen}<br /></>}{t('delay_src')}<br /><span className="dim">https://www.nasa.gov/hrp/hazards/</span></span>
-      </span>
-    </div>
-  )
-}
+/** The Earth-delay sentence under the delay value was removed at the user's request (14-nov): renders nothing.
+ *  Kept so existing callers compile; new code should not use it. */
+export function DelayInfo(_props: { comms?: unknown }) { return null }

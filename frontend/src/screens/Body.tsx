@@ -1,11 +1,14 @@
 // Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026
-// "Body": rotating holographic 3D body per crew member, with hotspots linked to measurements and HRP risks.
-import { useState } from 'react'
+// "Body": translucent medical bust with hotspots linked to measurements and HRP risks.
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, type CrewDetail, type Metric } from '../api'
 import { useLoad } from '../hooks'
-import { useT, type Key } from '../i18n'
+import { useLang, useT, type Key } from '../i18n'
 import { Card, DEC, LevelTag, Loading, Page, Spark, UNIT, fmt, levelOf, useCrew, type Level } from '../ui'
-import Body3D, { type Hotspot } from '../Body3D'
+import { type Hotspot } from '../Body3D'
+import BodyModel3D from '../BodyModel3D'
+import { useCrewSex } from '../settings'
+import { IndicatorSheet } from '../IndicatorSheet'
 
 export type BP = 'heart' | 'ear' | 'lungs' | 'brain' | 'eyes' | 'bones' | 'muscle'
 export const BP_POS: Record<BP, [number, number, number]> = {
@@ -33,48 +36,81 @@ export function useHotspots(c: CrewDetail | null): Hotspot[] {
   return (Object.keys(BP_POS) as BP[]).map(id => ({ id, pos: BP_POS[id], level: lv[id], label: t(BP_LABEL[id]), left: ['lungs', 'eyes', 'bones'].includes(id) }))
 }
 
+const COPY = {
+  en: { close: 'Close details' },
+  es: { close: 'Cerrar detalles' },
+}
+
 export default function Body() {
-  const t = useT(); const { crewId } = useCrew()
+  const { crewId } = useCrew()
+  return <CrewBody crewId={crewId} />
+}
+
+function CrewBody({ crewId }: { crewId: string }) {
   const { data: c } = useLoad(() => api.crewOne(crewId), [crewId])
-  const [sel, setSel] = useState<BP>('heart')
+  return c ? <BodyView c={c} crewId={crewId} /> : <Loading />
+}
+
+function BodyView({ c, crewId }: { c: CrewDetail; crewId: string }) {
+  const t = useT()
+  const [sel, setSel] = useState<BP | null>(null)
+  const [trigger, setTrigger] = useState<HTMLElement | null>(null)
+  const sex = useCrewSex(crewId)
   const hs = useHotspots(c)
-  if (!c) return <Loading />
+  useEffect(() => { setSel(null) }, [crewId, sex])
+  const closeDetails = useCallback(() => setSel(null), [])
+  return (
+    <Page title={t('body_title')}>
+      <div className="bodywrap figure">
+        <BodyModel3D hotspots={hs} selected={sel} onSelect={id => { setTrigger(document.activeElement instanceof HTMLElement ? document.activeElement : null); setSel(id as BP) }} sex={sex} />
+        {sel && <BodyDetails key={sel} c={c} sel={sel} trigger={trigger} onClose={closeDetails} />}
+      </div>
+    </Page>
+  )
+}
+
+function BodyDetails({ c, sel, trigger, onClose }: { c: CrewDetail; sel: BP; trigger: HTMLElement | null; onClose: () => void }) {
+  const t = useT()
+  const { lang } = useLang()
+  const panel = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    panel.current?.focus()
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); onClose() } }
+    const outside = (e: PointerEvent) => {
+      if (e.target instanceof Element && !panel.current?.contains(e.target) && !e.target.closest('.figure-hotspot')) onClose()
+    }
+    document.addEventListener('keydown', key)
+    document.addEventListener('pointerdown', outside)
+    return () => {
+      document.removeEventListener('keydown', key)
+      document.removeEventListener('pointerdown', outside)
+      if (trigger?.isConnected) trigger.focus({ preventScroll: true })
+    }
+  }, [onClose, trigger])
   const lv = bodyLevels(c)
   const today = c.days[c.days.length - 1]
-  const isHazard = ['ear', 'lungs', 'muscle'].includes(sel)
   return (
-    <Page title={`${t('body_title')} · ${c.name}`} sub={t('body_sub')}>
-      <div className="grid" style={{ gridTemplateColumns: 'minmax(180px,240px) 1fr minmax(300px,400px)', alignItems: 'start' }}>
-        <Card className="hotlist" style={{ padding: 10 }}>
-          {(Object.keys(BP_POS) as BP[]).map(id => (
-            <button key={id} className={sel === id ? 'on' : ''} onClick={() => setSel(id)}>
-              <span className={`s-${lv[id]}`} style={{ width: 8, height: 8, borderRadius: 9, background: 'currentColor' }} />{t(BP_LABEL[id])}
-            </button>
-          ))}
-        </Card>
-        <div className="bodywrap"><Body3D key={crewId} hotspots={hs} selected={sel} onSelect={id => setSel(id as BP)} /></div>
-        <Card title={t(BP_LABEL[sel])} right={<LevelTag level={lv[sel]} />}>
-          <p style={{ marginTop: 0 }}>{t(`bpd_${sel}`)}</p>
+    <div ref={panel} className="body-details" role="dialog" aria-label={t(BP_LABEL[sel])} tabIndex={-1}>
+      <button type="button" className="body-details-close" aria-label={COPY[lang].close} onClick={onClose}>×</button>
+      <Card title={t(BP_LABEL[sel])} right={<LevelTag level={lv[sel]} />}>
           {BP_METRICS[sel].map(m => (
             <div key={m} style={{ padding: '12px 0', borderTop: '1px solid var(--line)' }}>
               <div className="row between"><span className="muted small">{t(`m_${m}`)}</span><LevelTag level={levelOf(m, today[m], c.baseline[m])} /></div>
               <div className="row between" style={{ alignItems: 'baseline' }}>
-                <div className="mono" style={{ fontSize: 28 }}>{fmt(today[m], DEC[m])} <span className="small muted">{t(UNIT[m])}</span></div>
+                <div className="metric-value" style={{ fontSize: 28 }}>{fmt(today[m], DEC[m])} <span className="small muted">{t(UNIT[m])}</span></div>
                 <div className="small dim">{t('your_band')} {fmt(c.baseline[m].band_low, DEC[m])}–{fmt(c.baseline[m].band_high, DEC[m])}</div>
               </div>
               <Spark days={c.days} m={m} b={c.baseline[m]} h={44} />
             </div>
           ))}
-          {sel === 'ear' && <div className="small" style={{ padding: '12px 0', borderTop: '1px solid var(--line)' }}>{t('link_ok')} · {t('worn')}</div>}
+          {sel === 'ear' && <div className="small" style={{ padding: '12px 0', borderTop: '1px solid var(--line)' }}>{t('link_ok')}, {t('worn')}</div>}
           {!BP_METRICS[sel].length && sel !== 'ear' && <div className="small dim" style={{ padding: '12px 0', borderTop: '1px solid var(--line)' }}>{t('not_measured')}</div>}
           <div style={{ borderTop: '1px solid var(--line)', paddingTop: 12, marginTop: 4 }}>
-            <div className="small muted">{t('measured_by')}</div><div style={{ marginBottom: 10 }}>{t(`mb_${sel}`)}</div>
             <div className="small muted">{t('hrp_risk')}</div>
-            <div><a href={isHazard ? HAZ_URL : HRP_URL} target="_blank" rel="noreferrer">{t(`hrp_${sel}`)}</a></div>
-            <div className="small dim">NASA Human Research Program</div>
+            <div>{t(`hrp_${sel}`)}</div>
           </div>
-        </Card>
-      </div>
-    </Page>
+          <IndicatorSheet indicator={sel} collapsible />
+      </Card>
+    </div>
   )
 }

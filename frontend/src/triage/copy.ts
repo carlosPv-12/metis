@@ -1,0 +1,28 @@
+export const copy = {
+  es: {
+    intro: 'Vamos paso a paso.', urgent: 'Urgente', guided: 'Guiado', listening: 'Te escucho',
+    emergency: 'Emergencias', health: 'Salud', mind: 'Mente y ánimo',
+    choose: '¿Cómo quieres hacerlo?', voice: 'Hablar con Metis',
+    voiceHint: 'Metis te lee cada paso en voz alta', screen: 'Solo en pantalla',
+    screenHint: 'Lo haces tocando las respuestas', close: 'Cerrar',
+    speaking: 'Metis está hablando', ready: 'Metis te acompaña', mute: 'Silenciar',
+    unmute: 'Activar voz', muted: 'Voz silenciada',
+    followup: '¿Quieres hablar con Metis sobre esto?',
+    mindFollowup: 'Estoy aquí contigo. ¿Quieres hablar con Metis sobre cómo te sientes?',
+    yes: 'Sí, hablar con Metis', no: 'No, gracias',
+    invalid: 'Elige un tema para empezar.', hub: 'Volver al triaje',
+  },
+  en: {
+    intro: 'One step at a time.', urgent: 'Urgent', guided: 'Guided', listening: 'Here for you',
+    emergency: 'Emergencies', health: 'Health', mind: 'Mind and mood',
+    choose: 'How would you like to do this?', voice: 'Talk with Metis',
+    voiceHint: 'Metis reads each step aloud', screen: 'On screen only',
+    screenHint: 'Tap the answers at your own pace', close: 'Close',
+    speaking: 'Metis is speaking', ready: 'Metis is here with you', mute: 'Mute',
+    unmute: 'Turn voice on', muted: 'Voice muted',
+    followup: 'Would you like to talk with Metis about this?',
+    mindFollowup: 'I’m here with you. Would you like to talk with Metis about how you feel?',
+    yes: 'Yes, talk with Metis', no: 'No, thanks',
+    invalid: 'Choose a topic to get started.', hub: 'Back to triage',
+  },
+}

@@ -1,0 +1,16 @@
+.indicator-button { margin-top: 12px; font-size: .82rem; }
+.indicator-sheet { color: #07173F; text-align: left; }
+.indicator-sheet section, .indicator-sheet details { border-top: 1px solid #D7DFEC; padding: 16px 0; }
+.indicator-sheet h3, .indicator-sheet summary { margin: 0; font-size: 1rem; font-weight: 700; color: #0042A6; }
+.indicator-sheet summary { cursor: pointer; padding: 4px 0; }
+.indicator-sheet p { margin: 9px 0 0; line-height: 1.6; }
+.indicator-sheet .indicator-limit { padding: 14px; background: #EEF5FE; border-radius: 16px; margin: 0 0 16px; }
+.indicator-dialog { width: min(580px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); box-sizing: border-box; border: 1px solid #D7DFEC; border-radius: 28px; padding: 26px; color: #07173F; background: white; box-shadow: 0 20px 80px #07173f40; }
+.indicator-dialog::backdrop { background: #07173f88; }
+.indicator-dialog-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.indicator-dialog-heading h2 { font-family: 'Fira Sans', sans-serif; font-weight: 900; text-transform: uppercase; font-size: 1.5rem; margin: 4px 0; }
+.indicator-dialog-heading .btn { flex-shrink: 0; }
+.indicator-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.indicator-sheet summary:focus-visible, .indicator-button:focus-visible, .indicator-dialog .btn:focus-visible { outline: 3px solid #0960E1; outline-offset: 3px; }
+.body-details:has(.indicator-sheet) { overflow-y: auto; overscroll-behavior: contain; }
+@media (max-width: 560px) { .indicator-dialog { padding: 20px; } .indicator-dialog-heading h2 { font-size: 1.15rem; } }

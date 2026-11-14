@@ -1,11 +1,18 @@
 // Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026
 // "Station console": dashboard for the commander and CMOs. Polls /api/station and /api/station/events.
 import { useEffect, useState } from 'react'
-import { Activity, Battery, Ear, Orbit, Package, Radio, Wind } from 'lucide-react'
+import { Battery, Orbit, Package, Radio, Wind } from 'lucide-react'
 import { api, type Station as S, type StationEvent } from '../api'
-import { usePoll, fmtDelay } from '../hooks'
+import { usePoll } from '../hooks'
 import { useLang, useT, pick, placeL, habitatTime, type Lang } from '../i18n'
-import { Card, DelayInfo, Page, Shape, type Level } from '../ui'
+import { Card, Page, Shape, useCrew, type Level } from '../ui'
+import CrewAvatar from '../CrewAvatar'
+import { fmtLinkDelay, useLink } from '../link'
+import { packetStatus } from '../station/packet'
+import { useReportQueue } from '../station/reportQueue'
+import { AccessCountdown, AccessLog, AccessNotices, AccessRequests, EmergencyButton, EmergencyDetails, PrivateDetails } from '../station/EmergencyAccess'
+import { useAccessRequests, useEmergencyAccess } from '../station/accessStore'
+import '../link.css'
 import { FALLBACK_STATION } from '../fallback'
 
 export const lvl = (s?: string): Level => (s === 'alarm' || s === 'red' || s === 'critical' ? 'alarm' : s === 'watch' || s === 'warn' || s === 'amber' || s === 'warning' ? 'watch' : s === 'nodata' ? 'nodata' : 'ok')
@@ -35,54 +42,66 @@ export function evText(e: StationEvent, lang: Lang, names: Record<string, string
     collapse: [`${who} collapsed — earpiece fall detected, no voice response`, `${who} se ha desplomado: caída detectada, no responde`],
     checkin: [`${who} completed morning check-in`, `${who} hizo el chequeo de la mañana`],
   }
-  const m = map[e.type]; return m ? m[lang === 'es' ? 1 : 0] : `${e.type} · ${who}`
+  const m = map[e.type]; return m ? m[lang === 'es' ? 1 : 0] : `${e.type}, ${who}`
 }
 // shown in simulated habitat time, like the header clock
 const evTime = (e: StationEvent) => { const v = e.ts ?? e.t; if (!v) return ''; const d = new Date(v); return Number.isNaN(d.getTime()) ? '' : habitatTime(d.getTime()) }
 
+const TXT = {
+  en: { sub: 'Crew readiness and cabin conditions. Medical details stay private.', fit: 'Fit', limited: 'Limited', unfit: 'Unfit', unknown: 'No data', direct: 'Live', delayed: 'Messages arrive after the one-way delay.', offline: 'No link: queued', routing: 'Alert routing', simulated: 'Simulated crew and link', mode: 'Mode', realtime: 'Near real time', delay: 'Delayed', none: 'No link', privateEvent: 'Crew health alert. Details are private.', privateLog: 'Medical event. Details are private.' },
+  es: { sub: 'Estado de la tripulación y del hábitat. Los detalles médicos son privados.', fit: 'Apto', limited: 'Limitado', unfit: 'No apto', unknown: 'Sin datos', direct: 'En directo', delayed: 'Los mensajes llegan tras el retraso de ida.', offline: 'Sin enlace: en cola', routing: 'Destino de los avisos', simulated: 'Tripulación y enlace simulados', mode: 'Modo', realtime: 'Casi en directo', delay: 'Con retraso', none: 'Sin enlace', privateEvent: 'Aviso de salud de la tripulación. Los detalles son privados.', privateLog: 'Evento médico. Los detalles son privados.' },
+}
+
 export default function Station() {
-  const t = useT(); const { lang } = useLang()
+  const t = useT(); const { lang } = useLang(); const s = TXT[lang]
+  const link = useLink(); const { crewId } = useCrew()
   const raw = usePoll(api.station, 3000)
   const evs = usePoll(() => api.events().catch(() => [] as StationEvent[]), 2500)
-  const [now, setNow] = useState(Date.now())
+  const [now, setNow] = useState(() => Date.now())
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id) }, [])
+  const access = useEmergencyAccess(now)
+  const requests = useAccessRequests()
   const st = normStation(raw)
+  const actor = st.crew.find(c => c.id === crewId)
+  const canRead = (id?: string) => !!id
   const names = Object.fromEntries(st.crew.map(c => [c.id, c.name]))
   const ts = (e: StationEvent) => new Date(e.ts ?? e.t ?? 0).getTime() || Number(e.id) || 0
   const events = [...(evs ?? [])].sort((a, b) => ts(b) - ts(a))
-  const delay = st.comms.one_way_delay_s
   const hasExp = st.medkit.some(m => m.expires)
   const lastPkt = events.find(e => e.type === 'send_flight_surgeon')
-  const pktStart = lastPkt ? new Date(lastPkt.ts ?? lastPkt.t ?? '').getTime() : NaN
-  const remaining = st.packet?.eta_s ?? (Number.isNaN(pktStart) ? null : Math.max(0, delay - (now - pktStart) / 1000))
-  const alarmIds = new Set(events.filter(e => e.type === 'alert_crew' || e.type === 'collapse').map(e => e.crew_id))
+  const [initialPacketTime] = useState(() => Date.now())
+  const eventStart = lastPkt ? new Date(lastPkt.ts ?? lastPkt.t ?? '').getTime() : NaN
+  const pktStart = Number.isFinite(eventStart) ? eventStart : st.packet ? initialPacketTime : null
+  const report = useReportQueue(link)[0]
+  const packetText = packetStatus(link, report && report.at >= (pktStart ?? 0) ? report.start ?? report.at : pktStart, now, lang)
   return (
-    <Page title={t('station_title')} sub={t('station_sub')} right={<span className="pill ok"><span className="dot" style={{ background: 'var(--ok)' }} />{t('live')} · {t('mission_day')} {st.mission_day}</span>}>
+    <Page title={t('station_title')}>
+      <AccessNotices access={access} />
+      {actor && <AccessRequests actor={actor} crew={st.crew} access={access} requests={requests} />}
       <div className="grid g4">
         {st.crew.map(c => {
-          const l = alarmIds.has(c.id) ? 'alarm' : lvl(c.status)
-          const hs = st.headsets.find(h => h.crew_id === c.id)
+          const l = lvl(c.status)
+          const entry = c.id !== crewId ? access.active(c.id, crewId) : undefined
           return (
             <div key={c.id} className={`crewcard ${l}`}>
-              <div className="row between"><div style={{ fontSize: 20, fontWeight: 600 }}>{c.name}</div>
-                <span className={`tag ${l}`}><Shape level={l} />{t(l === 'ok' ? 'st_nominal' : l === 'watch' ? 'st_watch' : 'st_alarm')}</span></div>
-              <div className="small muted">{pick(c as never, 'role', lang) || c.role} · {placeL(c.location, lang)}</div>
-              <div className="row between" style={{ marginTop: 14, alignItems: 'baseline' }}>
-                <span className="mono" style={{ fontSize: 26 }}><Activity size={16} style={{ verticalAlign: -1, marginRight: 6, opacity: .7 }} />{c.hr ?? '—'} <span className="small muted">{t('u_bpm')}</span></span>
-                {hs && <span className="small muted"><Ear size={13} style={{ verticalAlign: -2 }} /> {hs.battery_pct}%</span>}
-              </div>
-              {(pick(c as never, 'note', lang)) && <div className={`small s-${l}`} style={{ marginTop: 8 }}>{pick(c as never, 'note', lang)}</div>}
+              <div className="row between"><div className="row"><CrewAvatar id={c.id} name={c.name} size={44} /><div style={{ fontSize: 20, fontWeight: 600 }}>{c.name}</div></div>
+                <span className={`tag ${l}`}><Shape level={l} />{l === 'ok' ? s.fit : l === 'watch' ? s.limited : l === 'nodata' ? s.unknown : s.unfit}</span></div>
+              <div className="small muted">{pick(c as never, 'role', lang) || c.role}</div>
+              <div className="small muted">{placeL(c.location, lang)}</div><EmergencyDetails key={c.id} crew={c} />
+              {entry && <><PrivateDetails crew={c} /><AccessCountdown entry={entry} now={now} access={access} /></>}
+              {!entry && actor && c.id !== crewId && <EmergencyButton crew={c} actor={actor} access={access} requests={requests} />}
+
             </div>
           )
         })}
       </div>
-      <div className="grid" style={{ gridTemplateColumns: '1.3fr 1fr 1fr', marginTop: 18 }}>
-        <Card title={<><Wind size={14} />{t('environment')}</>} right={<span className="small dim">CO₂ · {t('u_mmhg')} · {t('limit')} 3.0</span>}>
+      <div className="grid station-modules" style={{ gridTemplateColumns: '1.3fr 1fr 1fr', marginTop: 18 }}>
+        <Card title={<><Wind size={14} />{t('environment')}</>} right={<span className="small dim">CO₂ en {t('u_mmhg')}, {t('limit')} 3.0</span>}>
           {st.environment.map(e => {
             const l: Level = e.co2_mmhg > 4.5 ? 'alarm' : e.co2_mmhg > 3 ? 'watch' : 'ok'
             return (
               <div key={e.module} style={{ marginBottom: 12 }}>
-                <div className="row between small"><span>{pick(e as never, 'module', lang) || e.module}</span><span className={`mono s-${l}`}>{e.co2_mmhg.toFixed(1)}{e.temp_c != null && <span className="dim"> · {e.temp_c.toFixed(1)} °C</span>}</span></div>
+                <div className="row between small"><span>{pick(e as never, 'module', lang) || e.module}</span><span className={`mono s-${l}`}>{e.co2_mmhg.toFixed(1)}{e.temp_c != null && <span className="dim">, {e.temp_c.toFixed(1)} °C</span>}</span></div>
                 <div className="bar" style={{ position: 'relative', marginTop: 5 }}>
                   <i style={{ width: `${Math.min(100, (e.co2_mmhg / 6) * 100)}%`, background: `var(--${l === 'ok' ? 'ok' : l === 'watch' ? 'warn' : 'alarm'})` }} />
                   <span style={{ position: 'absolute', left: '50%', top: -3, bottom: -3, width: 2, background: 'var(--warn)' }} />
@@ -92,13 +111,12 @@ export default function Station() {
           })}
         </Card>
         <Card title={<><Orbit size={14} />{t('comms')}</>}>
-          <div className="stat"><div className="lbl">{t('earth_delay')} · {t('one_way')}</div><div className="val">{fmtDelay(delay)}<small>{t('min')}</small></div></div>
-          <DelayInfo comms={st.comms} />
-          {st.comms.next_window_min != null && <div className="small muted" style={{ marginTop: 4 }}>{t('ground_window')}: <span className="mono">{st.comms.next_window_min} {t('min')}</span></div>}
+          <div className="stat"><div className="lbl">{link.label[lang]}</div><div className="val">{fmtLinkDelay(link.delayS, lang)}</div></div>
+          <p className="small">{s.mode}: {link.mode === 'realtime' ? s.realtime : link.mode === 'delayed' ? s.delay : s.none}</p>
+          <p className="small">{link.mode === 'realtime' ? s.direct : link.mode === 'none' ? s.offline : pktStart ? packetText : s.delayed}</p>
           <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
-            <div className="row between small"><span><Package size={14} style={{ verticalAlign: -2 }} /> {t('queued_packet')}</span>
-              <span className={remaining == null ? 'dim' : remaining > 0 ? 's-watch mono' : 's-ok'}>{remaining == null ? t('none') : remaining > 0 ? `${t('arrives_in')} ${fmtDelay(remaining)}` : t('delivered')}</span></div>
-            {remaining != null && <div className="bar" style={{ marginTop: 8 }}><i style={{ width: `${100 - (remaining / delay) * 100}%`, background: 'var(--info)' }} /></div>}
+            <div className="small"><Package size={14} aria-hidden /> {t('queued_packet')}</div>
+            <p className="small" role="status">{packetText}</p>
           </div>
         </Card>
         <Card title={<><Radio size={14} />{t('headsets')}</>}>
@@ -115,8 +133,8 @@ export default function Station() {
       <div className="grid" style={{ gridTemplateColumns: '1.6fr 1fr', marginTop: 18 }}>
         <Card title={t('event_log')} right={<span className="small dim">{events.length}</span>}>
           <div className="log">
-            {st.alerts.map((a, i) => <div key={'a' + i} className="e"><span className={`s-${lvl(a.level)}`}>{t('alerts')}</span><span>{pick(a as never, 'text', lang) || a.text}</span></div>)}
-            {events.map((e, i) => <div key={i} className="e"><span className="dim">{evTime(e)}</span><span className={e.type === 'alert_crew' || e.type === 'collapse' ? 's-alarm' : ''}>{evText(e, lang, names)}</span></div>)}
+            {st.alerts.map((a, i) => <div key={'a' + i} className="e"><span className={`s-${lvl(a.level)}`}>{t('alerts')}</span><span>{canRead(a.crew_id) ? pick(a as never, 'text', lang) || a.text : s.privateEvent}</span></div>)}
+            {events.map((e, i) => <div key={i} className="e"><span className="dim">{evTime(e)}</span><span className={e.type === 'alert_crew' || e.type === 'collapse' ? 's-alarm' : ''}>{canRead(e.crew_id) ? evText(e, lang, names) : s.privateLog}</span></div>)}
             {!events.length && <div className="dim">{t('no_events')}</div>}
           </div>
         </Card>
@@ -125,6 +143,7 @@ export default function Station() {
             <tbody>{st.medkit.map((m, i) => <tr key={i}><td>{pick(m as never, 'item', lang) || m.item}</td><td className={`n ${m.min != null && m.qty < m.min ? 's-watch' : ''}`}>{m.qty}{m.min != null && <span className="dim">/{m.min}</span>}</td>{hasExp && <td className="n dim">{m.expires ?? ''}</td>}</tr>)}</tbody></table>
         </Card>
       </div>
+      <AccessLog access={access} />
     </Page>
   )
 }

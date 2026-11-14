@@ -1,22 +1,24 @@
 // Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026
 import { useEffect, useState } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
-import { Activity, BookOpen, Database, Film, HeartPulse, LayoutDashboard, MessageCircle, MoonStar, PersonStanding, Send, Siren, Sun } from 'lucide-react'
+import { Activity, BookMarked, LayoutDashboard, MessageCircle, PersonStanding, Send, Settings as SettingsIcon, Siren, Sun } from 'lucide-react'
 import { LangCtx, useT, habitatTime, type Lang } from './i18n'
-import { CrewCtx, useCrew } from './ui'
-import { useLoad } from './hooks'
+import { CrewCtx } from './ui'
 import { useLang as useLangCtx } from './i18n'
-import { api, NO_SERVER } from './api'
+import ConnectionPill from './Connection'
+import CrewSwitch from './CrewSwitch'
+import LinkChip from './LinkChip'
+import Settings from './screens/Settings'
+import References from './screens/References'
+import { REFERENCES_LABEL, SETTINGS_LABEL } from './settings'
 import Greeting from './screens/Greeting'
 import Trend from './screens/Trend'
 import Body from './screens/Body'
 import Talk from './screens/Talk'
-import Triage from './screens/Triage'
-import SleepAir from './screens/SleepAir'
+import TriageHub from './screens/TriageHub'
+import TriageRun from './screens/TriageRun'
 import Summary from './screens/Summary'
 import Station from './screens/Station'
-import How from './screens/How'
-import NasaData from './screens/NasaData'
 import Demo from './screens/Demo'
 
 function readLang(): Lang {
@@ -44,17 +46,18 @@ function Shell() {
   useEffect(() => { const id = setInterval(() => setNow(new Date()), 30000); return () => clearInterval(id) }, [])
   const hhmm = habitatTime(now.getTime())
   const loc = useLocation()
+  const { lang } = useLangCtx()
   useEffect(() => { document.querySelector('.content')?.scrollTo(0, 0) }, [loc.pathname])
   const I = 18
   return (
     <div className="shell">
       <header className="top">
         <div className="brand"><span className="orb" />Metis</div>
-        <div className="day"><span>{t('mission_day')} <b>112</b></span><span>{hhmm} <span className="dim">{t('habitat_time')}</span></span></div>
+        <div className="day day-inline"><span>{t('mission_day')} <b>112</b></span><span>{cap(t('habitat_time'))} <b>{hhmm}</b></span></div>
         <div className="spacer" />
         <CrewSwitch />
-        <span className="pill ok" title={t('offline_badge')}><span className="dot" style={{ background: 'var(--ok)' }} />{t('offline_badge')}</span>
-        {NO_SERVER && <span className="tag sim" title={t('no_server_tip')}>{t('no_server_badge')}</span>}
+        <ConnectionPill />
+        <LinkChip />
         <LangSwitch />
       </header>
       <nav className="rail" aria-label="Main">
@@ -64,15 +67,12 @@ function Shell() {
         <NavLink to="/body"><PersonStanding size={I} /><span>{t('nav_body')}</span></NavLink>
         <NavLink to="/talk"><MessageCircle size={I} /><span>{t('nav_talk')}</span></NavLink>
         <NavLink to="/triage"><Siren size={I} /><span>{t('nav_triage')}</span></NavLink>
-        <NavLink to="/sleep-air"><MoonStar size={I} /><span>{t('nav_sleepair')}</span></NavLink>
         <NavLink to="/report"><Send size={I} /><span>{t('nav_report')}</span></NavLink>
         <div className="grp">{t('group_station')}</div>
         <NavLink to="/station"><LayoutDashboard size={I} /><span>{t('nav_station')}</span></NavLink>
-        <div className="grp">{t('group_about')}</div>
-        <NavLink to="/how"><BookOpen size={I} /><span>{t('nav_how')}</span></NavLink>
-        <NavLink to="/data"><Database size={I} /><span>{t('nav_data')}</span></NavLink>
-        <NavLink to="/demo"><Film size={I} /><span>{t('nav_demo')}</span></NavLink>
-        <div className="foot"><HeartPulse size={13} style={{ verticalAlign: -2, marginRight: 5 }} />{t('simulated_note')}<br /><br />{t('not_diagnosis')}</div>
+        <div className="grp">{REFERENCES_LABEL[lang]}</div>
+        <NavLink to="/references"><BookMarked size={I} /><span>{REFERENCES_LABEL[lang]}</span></NavLink>
+        <NavLink to="/settings" className="rail-settings"><SettingsIcon size={I} /><span>{SETTINGS_LABEL[lang]}</span></NavLink>
       </nav>
       <main className="content">
         <Routes>
@@ -81,12 +81,13 @@ function Shell() {
           <Route path="/trends" element={<Trend />} />
           <Route path="/body" element={<Body />} />
           <Route path="/talk" element={<Talk />} />
-          <Route path="/triage" element={<Triage />} />
-          <Route path="/sleep-air" element={<SleepAir />} />
+          <Route path="/triage" element={<TriageHub />} />
+          <Route path="/triage/run" element={<TriageRun />} />
+          <Route path="/sleep-air" element={<Navigate to="/trends" replace />} />
           <Route path="/report" element={<Summary />} />
           <Route path="/station" element={<Station />} />
-          <Route path="/how" element={<How />} />
-          <Route path="/data" element={<NasaData />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/references" element={<References />} />
           <Route path="*" element={<Navigate to="/today" replace />} />
         </Routes>
       </main>
@@ -104,16 +105,4 @@ export function LangSwitch() {
   )
 }
 
-function CrewSwitch() {
-  const t = useT()
-  const { crewId, setCrewId } = useCrew()
-  const { data } = useLoad(api.crew)
-  const crew = data?.crew ?? [{ id: 'lena', name: 'Lena' }, { id: 'marco', name: 'Marco' }]
-  return (
-    <div className="row small"><span className="muted">{t('viewing_as')}</span>
-      <div className="seg" role="group" aria-label={t('viewing_as')}>
-        {crew.map(c => <button key={c.id} className={crewId === c.id ? 'on' : ''} onClick={() => setCrewId(c.id)}>{c.name}</button>)}
-      </div>
-    </div>
-  )
-}
+const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1)

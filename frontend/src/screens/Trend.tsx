@@ -1,12 +1,14 @@
 // Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026
-// "Trends": 30 days vs. personal band + NASA reference lines with their source; real OSDR blood panel.
+// "Trends": 30 days vs. personal band + reference lines; real OSDR blood panel.
 import { useState } from 'react'
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api, type Metric, type Threshold } from '../api'
+import SleepAir from './SleepAir'
 import { useLoad } from '../hooks'
-import { useLang, useT, pick, unitL, srcL, ES_RULE } from '../i18n'
+import { useLang, useT, pick, unitL } from '../i18n'
 import { Card, DEC, LevelTag, Loading, METRICS, Page, UNIT, fmt, levelOf, useCrew } from '../ui'
 import { findThr, numVal } from '../thresholds'
+import { IndicatorButton } from '../IndicatorSheet'
 
 const REF: Record<Metric, [string, RegExp][]> = {
   resting_hr_bpm: [['hr_inflight', /^hr|heart/]],
@@ -16,64 +18,59 @@ const REF: Record<Metric, [string, RegExp][]> = {
   mood_1_5: [],
 }
 
-export function SourceTip({ th, color = 'var(--warn)' }: { th: Threshold; color?: string }) {
-  const { lang } = useLang(); const t = useT()
+export function ThresholdLabel({ th, color = 'var(--warn)' }: { th: Threshold; color?: string }) {
+  const { lang } = useLang()
   return (
-    <span className="tip small" tabIndex={0} style={{ color }}>
+    <span className="small" style={{ color }}>
       <svg width="18" height="6" style={{ marginRight: 6 }}><line x1="0" y1="3" x2="18" y2="3" stroke={color} strokeWidth="2" strokeDasharray="4 3" /></svg>
       {pick(th as never, 'label', lang)}: <span className="mono">{String(th.value)} {unitL(th.unit, lang)}</span>
-      <span className="tooltip">
-        <b>{t('nasa_line')}</b> · <span className={th.verified ? 's-ok' : 's-watch'}>{th.verified ? t('verified') : t('unverified')}</span><br />
-        {th.rule && th.rule.length > 2 && <><span className="muted">{lang === 'es' ? (th as { rule_es?: string }).rule_es ?? ES_RULE[th.id] ?? th.rule : th.rule}</span><br /></>}
-        {srcL(th.source_title, lang)}{th.source_url && <><br /><span className="dim" style={{ wordBreak: 'break-all' }}>{th.source_url}</span></>}
-      </span>
     </span>
   )
 }
 
 export default function Trend() {
-  const t = useT(); const { crewId } = useCrew(); const { lang } = useLang()
+  const t = useT(); const { crewId } = useCrew()
   const { data: c } = useLoad(() => api.crewOne(crewId), [crewId])
   const { data: ths } = useLoad(api.thresholds)
   if (!c) return <Loading />
-  const win = baselineWindow(c as unknown as Record<string, unknown>, ths, lang, t)
   const today = c.days[c.days.length - 1]
   return (
-    <Page title={t('trends_title')} sub={t('baseline_sub').replace('{w}', win)} right={<span className="tag sim">{t('sim_badge')} · {c.name}</span>}>
+    <Page title={t('trends_title')}>
       <div className="grid g2">
-        {METRICS.map(m => {
+        {([...METRICS, 'mood_1_5'] as Metric[]).map(m => {
           const b = c.baseline[m]
           const refs = REF[m].map(([id, kw]) => findThr(ths, id, kw)).filter(Boolean) as Threshold[]
           const data = c.days.map(d => ({ day: d.mission_day, v: d[m] }))
           const vals = data.map(d => d.v as number).concat(refs.map(numVal).filter(n => !Number.isNaN(n)), [b.band_low, b.band_high])
           const lo = Math.min(...vals), hi = Math.max(...vals), pad = (hi - lo) * 0.12
           const lvl = levelOf(m, today[m], b)
-          const col = lvl === 'ok' ? '#9ee9dc' : lvl === 'watch' ? '#f3b443' : '#ff5a5f'
+          const col = '#0960E1'
           return (
             <Card key={m} title={t(`m_${m}`)} right={<span className="row"><span className="mono" style={{ fontSize: 15 }}>{fmt(today[m], DEC[m])} {t(UNIT[m])}</span><LevelTag level={lvl} /></span>}>
               <div style={{ height: 230 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: -8 }}>
-                    <CartesianGrid stroke="#1a2534" vertical={false} />
-                    <XAxis dataKey="day" tick={{ fill: '#5d6c80', fontSize: 11 }} tickLine={false} axisLine={{ stroke: '#253246' }} interval={4} />
-                    <YAxis domain={[+(lo - pad).toFixed(2), +(hi + pad).toFixed(2)]} tick={{ fill: '#5d6c80', fontSize: 11 }} tickLine={false} axisLine={false} width={44} tickFormatter={(v: number) => v.toFixed(DEC[m] ? 1 : 0)} />
-                    <ReferenceArea y1={b.band_low} y2={b.band_high} fill="#9ee9dc" fillOpacity={0.08} stroke="none" ifOverflow="extendDomain" />
-                    {refs.map((r, i) => !Number.isNaN(numVal(r)) && <ReferenceLine key={r.id} y={numVal(r)} stroke={i ? '#6fb6ff' : '#f3b443'} strokeDasharray="5 4" strokeWidth={1.5} />)}
-                    <Tooltip contentStyle={{ background: '#0f1926', border: '1px solid #253246', borderRadius: 10, fontSize: 12 }} labelFormatter={(l) => `${t('mission_day')} ${l}`} formatter={(v) => [fmt(Number(v), DEC[m]) + ' ' + t(UNIT[m]), t(`m_${m}`)]} />
+                    <CartesianGrid stroke="#E3E9F2" vertical={false} />
+                    <XAxis dataKey="day" tick={{ fill: '#4A5468', fontSize: 11 }} tickLine={false} axisLine={{ stroke: '#D7DFEC' }} interval={4} />
+                    <YAxis domain={[+(lo - pad).toFixed(2), +(hi + pad).toFixed(2)]} tick={{ fill: '#4A5468', fontSize: 11 }} tickLine={false} axisLine={false} width={44} tickFormatter={(v: number) => v.toFixed(DEC[m] ? 1 : 0)} />
+                    <ReferenceArea y1={b.band_low} y2={b.band_high} fill="#2E96F5" fillOpacity={0.08} stroke="none" ifOverflow="extendDomain" />
+                    {refs.map((r, i) => !Number.isNaN(numVal(r)) && <ReferenceLine key={r.id} y={numVal(r)} stroke={i ? '#0960E1' : '#B45309'} strokeDasharray="5 4" strokeWidth={1.5} />)}
+                    <Tooltip contentStyle={{ background: '#07173F', border: '1px solid #D7DFEC', borderRadius: 10, fontSize: 12 }} labelFormatter={(l) => `${t('mission_day')} ${l}`} formatter={(v) => [fmt(Number(v), DEC[m]) + ' ' + t(UNIT[m]), t(`m_${m}`)]} />
                     <Area type="monotone" dataKey="v" stroke="none" fill={col} fillOpacity={0.06} isAnimationActive={false} />
                     <Line type="monotone" dataKey="v" stroke={col} strokeWidth={2.2} dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
               <div className="row wrap" style={{ gap: 16, marginTop: 8 }}>
-                <span className="small muted"><span style={{ display: 'inline-block', width: 14, height: 8, background: 'rgba(158,233,220,.25)', marginRight: 6, borderRadius: 2 }} />{t('your_band')} {fmt(b.band_low, DEC[m])}–{fmt(b.band_high, DEC[m])}</span>
-                {refs.map((r, i) => <SourceTip key={r.id} th={r} color={i ? 'var(--info)' : 'var(--warn)'} />)}
-                {!refs.length && m === 'hrv_ms' && (() => { const h = findThr(ths, 'hrv', /hrv/); return h ? <span className="small dim">{srcL(h.source_title, lang)}</span> : null })()}
+                <span className="small muted"><span style={{ display: 'inline-block', width: 14, height: 8, background: 'rgba(46,150,245,.18)', marginRight: 6, borderRadius: 2 }} />{t('your_band')} {fmt(b.band_low, DEC[m])}–{fmt(b.band_high, DEC[m])}</span>
+                {refs.map((r, i) => <ThresholdLabel key={r.id} th={r} color={i ? 'var(--info)' : 'var(--warn)'} />)}
               </div>
+              <IndicatorButton indicator={m} />
             </Card>
           )
         })}
       </div>
+      <SleepAir />
       <BloodPanel />
     </Page>
   )
@@ -94,7 +91,7 @@ const UNIT_ES: Record<string, string> = { 'cells/microliter': 'células/µL', pe
 const nice = (a: string, lang: 'en' | 'es' = 'en') => (lang === 'es' ? ANALYTE_ES[a] : undefined) ?? ANALYTE_LABEL[a] ?? a.replace(/_/g, ' ').replace(/^\w/, s => s.toUpperCase())
 const niceUnit = (u: string, lang: 'en' | 'es') => { const x = u.replace(/_per_/g, '/').replace(/_/g, ' '); return lang === 'es' ? UNIT_ES[x] ?? x : x }
 
-export function BloodPanel({ compact, refNote }: { compact?: boolean; refNote?: boolean }) {
+export function BloodPanel({ compact }: { compact?: boolean; refNote?: boolean }) {
   const t = useT(); const { lang } = useLang()
   const { data: b } = useLoad(api.blood)
   const ids = b ? Object.keys(b.crew) : []
@@ -104,9 +101,9 @@ export function BloodPanel({ compact, refNote }: { compact?: boolean; refNote?: 
   const rows = b.crew[id]?.analytes ?? []
   const shown = compact ? rows.filter(r => r.outside_personal_band || r.outside_reference_range).slice(0, 6) : rows
   return (
-    <Card style={{ marginTop: 18 }} title={<>{t('blood_title')}</>} right={<span className="tag real">{t('real_badge')}</span>}>
+    <Card style={{ marginTop: 18 }} title={({ en: 'Complete blood count', es: 'Hemograma completo' })[lang]}>
       <div className="row between wrap" style={{ marginBottom: 10 }}>
-        <span className="small muted">{refNote && <b className="s-watch" style={{ display: 'block', marginBottom: 4 }}>{t('blood_ref_note')}</b>}{t('blood_sub')}</span>
+        <span />
         <div className="seg">{ids.map(i => <button key={i} className={i === id ? 'on' : ''} onClick={() => setSel(i)}>{t('crew_member')} {i}</button>)}</div>
       </div>
       <div>
@@ -125,7 +122,6 @@ export function BloodPanel({ compact, refNote }: { compact?: boolean; refNote?: 
           </tbody>
         </table>
       </div>
-      <div className="small dim" style={{ marginTop: 10 }}>{b.source} · {b.url}</div>
     </Card>
   )
 }

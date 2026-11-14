@@ -3,11 +3,14 @@
 // Controlled mode (`time` prop set): renders only when props change, so a frame-by-frame capture is exact.
 import { useLayoutEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
-import type { Level } from './ui'
+import { Shape, type Level } from './ui'
 
 export interface Hotspot { id: string; pos: [number, number, number]; level: Level; label: string; left?: boolean }
 
-const COL: Record<Level, string> = { ok: '#3ad1ae', watch: '#f3b443', alarm: '#ff5a5f', nodata: '#7d8ba0' }
+// Separate the head labels into rows while keeping markers at their anatomical points.
+const LABEL_OFFSET_Y: Record<string, number> = { brain: -16, ear: 20 }
+
+const COL: Record<Level, string> = { ok: '#0A7A52', watch: '#B45309', alarm: '#E43700', nodata: '#4A5468' }
 
 const vert = `varying vec3 vN; varying vec3 vV; varying vec3 vW;
 void main(){ vec4 mv = modelViewMatrix * vec4(position,1.0); vN = normalize(normalMatrix*normal); vV = normalize(-mv.xyz);
@@ -72,19 +75,19 @@ export default function Body3D({ hotspots, selected, onSelect, time, rotation, h
     const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50)
     cam.position.set(0, 1.0, 4.1); cam.lookAt(0, 0.92, 0)
     const root = new THREE.Group(); scene.add(root)
-    const skin = holo('#5fe1ff', 0.9)
-    const wire = new THREE.MeshBasicMaterial({ color: '#5fe1ff', wireframe: true, transparent: true, opacity: 0.035, depthWrite: false, blending: THREE.AdditiveBlending })
+    const skin = holo('#2E96F5', 0.9)
+    const wire = new THREE.MeshBasicMaterial({ color: '#2E96F5', wireframe: true, transparent: true, opacity: 0.035, depthWrite: false, blending: THREE.AdditiveBlending })
     root.add(buildBody(skin, wire))
     // organs
-    const heartMat = holo('#ff5a5f', 1)
+    const heartMat = holo('#E43700', 1)
     const heart = new THREE.Mesh(new THREE.SphereGeometry(0.05, 24, 16), heartMat); heart.position.set(0.035, 1.3, 0.04); heart.scale.set(1, 1.15, 0.9); root.add(heart)
-    const lungMat = holo('#9ee9dc', 0.55)
+    const lungMat = holo('#FFFFFF', 0.55)
     for (const s of [-1, 1]) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.075, 20, 16), lungMat); l.position.set(s * 0.085, 1.33, 0); l.scale.set(0.85, 1.55, 0.8); root.add(l) }
-    const brain = new THREE.Mesh(new THREE.SphereGeometry(0.075, 20, 16), holo('#c3a6ff', 0.6)); brain.position.set(0, 1.70, -0.005); brain.scale.set(1, 0.8, 1.1); root.add(brain)
+    const brain = new THREE.Mesh(new THREE.SphereGeometry(0.075, 20, 16), holo('#FFFFFF', 0.6)); brain.position.set(0, 1.70, -0.005); brain.scale.set(1, 0.8, 1.1); root.add(brain)
     // earpiece (right ear)
-    const ear = new THREE.Mesh(new THREE.CapsuleGeometry(0.014, 0.03, 6, 12), new THREE.MeshBasicMaterial({ color: '#9ee9dc' })); ear.position.set(0.1, 1.655, 0.0); root.add(ear)
+    const ear = new THREE.Mesh(new THREE.CapsuleGeometry(0.014, 0.03, 6, 12), new THREE.MeshBasicMaterial({ color: '#FFFFFF' })); ear.position.set(0.1, 1.655, 0.0); root.add(ear)
     // floor rings
-    const ringMat = new THREE.MeshBasicMaterial({ color: '#5fe1ff', transparent: true, opacity: 0.25, side: THREE.DoubleSide })
+    const ringMat = new THREE.MeshBasicMaterial({ color: '#2E96F5', transparent: true, opacity: 0.25, side: THREE.DoubleSide })
     for (const [r, o] of [[0.42, 0.25], [0.55, 0.12], [0.7, 0.06]] as const) { const m = ringMat.clone(); m.opacity = o; const ring = new THREE.Mesh(new THREE.RingGeometry(r, r + 0.006, 96), m); ring.rotation.x = -Math.PI / 2; scene.add(ring) }
     // hotspot markers
     const markers: Record<string, THREE.Mesh> = {}
@@ -103,11 +106,19 @@ export default function Body3D({ hotspots, selected, onSelect, time, rotation, h
       for (const h of hsRef.current) {
         const mk = markers[h.id]; if (!mk) continue
         const pul = h.id === pulseId || h.id === selRef.current ? 1 + 0.5 * (0.5 + 0.5 * Math.sin(t / 180)) : 1
-        mk.scale.setScalar(pul); (mk.material as THREE.MeshBasicMaterial).color.set(COL[h.level])
+        mk.scale.setScalar(pul); (mk.material as THREE.MeshBasicMaterial).color.set(h.id === selRef.current ? '#EAFE07' : '#FFFFFF')
         mk.getWorldPosition(v); const facing = v.z > -0.02
         v.project(cam)
         const lab = labels.current[h.id]
-        if (lab) { const px = (v.x + 1) / 2 * el.clientWidth; const flip = h.left || px + 14 + lab.offsetWidth > el.clientWidth - 6; lab.style.transform = flip ? 'translate(calc(-100% - 14px),-50%)' : 'translate(14px,-50%)'; lab.style.left = px + 'px'; lab.style.top = ((1 - v.y) / 2 * el.clientHeight) + 'px'; lab.style.opacity = facing ? '1' : '0.28' }
+        if (lab) {
+          const px = (v.x + 1) / 2 * el.clientWidth
+          const flip = h.left || px + 14 + lab.offsetWidth > el.clientWidth - 6
+          lab.style.transform = flip ? 'translate(calc(-100% - 14px),-50%)' : 'translate(14px,-50%)'
+          lab.style.left = px + 'px'
+          const py = (1 - v.y) / 2 * el.clientHeight + (LABEL_OFFSET_Y[h.id] ?? 0)
+          lab.style.top = Math.max(lab.offsetHeight / 2 + 6, Math.min(el.clientHeight - lab.offsetHeight / 2 - 6, py)) + 'px'
+          lab.style.opacity = facing ? '1' : '0.28'
+        }
       }
       renderer.render(scene, cam)
     }
@@ -117,7 +128,8 @@ export default function Body3D({ hotspots, selected, onSelect, time, rotation, h
     let raf = 0
     if (!controlled) {
       const t0 = performance.now()
-      const loop = () => { const t = performance.now() - t0; if (!drag && t - lastInteract > 2500) rot += 0.0035; render(t); raf = requestAnimationFrame(loop) }
+      const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches || !!el.closest('.capture')
+      const loop = () => { const t = performance.now() - t0; if (!still && !drag && t - lastInteract > 2500) rot += 0.0035; render(still ? 0 : t); raf = requestAnimationFrame(loop) }
       raf = requestAnimationFrame(loop)
     } else render(time ?? 0, rotation)
     const cv = renderer.domElement
@@ -135,9 +147,9 @@ export default function Body3D({ hotspots, selected, onSelect, time, rotation, h
     <div ref={wrap} style={{ position: 'relative', width: '100%', height, overflow: 'hidden' }}>
       {hotspots.map(h => (
         <button key={h.id} ref={el => { labels.current[h.id] = el }} onClick={() => onSelect?.(h.id)} aria-label={h.label}
-          style={{ position: 'absolute', transform: h.left ? 'translate(calc(-100% - 14px),-50%)' : 'translate(14px,-50%)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, padding: '3px 9px', borderRadius: 999,
-            background: selected === h.id ? 'rgba(95,225,255,.18)' : 'rgba(5,9,15,.72)', border: `1px solid ${selected === h.id ? '#5fe1ff' : 'rgba(95,225,255,.25)'}`, color: '#dff7ff', whiteSpace: 'nowrap', pointerEvents: onSelect ? 'auto' : 'none' }}>
-          <span style={{ width: 7, height: 7, borderRadius: 9, background: COL[h.level] }} />{h.label}
+          className={`hotspot ${selected === h.id ? 'selected' : ''}`}
+          style={{ position: 'absolute', transform: h.left ? 'translate(calc(-100% - 14px),-50%)' : 'translate(14px,-50%)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, whiteSpace: 'nowrap', pointerEvents: onSelect ? 'auto' : 'none' }}>
+          <span className="hotspot-plus" aria-hidden>+</span>{h.label}<span style={{ color: COL[h.level] }}><Shape level={h.level} /></span>
         </button>
       ))}
     </div>
@@ -149,15 +161,17 @@ export function Body2D({ hotspots, selected, onSelect }: { hotspots: Hotspot[]; 
   const X = (x: number) => 200 + x * 330, Y = (y: number) => 600 - y * 320
   return (
     <svg viewBox="0 0 400 620" style={{ width: '100%', height: '100%' }} role="img">
-      <g fill="rgba(95,225,255,.07)" stroke="#5fe1ff" strokeOpacity=".6" strokeWidth="1.4">
+      <g fill="rgba(46,150,245,.07)" stroke="#2E96F5" strokeOpacity=".6" strokeWidth="1.4">
         <ellipse cx={X(0)} cy={Y(1.665)} rx="32" ry="38" /><rect x={X(-0.2)} y={Y(1.47)} width="132" height="175" rx="50" />
         <rect x={X(-0.16)} y={Y(0.98)} width="106" height="60" rx="28" />
         {[-1, 1].map(s => <g key={s}><rect x={X(s * 0.25) - 14} y={Y(1.42)} width="28" height="190" rx="14" /><rect x={X(s * 0.095) - 21} y={Y(0.84)} width="42" height="260" rx="20" /></g>)}
       </g>
       {hotspots.map(h => (
         <g key={h.id} onClick={() => onSelect?.(h.id)} style={{ cursor: 'pointer' }}>
-          <circle cx={X(h.pos[0])} cy={Y(h.pos[1])} r={selected === h.id ? 9 : 6} fill={COL[h.level]} />
-          <text x={X(h.pos[0]) + 12} y={Y(h.pos[1]) + 4} fill="#dff7ff" fontSize="12">{h.label}</text>
+          <circle cx={X(h.pos[0])} cy={Y(h.pos[1])} r="14" fill="none" stroke={selected === h.id ? '#EAFE07' : '#FFFFFF'} strokeOpacity=".3" />
+          <circle cx={X(h.pos[0])} cy={Y(h.pos[1])} r="9" fill={selected === h.id ? '#EAFE07' : '#FFFFFF'} />
+          <path d={`M${X(h.pos[0])-3} ${Y(h.pos[1])}h6 M${X(h.pos[0])} ${Y(h.pos[1])-3}v6`} stroke="#07173F" />
+          <text x={X(h.pos[0]) + (h.left ? -16 : 16)} y={Y(h.pos[1]) + 4 + (LABEL_OFFSET_Y[h.id] ?? 0)} textAnchor={h.left ? 'end' : 'start'} fill="#FFFFFF" fontSize="12">{h.label}</text>
         </g>
       ))}
     </svg>
