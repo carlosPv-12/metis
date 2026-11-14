@@ -11,7 +11,6 @@ import { Card, DEC, LevelTag, Loading, METRICS, Page, Spark, UNIT, fmt, levelOf,
 import { useLink, fmtLinkDelay } from '../link'
 import { packetStatus } from '../station/packet'
 import { queueReport, useReportQueue } from '../station/reportQueue'
-import { BloodPanel } from './Trend'
 
 export default function Summary() {
   const t = useT(); const { crewId } = useCrew()
@@ -61,7 +60,6 @@ export default function Summary() {
         {LIVE_KEYS.map(k => { const label = LIVE_LABEL[k], status = liveStatus(reportVitals, k); return <div key={k} className="live-report-row"><span>{label[lang]}</span><span><strong className="live-report-number">{fmt(reportVitals.crew?.now[k] ?? undefined, label.dec)} {label.unit}</strong><span className={`live-chip ${status}`}>{LIVE_COPY[lang].status[status]}</span></span></div> })}
         <div className="live-report-row"><span>{LIVE_COPY[lang].activity}</span><span className={`live-chip ${reportVitals.exercising ? 'exercising' : 'ok'}`}>{reportVitals.exercising ? LIVE_COPY[lang].exercisingNow : LIVE_COPY[lang].resting}</span></div>
       </Card>}
-      <BloodPanel compact refNote />
     </Page>
   )
 }

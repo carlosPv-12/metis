@@ -11,6 +11,7 @@ import { useLoad } from '../hooks'
 import { useLang, useT } from '../i18n'
 import { useCrew } from '../ui'
 import References from './References'
+import ViewSwitch from '../ViewSwitch'
 import { DEFAULT_SEX, SETTINGS_LABEL, setEnv, setMarsDelayMin, resetSettings, setCrewSex, sexOf, useSettings, type Sex, roleOf, setCrewRole } from '../settings'
 import '../settings-page.css'
 
@@ -24,8 +25,9 @@ const ROLE_TXT = {
 
 const COPY = {
   en: {
-    tabs: { crew: 'Crew member', connection: 'Connection and voice', environment: 'Mission environment', bodies: 'Body figures', mockup: 'Mockup simulation', references: 'References' },
+    tabs: { view: 'View', crew: 'Crew member', connection: 'Connection and voice', environment: 'Mission environment', bodies: 'Body figures', mockup: 'Mockup simulation', references: 'References' },
     descriptions: {
+      view: 'Choose whether you are on the ship or on Ground (flight surgeon). The same switch is at the top of every screen.',
       crew: 'Choose who is using Metis now.',
       connection: 'Check the connection and manage hands-free voice.',
       environment: 'Choose the mission environment and its delay to Earth.',
@@ -40,8 +42,9 @@ const COPY = {
     mockupNote: 'Only for the mockup. These buttons simulate situations in the live vitals so you can show the demo; a real mission would not have them.',
   },
   es: {
-    tabs: { crew: 'Tripulante', connection: 'Conexión y voz', environment: 'Entorno de la misión', bodies: 'Figuras del cuerpo', mockup: 'Simulación del mockup', references: 'Referencias' },
+    tabs: { view: 'Vista', crew: 'Tripulante', connection: 'Conexión y voz', environment: 'Entorno de la misión', bodies: 'Figuras del cuerpo', mockup: 'Simulación del mockup', references: 'Referencias' },
     descriptions: {
+      view: 'Elige si estás en la nave o en Tierra (cirujano de vuelo). El mismo interruptor está arriba en todas las pantallas.',
       crew: 'Elige quién está usando Metis ahora.',
       connection: 'Consulta la conexión y controla la voz manos libres.',
       environment: 'Elige el entorno de la misión y su retraso con la Tierra.',
@@ -98,6 +101,7 @@ export default function Settings() {
   return (
     <div className="page settings-page">
       <h1 className="h1">{SETTINGS_LABEL[lang]}</h1>
+      <div className="settings-view-switch"><ViewSwitch large /></div>
       <div className="seg settings-tabs" role="tablist" aria-label={SETTINGS_LABEL[lang]}>
         {TABS.map(tab => (
           <button key={tab} ref={node => { tabButtons.current[tab] = node }} type="button" role="tab"

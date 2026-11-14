@@ -485,3 +485,22 @@ dialog, dialog:focus, dialog:focus-visible,
 
 /* The body stands in front of the colour: a soft shadow around its silhouette */
 .bodywrap.figure:has(.body-model) .body-model > canvas { filter: drop-shadow(0 10px 22px #07173F2E) drop-shadow(0 0 2px #FFFFFF) }
+/* Sleep × Air finding at the top of Trends: a compact, high-contrast strip */
+.sleepair-insight { display: grid; grid-template-columns: auto 1fr; column-gap: 12px; row-gap: 2px; align-items: start;
+  margin: 0 0 20px; padding: 12px 16px; border-radius: 12px; background: #07173F; color: #fff; border-left: 4px solid #EAFE07 }
+.sleepair-insight-icon { grid-row: span 2; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #EAFE07; color: #07173F }
+.sleepair-insight p { margin: 0; font-size: 14.5px; line-height: 1.4 }
+.sleepair-insight p b { color: #EAFE07; font-weight: 700; margin-right: 4px }
+.sleepair-insight .sleepair-insight-action { color: #9CC9FF; font-size: 13.5px }
+.sleepair-r { margin-top: 18px }
+
+/* Alerts everywhere: no red or orange frame or edge, only the tinted background */
+.lvl, .lvl.rojo, .lvl.naranja, .lvl.amarillo, .lvl.verde { border: 0 !important; background-size: 100% 100% }
+.tag.alarm, .tag.watch { border-color: transparent !important }
+.crewcard.alarm, .crewcard.watch { border-color: #E3E9F2 !important; box-shadow: none !important }
+.live-alarm, .live-watch { border-color: transparent !important }
+.ground-crew-row.watch, .ground-crew-row.alarm, .ground-system.watch, .ground-system.alarm, .station-requests li { border-color: transparent !important }
+.ground-meds li, .mr-findings li, .ground-alerts p { box-shadow: none !important }
+/* Trend cards: today's value in the display font, unit small */
+.trend-now { font: 700 17px var(--display, 'Overpass', sans-serif); color: #07173F; white-space: nowrap }
+.trend-now small { font: 500 12px 'Fira Sans', sans-serif; color: #4A5468; margin-left: 2px }

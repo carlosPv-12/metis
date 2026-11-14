@@ -9,7 +9,7 @@
 // mark themselves busy and the ear steps aside meanwhile. Whatever is recorded while Metis speaks is dropped.
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { AlertTriangle, Ear, EarOff, MessageCircle, Radio, Volume2, X } from 'lucide-react'
+import { AlertTriangle, Ear, EarOff, MessageCircle, Volume2 } from 'lucide-react'
 import { api, NO_SERVER, type StationEvent, type VitalsAlert } from './api'
 import { isLeader, isSpeaking, listenOnce, useSpeaker } from './hooks'
 import { useLang, useT } from './i18n'
@@ -252,19 +252,10 @@ export function EarSwitch() {
   )
 }
 
-/** Banner on top of every screen while someone's vitals are off their baseline. Click -> station console. */
+/** Banner on top of every screen while someone's vitals are off their baseline. Click -> station console.
+ *  Messages from ground are not shown here as a banner (they are read aloud by Metis and live in the Ground thread). */
 export function VitalsBanner() {
-  const ear = useEar(); const t = useT(); const { lang } = useLang(); const loc = useLocation()
-  const onGround = loc.pathname.startsWith('/ground')
-  const msgs = !onGround && ear?.messages?.length ? (
-    <>{ear.messages.map(m => (
-      <div key={m.id} className="lvl verde" role="status"
-        style={{ display: 'flex', gap: 10, alignItems: 'center', width: '100%', marginBottom: 10, padding: '10px 14px' }}>
-        <Radio size={18} /><b style={{ whiteSpace: 'nowrap' }}>{t('from_ground')}</b>
-        <span style={{ flex: 1 }}>{lang === 'es' ? m.text_es : m.text_en}</span>
-        <button className="btn ghost" onClick={() => ear.dismissMessage(m.id)} aria-label={t('dismiss')}><X size={16} /></button>
-      </div>))}</>) : null
-  return <>{msgs}<VitalsWarning /></>
+  return <VitalsWarning />
 }
 
 function VitalsWarning() {

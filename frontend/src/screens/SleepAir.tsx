@@ -5,10 +5,24 @@ import { Lightbulb } from 'lucide-react'
 import { api } from '../api'
 import { useLoad } from '../hooks'
 import { useT } from '../i18n'
-import { Card, Loading, MetisLine, fmt, useCrew } from '../ui'
+import { Card, Loading, fmt, useCrew } from '../ui'
 import { findThr, numVal } from '../thresholds'
 import { ThresholdLabel } from './Trend'
 import { matchN, insightText } from './Greeting'
+
+/** The Metis Sleep × Air finding, shown big at the top of Trends so it is the first thing read. */
+export function SleepAirInsight() {
+  const t = useT(); const { crewId } = useCrew()
+  const { data: c } = useLoad(() => api.crewOne(crewId), [crewId])
+  if (!c) return null
+  return (
+    <div className="sleepair-insight" role="note">
+      <span className="sleepair-insight-icon"><Lightbulb size={16} aria-hidden /></span>
+      <p><b>Metis</b> {insightText(t, matchN(c.days))}</p>
+      <p className="sleepair-insight-action">{t('sleepair_action').replace(/^(Suggested|Sugerencia|Sugerido):\s*/i, '').replace(/^./, ch => ch.toUpperCase())}</p>
+    </div>
+  )
+}
 
 export default function SleepAir() {
   const t = useT(); const { crewId } = useCrew()
@@ -50,15 +64,10 @@ export default function SleepAir() {
           {co2 && <ThresholdLabel th={co2} />}{sleepRef && <ThresholdLabel th={sleepRef} color="var(--info)" />}
         </div>
       </Card>
-      <div className="grid g2" style={{ marginTop: 18 }}>
-        <Card className="feature feature-gradient" title={<><Lightbulb size={14} />Metis</>}>
-          <MetisLine><p className="quote" style={{ margin: 0 }}>{insightText(t, nm)}</p><p className="muted" style={{ marginBottom: 0 }}>{t('sleepair_action')}</p></MetisLine>
-        </Card>
-        <Card title={t('r_title')}>
-          <div className="stat"><div className="val">{fmt(r, 2)}</div></div>
-          <div className="small muted">{t('pearson_note').replace('{n}', String(n))}</div>
-        </Card>
-      </div>
+      <Card className="sleepair-r" title={t('r_title')}>
+        <div className="row" style={{ gap: 14, alignItems: 'baseline' }}><div className="stat"><div className="val">{fmt(r, 2)}</div></div>
+          <div className="small muted">{t('pearson_note').replace('{n}', String(n))}</div></div>
+      </Card>
     </section>
   )
 }

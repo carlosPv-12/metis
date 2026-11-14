@@ -16,6 +16,9 @@ import { roleOf, useSettings } from '../settings'
 import '../link.css'
 import { FALLBACK_STATION } from '../fallback'
 
+/** The long "outside personal band: …" streak summary is not shown in the log. */
+const notBaseline = (a: { id?: string; text_en?: string }) => a.id !== 'lena_baseline' && !/outside personal band/i.test(a.text_en ?? '')
+
 export const lvl = (s?: string): Level => (s === 'alarm' || s === 'red' || s === 'critical' ? 'alarm' : s === 'watch' || s === 'warn' || s === 'amber' || s === 'warning' ? 'watch' : s === 'nodata' ? 'nodata' : 'ok')
 
 /** Normalise the station payload so small schema differences from the backend never break the screen. */
@@ -63,12 +66,13 @@ export default function Station() {
   const access = useEmergencyAccess(now)
   const settings = useSettings()
   const requests = useAccessRequests()
-  const st = normStation(raw)
+  const st0 = normStation(raw)
+  const st = { ...st0, alerts: st0.alerts.filter(notBaseline) }
   const actor = st.crew.find(c => c.id === crewId)
   const canRead = (id?: string) => !!id
   const names = Object.fromEntries(st.crew.map(c => [c.id, c.name]))
   const ts = (e: StationEvent) => new Date(e.ts ?? e.t ?? 0).getTime() || Number(e.id) || 0
-  const events = [...(evs ?? [])].sort((a, b) => ts(b) - ts(a))
+  const events = [...(evs ?? [])].filter(e => e.type !== 'baseline_alert').sort((a, b) => ts(b) - ts(a))
   const hasExp = st.medkit.some(m => m.expires)
   const lastPkt = events.find(e => e.type === 'send_flight_surgeon')
   const [initialPacketTime] = useState(() => Date.now())
