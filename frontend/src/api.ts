@@ -77,6 +77,15 @@ export const api = {
     return ev
   }),
   graph: () => withFallback(j<Graph>('/api/brain/graph'), () => FALLBACK_GRAPH),
+  // Hands-free: the backend matches the spoken answer to an option with a fixed rule (no AI). understood=false -> ask again.
+  triageVoice: (flow: FlowId, lang: Lang, node_id: string, text: string) =>
+    j<TriageStep & { understood: boolean; heard: string; answer?: string; answer_label?: string; say?: string }>('/api/triage/voice', { flow, node_id, text, lang }, 8000),
+  // Spoken orders on the triage result («alert the crew») and yes/no confirmations. Fixed rule, no AI.
+  // Always-on ear: was «Metis» said? is it an emergency? (fixed rule, no AI)
+  wake: (text: string, lang: Lang) =>
+    j<{ heard: string; wake: boolean; command: string; emergency: boolean; end: boolean }>('/api/voice/wake', { text, lang }, 8000),
+  triageCommand: (text: string, lang: Lang) =>
+    j<{ heard: string; actions: string[]; confirm: boolean | null }>('/api/triage/command', { text, lang }, 8000),
   triage: (flow: FlowId, lang: Lang, node_id?: string, answer?: string) =>
     j<TriageStep>('/api/triage/step', { flow, node_id: node_id ?? null, answer: answer ?? null, lang }),
   // Old backend contract (no latency_ms) ignores `lang`: use the local scripted line instead.
@@ -92,10 +101,11 @@ export const api = {
       const b = await r.blob(); return b.size > 100 ? b : null
     } catch { return null }
   },
-  stt: async (audio: Blob): Promise<{ text: string; lang?: string; latency_ms?: number } | null> => {
+  // lang: the EN/ES of the screen. Without it whisper has to guess the language and mishears short phrases.
+  stt: async (audio: Blob, lang?: Lang): Promise<{ text: string; lang?: string; latency_ms?: number } | null> => {
     if (NO_SERVER) return null
     try {
-      const fd = new FormData(); fd.append('audio', audio, 'speech.webm')
+      const fd = new FormData(); fd.append('audio', audio, 'speech.webm'); if (lang) fd.append('lang', lang)
       const r = await fetch('/api/voice/stt', { method: 'POST', body: fd })
       if (!r.ok) return null
       return await r.json()

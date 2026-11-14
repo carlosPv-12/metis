@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse
 from pydantic import BaseModel
 
-import llm, station, voice_engine
+import llm, station, voice_answer, voice_engine
 
 HERE = pathlib.Path(__file__).parent
 DATA = HERE.parent / "data"
@@ -107,6 +107,74 @@ def triage_step(b: TriageIn):
     return {"flow": b.flow, "flow_title": flow.get(f"title_{k}", flow.get("title_en", flow.get("title"))), "node_id": nid,
             "node": loc_node(n, k), "offline": True, "lang": k, "say": n.get(f"say_{k}", ""), "sources": srcs,
             "escalate": bool(n.get("escalate")), "deterministic": True}
+
+
+# Preguntas del tipo «¿responde?» / «¿respira con normalidad?»: ahí «he is breathing» es un sí.
+STATE_YES_NODES = {"c1", "c2", "c2r"}
+REPROMPT = {"en": "Sorry, I didn't catch that. Please answer yes or no.", "es": "Perdona, no te he entendido. Responde sí o no."}
+REPROMPT_TIME = {"en": "Sorry, I didn't catch that. Less than ten minutes, or more?", "es": "Perdona, no te he entendido. ¿Menos de diez minutos o más?"}
+
+
+class TriageVoiceIn(BaseModel):
+    flow: str
+    node_id: str               # pregunta que se está respondiendo
+    text: str                  # lo que transcribió /api/voice/stt
+    lang: str = "en"
+
+
+@app.post("/api/triage/voice")
+def triage_voice(b: TriageVoiceIn):
+    """Manos libres: empareja la respuesta hablada con una opción (regla fija, sin IA) y avanza el triaje.
+    Si no está claro, understood=false y una frase para repetir la pregunta; los botones siguen valiendo."""
+    flow = TREE["flows"].get(b.flow)
+    if not flow: raise HTTPException(404, "flujo desconocido")
+    cur = flow["nodes"].get(b.node_id)
+    if not cur or cur["type"] != "question": raise HTTPException(400, "nodo actual no válido")
+    k, heard = L(b.lang), voice_answer.clean_transcript(b.text)
+    opt = voice_answer.match_option(heard, cur["options"], b.node_id in STATE_YES_NODES)
+    if opt is None:
+        ids = {o["id"] for o in cur["options"]}
+        q = cur.get(f"text_{k}", cur.get("text_en", ""))
+        again = (REPROMPT_TIME if ids == {"lt10", "gt10"} else REPROMPT)[k]
+        return {"understood": False, "heard": heard, "node_id": b.node_id, "say": f"{again} {q}", "lang": k, "deterministic": True}
+    o = next(x for x in cur["options"] if x["id"] == opt)
+    res = triage_step(TriageIn(flow=b.flow, node_id=b.node_id, answer=opt, lang=k))
+    return {**res, "understood": True, "heard": heard, "answer": opt,
+            "answer_label": o.get(f"label_{k}", o.get("label_en", o.get("label", opt)))}
+
+
+class TriageCommandIn(BaseModel):
+    text: str
+    lang: str = "en"
+
+
+@app.post("/api/triage/command")
+def triage_command(b: TriageCommandIn):
+    """Órdenes habladas en el resultado del triaje: qué avisos pide («alert the crew») y si es un sí o un no
+    (para «¿aviso al oficial médico?»). Regla fija, sin IA; quien envía los avisos es la pantalla, como con los botones."""
+    heard = voice_answer.clean_transcript(b.text)
+    yn = voice_answer.match_option(heard, [{"id": "si"}, {"id": "no"}])
+    return {"heard": heard, "actions": voice_answer.match_commands(heard), "confirm": {"si": True, "no": False}.get(yn),
+            "lang": L(b.lang), "deterministic": True}
+
+
+class WakeIn(BaseModel):
+    text: str
+    lang: str = "en"
+
+
+@app.post("/api/voice/wake")
+def voice_wake(b: WakeIn):
+    """Escucha continua: ¿han dicho «Metis»? ¿Es una emergencia? ¿Quiere acabar la conversación (end)? Las emergencias no necesitan la palabra de
+    activación: en un desplome nadie se acuerda de decir «Metis». Regla fija, sin IA."""
+    heard = voice_answer.clean_transcript(b.text)
+    wake, command = voice_answer.match_wake(heard)
+    emergency = bool(heard and llm.EMERGENCY.search(heard))
+    # En la terminal, para ver qué entiende Metis sin abrir nada (solo texto ya transcrito; no se guarda).
+    print(f"[metis oído] «{heard}»" + (" · METIS" if wake else "") + (" · EMERGENCIA" if emergency else ""), flush=True)
+    return {"heard": heard, "wake": wake, "command": command if wake else "",
+            "emergency": emergency, "end": voice_answer.match_end(heard),
+            "lang": L(b.lang), "deterministic": True}
 
 
 # ---------- IA ----------
@@ -253,6 +321,7 @@ async def stt(audio: UploadFile = File(...), lang: str = Form("auto")):
         text, detected = await run_in_threadpool(voice_engine.stt, data, lang)
     except Exception as e:
         return JSONResponse({"error": str(e)[:300], "text": ""}, status_code=503)
+    text = voice_answer.clean_transcript(text)  # sin [BLANK_AUDIO] ni (music): si no hubo voz, text = ""
     return {"text": text, "lang": detected, "latency_ms": int((time.time() - t0) * 1000), "engine": "whisper.cpp"}
 
 

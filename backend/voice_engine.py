@@ -215,6 +215,9 @@ def _to_wav16k(audio: bytes, td: pathlib.Path) -> pathlib.Path:
     return wav
 
 
+# Pista de vocabulario para whisper: sin ella oye «Maddie's» en vez de «Metis» y falla la palabra de activación.
+STT_PROMPT = os.environ.get("METIS_STT_PROMPT", "Metis, Lena, Marco, Noor, Kenji.")
+
 _pyw = None
 _pyw_lock = threading.Lock()
 
@@ -230,7 +233,7 @@ def _stt_pywhispercpp(wav: pathlib.Path, l: str):
             from pywhispercpp.model import Model
             _pyw = Model(str(WHISPER_MODEL), redirect_whispercpp_logs_to=None, n_threads=THREADS,
                          print_progress=False, print_realtime=False)
-        segs = _pyw.transcribe(pcm, language=l)
+        segs = _pyw.transcribe(pcm, language=l, **({"initial_prompt": STT_PROMPT} if STT_PROMPT else {}))
         detected = l
         if l == "auto":
             try:
@@ -253,7 +256,7 @@ def stt(audio: bytes, lang: str = "auto"):
                 return _stt_pywhispercpp(wav, l)
             except Exception as e:
                 raise RuntimeError(f"pywhispercpp falló: {e!r}"[:300])
-        r = subprocess.run([str(WHISPER_BIN), "-m", str(WHISPER_MODEL), "-t", str(THREADS), "-l", l, "-nt", "-f", str(wav)], capture_output=True, timeout=120)
+        r = subprocess.run([str(WHISPER_BIN), "-m", str(WHISPER_MODEL), "-t", str(THREADS), "-l", l, "-nt", *(["--prompt", STT_PROMPT] if STT_PROMPT else []), "-f", str(wav)], capture_output=True, timeout=120)
         if r.returncode != 0:
             raise RuntimeError("whisper.cpp falló: " + r.stderr.decode(errors="ignore")[-200:])
         text = " ".join(r.stdout.decode(errors="ignore").split())

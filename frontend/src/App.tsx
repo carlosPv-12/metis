@@ -18,8 +18,14 @@ import Station from './screens/Station'
 import How from './screens/How'
 import NasaData from './screens/NasaData'
 import Demo from './screens/Demo'
+import { EarProvider, EarSwitch } from './voice'
+
+// English only for the demo and the submission (decided by Carlos, 14-nov). The Spanish texts stay in i18n.ts:
+// set this to true to bring back the EN/ES switch.
+const SPANISH_ENABLED = false
 
 function readLang(): Lang {
+  if (!SPANISH_ENABLED) return 'en'
   try { const q = new URLSearchParams(location.hash.split('?')[1] ?? ''); const l = q.get('lang') ?? localStorage.getItem('metis.lang'); return l === 'es' ? 'es' : 'en' } catch { return 'en' }
 }
 
@@ -32,7 +38,7 @@ export default function App() {
   return (
     <LangCtx.Provider value={{ lang, setLang }}>
       <CrewCtx.Provider value={{ crewId, setCrewId }}>
-        {loc.pathname.startsWith('/demo') ? <Demo /> : <Shell />}
+        <EarProvider>{loc.pathname.startsWith('/demo') ? <Demo /> : <Shell />}</EarProvider>
       </CrewCtx.Provider>
     </LangCtx.Provider>
   )
@@ -52,10 +58,11 @@ function Shell() {
         <div className="brand"><span className="orb" />Metis</div>
         <div className="day"><span>{t('mission_day')} <b>112</b></span><span>{hhmm} <span className="dim">{t('habitat_time')}</span></span></div>
         <div className="spacer" />
+        <EarSwitch />
         <CrewSwitch />
         <span className="pill ok" title={t('offline_badge')}><span className="dot" style={{ background: 'var(--ok)' }} />{t('offline_badge')}</span>
         {NO_SERVER && <span className="tag sim" title={t('no_server_tip')}>{t('no_server_badge')}</span>}
-        <LangSwitch />
+        {SPANISH_ENABLED && <LangSwitch />}
       </header>
       <nav className="rail" aria-label="Main">
         <div className="grp">{t('group_astronaut')}</div>

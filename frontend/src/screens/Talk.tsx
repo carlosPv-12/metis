@@ -7,6 +7,7 @@ import { api, NO_SERVER } from '../api'
 import { useSpeaker } from '../hooks'
 import { useLang, useT, type Key } from '../i18n'
 import { MetisLine, Page, useCrew } from '../ui'
+import { useEar } from '../voice'
 
 interface Msg { who: 'me' | 'metis'; text: string; meta?: string; escalated?: boolean; flow?: string }
 
@@ -16,6 +17,8 @@ export default function Talk() {
   const [input, setInput] = useState('')
   const [phase, setPhase] = useState<'idle' | 'rec' | 'stt' | 'think'>('idle')
   const [err, setErr] = useState<string | null>(null)
+  const [opening, setOpening] = useState(false)
+  const ear = useEar()
   const rec = useRef<MediaRecorder | null>(null); const chunks = useRef<Blob[]>([])
   const sp = useSpeaker()
   const end = useRef<HTMLDivElement>(null)
@@ -27,8 +30,11 @@ export default function Talk() {
     setMsgs(m => [...m, { who: 'me', text, meta }]); setInput(''); setPhase('think')
     const r = await api.chat(crewId, text, lang, hist)
     const src = r.source === 'llm' || r.source?.startsWith?.('llm') ? t('src_llm') : t('src_fallback')
-    setMsgs(m => [...m, { who: 'metis', text: r.text, meta: `${src}${r.latency_ms ? ` · ${(r.latency_ms / 1000).toFixed(1)} s` : ''}`, escalated: r.safety === 'escalated', flow: (r as { suggest_flow?: string }).suggest_flow }])
+    const flow = (r as { suggest_flow?: string }).suggest_flow
+    setMsgs(m => [...m, { who: 'metis', text: r.text, meta: `${src}${r.latency_ms ? ` · ${(r.latency_ms / 1000).toFixed(1)} s` : ''}`, escalated: r.safety === 'escalated', flow }])
     setPhase('idle')
+    // Emergency: no time to tap anything. Say it and open the triage straight away (hands-free there too).
+    if (r.safety === 'escalated' && flow) { setOpening(true); await sp.speak(r.text, lang); nav('/triage?flow=' + flow); return }
     sp.speak(r.text, lang)
   }
 
@@ -42,15 +48,19 @@ export default function Talk() {
       mr.onstop = async () => {
         stream.getTracks().forEach(tr => tr.stop())
         setPhase('stt')
-        const r = await api.stt(new Blob(chunks.current, { type: mr.mimeType }))
+        const r = await api.stt(new Blob(chunks.current, { type: mr.mimeType }), lang)
         if (r?.text) send(r.text, `STT${r.latency_ms ? ' · ' + (r.latency_ms / 1000).toFixed(1) + ' s' : ''}`)
-        else { setPhase('idle'); setErr(t('mic_denied')) }
+        else { setPhase('idle'); setErr(r ? t('didnt_hear') : t('mic_denied')) }
       }
       mr.start(); rec.current = mr; setPhase('rec')
     } catch { setErr(t('mic_denied')); setPhase('idle') }
   }
   const stop = () => { if (rec.current && rec.current.state === 'recording') rec.current.stop(); rec.current = null }
 
+  // Hands-free: whatever the always-on ear heard after «Metis» (or an emergency) arrives here.
+  useEffect(() => { if (ear?.pending && phase === 'idle') { const p = ear.takePending(); if (p) send(p, t('heard')) } }, [ear?.pending, phase]) // eslint-disable-line react-hooks/exhaustive-deps
+  // While Metis thinks or the hold-to-talk mic is open, the ear steps aside (no double hearing).
+  useEffect(() => { ear?.setBusy('talk', phase !== 'idle'); return () => ear?.setBusy('talk', false) }, [phase]) // eslint-disable-line react-hooks/exhaustive-deps
   const quick: Key[] = ['quick_1', 'quick_2', 'quick_3', 'quick_4']
   return (
     <Page title={t('talk_title')}>
@@ -71,6 +81,7 @@ export default function Talk() {
               </div>
             ))}
             {phase === 'think' && <div className="bubble metis muted">{t('thinking')}</div>}
+            {opening && <div className="lvl rojo" style={{ fontWeight: 600 }}><Siren size={16} style={{ verticalAlign: -3, marginRight: 8 }} />{t('opening_triage')}</div>}
             {phase === 'stt' && <div className="bubble me muted">{t('transcribing')}</div>}
             <div ref={end} />
           </div>
@@ -92,6 +103,7 @@ export default function Talk() {
           <div style={{ fontWeight: 500 }}>{phase === 'rec' ? t('release_to_send') : phase === 'stt' ? t('transcribing') : phase === 'think' ? t('thinking') : t('hold_to_talk')}</div>
           {sp.speaking && <div className="s-ok small">{t('speaking')}</div>}
           {err && <div className="small s-watch">{err}</div>}
+          {ear?.on && <div className="s-ok" style={{ maxWidth: 260 }}>{t('talk_handsfree')}</div>}
           <div className="small dim" style={{ marginTop: 20 }}>{t('offline_badge')}</div>
         </section>
       </div>
