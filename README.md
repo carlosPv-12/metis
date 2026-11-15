@@ -1,85 +1,93 @@
-# Metis — esqueleto del prototipo (NASA Space Apps 2026, reto 04)
+# Metis
 
-Compañero IA privado para cada astronauta: aprende su línea base, cruza sueño × CO2 de cabina, hace triaje guiado (también «un compañero se desploma con dolor torácico») y deja resumen para el cirujano de vuelo. **Funciona sin conexión.** Plan: `notas/2026-11-14--metis-aterrizado.md` del brain.
+**A private, offline AI health companion for each astronaut.** Built by team Te Falta Tech for the NASA Space Apps Challenge 2026 (Madrid), challenge 04: *Create Health Monitoring Software for Astronauts on Space Missions*.
 
-> Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026.
+Metis learns each crew member's own baseline, watches their vitals, relates sleep to cabin CO₂, guides the crew through a medical emergency step by step, and keeps the flight surgeon on Earth informed across the link delay. Everything runs on the habitat computer: **nothing needs Earth to work.**
 
-## Cómo arrancar
+> This is a hackathon prototype, not a medical device. The crew is fictional and their vitals are simulated; the blood counts are real (NASA OSDR OSD-569). Metis does not diagnose and never names drugs or doses.
 
-**Ver la demo sin instalar nada**: abre `demo/metis-demo.html` con doble clic (Chrome, Edge, Firefox o Safari). Es la demo entera en un solo archivo: todas las pantallas, el triaje completo, EN/ES y el modo director. Sin servidor, Metis usa frases guionizadas (lo indica la etiqueta «Standalone file · scripted lines»), la voz del navegador y nada de micrófono. Con el backend en marcha, `http://localhost:8000/` sirve ese mismo archivo, pero con la IA, la voz y el reconocimiento de voz locales. Para regenerarlo después de cambiar el frontend: `python3 demo/construir.py` (necesita Node 20+). Detalles en [demo/LEEME.md](demo/LEEME.md).
+## See it in one minute
 
-**Un solo comando** instala la demo completa (IA, voz y reconocimiento reales, sin conexión) en macOS (Apple Silicon) y en Linux/WSL2 x86_64, sin Homebrew, sin Xcode, sin apt y sin contraseña. Abre **Terminal** (Mac) o **Ubuntu** (WSL), entra en la carpeta del brain (`cd` + arrastrar la carpeta a la ventana) y pega:
+No install needed: download [`demo/metis-demo.html`](demo/metis-demo.html) and open it with a double click (Chrome, Edge, Firefox or Safari). It is the whole interface in a single file. Without a server it uses scripted lines and the browser's voice, and says so on screen ("Standalone file · scripted lines"). Details in [demo/LEEME.md](demo/LEEME.md) (Spanish).
 
-| Quién | Solo probar la demo | Probar y editar el código |
-|---|---|---|
-| Manuela (Mac) y Carlos (WSL2) | `bash codigo/metis/instalar.sh` | `bash codigo/metis/instalar.sh --dev` |
-| Si Tomás está sirviendo los modelos en la misma wifi | `bash codigo/metis/instalar.sh --desde http://IP:8765` | `… --desde http://IP:8765 --dev` |
-| Arrancar después (cada vez) | `bash codigo/metis/arrancar.sh` → abre `http://localhost:8000/` | `bash codigo/metis/arrancar.sh --dev` → `http://localhost:5173` |
+## Run the full demo (local AI, voice and speech recognition)
 
-- **Qué hace**: baja `uv` (gestor de Python de astral-sh, MIT/Apache-2.0), que pone Python 3.12; luego `instalar.py` deja en `~/.local/share/metis/` llama.cpp b12373, Qwen3-4B-Instruct-2507 Q4_K_M (2,5 GB), Kokoro v1.0, `ggml-base.bin` de whisper y un venv con las versiones exactas de `backend/requirements-lock.txt`. Con `--dev`, además Node 24 LTS oficial en `~/.local/share/metis/node/` y `npm ci` en `frontend/` (`node_modules` no viaja por Syncthing). Cada archivo se comprueba con su SHA-256 (los mismos que los de Tomás); si se corta, se vuelve a pegar el mismo comando y sigue donde iba.
-- **Cuánto**: se bajan unos 3,2 GB (3,0 GB de modelos; el resto, Python y dependencias) y ocupa ~3,5 GB en disco; con `--dev`, +0,2 GB de Node y +0,3 GB de `node_modules`. Medido aquí el 14-nov: 65 s con los modelos desde otro proceso en la misma máquina; por wifi depende de la red (a 10 MB/s, ~6 min).
-- **Al final** arranca todo en puertos de prueba (8790/8791) y dice en claro qué FUNCIONA y qué NO VA (IA, voz, reconocimiento, página), con el siguiente paso. Repetir solo la comprobación: `bash codigo/metis/instalar.sh --comprobar`.
-- **Sin internet en la sede**: en el portátil de Tomás, `bash codigo/metis/instalar.sh --servir` sirve sus modelos en solo lectura por la red local mientras está abierto y escribe el comando exacto (con su IP) para los demás. También vale una carpeta o USB: `--desde /ruta/a/la/copia`. Lo que no esté en la fuente se baja de internet.
-- **Windows sin WSL**: no está soportado; el script lo dice y manda a WSL2.
-- **Carlos (WSL2)**: el navegador es el de Windows; `arrancar.sh` lo abre con `wslview`/`explorer.exe` y, si no puede, imprime la URL. `http://localhost:8000/` llega a WSL por el reenvío de WSL2 (si no, `METIS_HOST=0.0.0.0 bash codigo/metis/arrancar.sh`).
-- **Editar**: frontend en `frontend/src/` (Vite recarga solo con `arrancar.sh --dev`); backend en `backend/` (el venv es `~/.local/share/metis/venv/`; a mano: `cd backend && ~/.local/share/metis/venv/bin/uvicorn main:app --reload --port 8000`). Para usar el Node instalado en otra terminal: `export PATH="$HOME/.local/share/metis/node/bin:$PATH"`.
-- **Reconocimiento de voz sin compilar**: si no hay `whisper-cli`, el backend usa `pywhispercpp` (ruedas precompiladas de whisper.cpp, MIT) con el mismo `ggml-base.bin`; si no hay `ffmpeg`, decodifica el audio del navegador con PyAV (BSD-3-Clause; FFmpeg LGPL dentro de la rueda). En el portátil de Tomás sigue el camino de siempre (whisper-cli + ffmpeg).
-
-`run_demo.py` (lo que lanza `arrancar.sh`; en Linux con Python 3.10+ también `python3 run_demo.py`, en Windows `py run_demo.py`): si existe `demo/metis-demo.html` arranca solo IA local + backend y abre `http://localhost:8000/` (sin Node); con `--dev` arranca también Vite como antes. Opciones: `--no-llm`, `--no-browser`. Variables: `METIS_HOME`, `METIS_VENV`, `METIS_THREADS`, puertos `METIS_*_PORT`, `METIS_NGL` (capas en GPU; 99 por defecto en Mac Apple Silicon, Metal).
-
-A mano, sin instalador (Linux con Python 3.10+ y Node 20.19+), desde `codigo/metis/`:
+Works on macOS (Apple Silicon) and Linux or WSL2 (x86_64). Windows without WSL2 is not supported. No admin rights, Homebrew, Xcode or apt needed.
 
 ```bash
-python3 data/generate_crew.py && python3 data/blood_osd569.py      # datos (stdlib, semilla fija)
-cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements-lock.txt && .venv/bin/uvicorn main:app --port 8000
-cd frontend && npm ci && npm run dev                                 # en otra terminal; proxy /api -> 8000
+git clone https://github.com/carlosPv-12/metis.git
+cd metis
+bash instalar.sh        # one time: downloads about 3.7 GB into ~/.local/share/metis/
+bash arrancar.sh        # every time: starts everything and opens http://localhost:8000/
 ```
-Sin modelos la demo funciona igual con frases de reserva y la voz del navegador.
 
-## IA y voz sin conexión (14-nov, 03:30)
+- **What the installer does:** it downloads a private Python 3.12, the pinned backend dependencies and the models (listed under [Third-party models](#third-party-models)), and checks every file against its SHA-256. If it is interrupted, run it again and it resumes. At the end it starts everything on test ports and prints what works and what does not. To repeat only that check: `bash instalar.sh --comprobar`.
+- **To edit the code:** `bash instalar.sh --dev` (adds Node 24 and the frontend dependencies) and `bash arrancar.sh --dev`. Then open **http://localhost:5173/**, which serves the source with live reload.
+- **Mind the port:** `http://localhost:8000/` serves the prebuilt single-file demo. After changing the frontend, rebuild it with `python3 demo/construir.py`, or use the `--dev` mode above.
+- **No models?** The demo still runs, with scripted lines and the browser's voice. `bash arrancar.sh --no-llm` skips the language model.
+- **Tests:** `cd backend && python -m pytest` (needs `backend/requirements-dev.txt`).
 
-- Arranque rápido de todo: `python3 run_demo.py` (IA local + backend + frontend). Contrato de la API con ejemplos reales: [API.md](API.md). Guía de revisión: [backend/REVISION-IA-Y-VOZ.md](backend/REVISION-IA-Y-VOZ.md).
-- IA: llama.cpp `llama-server` en :8081 con Qwen3-4B-Instruct-2507 Q4_K_M (Apache-2.0); `METIS_LLM_URL` vale por defecto `http://127.0.0.1:8081/v1`. Solo redacta; emergencias y medicación las contesta una regla.
-- Voz: Kokoro-82M (Apache-2.0; `af_heart` EN, `ef_dora` ES) con reserva espeak-ng; oído: whisper.cpp `base`. Modelos en `~/.local/share/metis/` (fuera del brain).
-- Umbrales con fuente en `data/config.json` → `catalog` (`/api/thresholds`); ya no queda ningún «PENDIENTE».
+More install options (serving the models over a local network, manual install) are in [docs/NOTAS-EQUIPO-14-NOV.md](docs/NOTAS-EQUIPO-14-NOV.md) (Spanish, historical).
 
-## Arquitectura
+## What it does
 
-1. `data/`: `config.json` (parámetros + `source` por valor) -> `generate_crew.py` -> `crew_lena.json` (Lena y Marco, 30 días, deriva de 3 noches en Lena). `blood_osd569.py` -> `blood_osd569.json` (hemograma real).
-2. `backend/main.py` (FastAPI): sirve esos JSON, el triaje y la frase de Metis. Sin base de datos.
-3. Triaje = árbol determinista `backend/triage_tree.json`. **La IA nunca decide la acción médica; solo redacta.**
-4. `/api/metis/say` llama a un endpoint compatible OpenAI en localhost; si falla, devuelve la frase guionizada.
-5. `frontend/` (Vite + React + TS): 6 pantallas placeholder que consumen la API; contratos en `src/api.ts`.
-6. `voice/`: adaptador STT/TTS con stub; el modelo lo elige Juan.
-7. Los textos del triaje son de EJEMPLO («PENDIENTE DE VALIDAR CON FUENTES NASA») y sin diagnósticos ni dosis.
-8. Valores de `config.json` marcados `PENDIENTE: nasa-fuentes-verificadas`: son plausibles, no citas.
-   Corrección 2026-11-14: ya no queda ningún PENDIENTE; cada valor lleva su fuente o está marcado como supuesto (`verified:false`). Los textos del triaje son bilingües y llevan fuentes (ver `investigacion/triaje-validado.md`); siguen sin revisión médica.
-9. Datos de Lena y Marco: simulados y ficticios. Hemograma: real, NASA OSDR OSD-569 (Inspiration4).
-10. No hay logos de NASA ni claves en el repo.
+- **Personal baseline.** Each metric is compared with that person's own band, not a population average.
+- **Live vitals and early warning.** When a crew member's vitals drift, Metis asks them if they are okay. If they ask for help, do not answer in 30 seconds, or there is no pulse, it alerts the crew and the medical officer on its own.
+- **Guided triage.** A deterministic decision tree with cited sources, hands-free by voice or with buttons. Two flows: a crewmate collapses, and chest pressure in yourself.
+- **Voice.** Say "Metis" and talk. An emergency phrase does not need the wake word.
+- **Earth messages.** In an emergency Metis sends a message to the flight surgeon on Earth and says so. The crew sees each message, its status and a live countdown; Earth's answer appears on board only when it arrives.
+- **Mission environments.** ISS, spacewalk, Moon, Mars (5 to 20 minutes one way) and no link. Without a link, messages wait in a queue and go out when it returns.
+- **Ground view.** What the flight surgeon sees: the crew, their vitals, the ship, and the inbox of messages from the ship, with replies that travel back with the delay.
+- **Roles and privacy.** A crew member sees only their own health data, the commander sees a summary, the medical officer and Earth see everything. Emergency alerts reach everyone.
+- **Sleep × air.** Relates each person's short nights to the CO₂ peaks in their bunk.
+- **Ship and medical kit.** Life support, power, radiation and kit stock, all simulated.
 
-## Contratos de la API (tipos en `frontend/src/api.ts`)
+## How it works
 
-| Método y ruta | Cuerpo | Respuesta |
+```
+Metis earpiece (concept)  ->  personal Metis  ->  habitat hub  --(link delay)-->  Earth: flight surgeon
+```
+
+- `data/`: parameters with a source for each value (`config.json`), the simulated crew generator and the real blood counts.
+- `backend/` (FastAPI, no database): vitals, triage, roles, mission link, messages with Earth, voice. Full API with examples in [API.md](API.md) (Spanish).
+- `frontend/` (Vite, React, TypeScript): the ship screens and the Ground view.
+- `demo/`: the single-file build of the frontend.
+
+**The AI never decides a medical action.** The triage is a fixed tree (`backend/triage_tree.json`), and emergencies, crew status, medication and diagnosis questions are answered by fixed rules. The language model only words the conversational replies, and anything it writes is marked `ai_generated`. If the model is not running, Metis falls back to scripted lines.
+
+More detail, including the earpiece concept and the knowledge graph, in [docs/SOBRE-METIS.md](docs/SOBRE-METIS.md) (Spanish).
+
+## NASA data and sources
+
+| Source | Used for |
+|---|---|
+| [NASA OSDR OSD-569](https://osdr.nasa.gov/osdr/data/osd/files/569), complete blood counts from Inspiration4 (**real data**) | Blood panel: personal preflight baseline against the first day after return (R+1) |
+| NASA Human Research Program, [risks](https://www.nasa.gov/hrp/risks/) and [hazards](https://www.nasa.gov/hrp/hazards/) | The risk named behind each alert and each point on the body |
+| [NASA OCHMO-TB-004 Rev D, Carbon Dioxide](https://www.nasa.gov/wp-content/uploads/2023/12/ochmo-tb-004-carbon-dioxide.pdf) | Cabin CO₂ limits and early-warning levels |
+| [NASA OCHMO-TB-041 Rev A, Sleep Accommodations](https://www.nasa.gov/wp-content/uploads/2023/03/sleep-accomodations-technical-brief-ochmo.pdf) | Recommended sleep |
+| [NASA-STD-3001 Vol. 1 Rev C](https://standards.nasa.gov/sites/default/files/standards/NASA/C//nasa-std-3001-vol-1-rev-c-signature.pdf) | Crew Medical Officer role |
+| [NASA HRP Evidence Report, Risk of Cardiac Rhythm Problems During Spaceflight](https://ntrs.nasa.gov/citations/20170005625) | Why a rhythm problem needs an ECG to confirm |
+
+Every threshold carries its source in `data/config.json` and is served at `/api/thresholds`; values that are our own assumptions are marked `verified: false`. The full table and the sources of the triage protocols are in [docs/SOBRE-METIS.md](docs/SOBRE-METIS.md).
+
+**Simulated:** the crew (Lena, Marco, Noor, Kenji), their vitals and 30-day history, the ship systems, the medical kit, the link delays and the earpiece, which is a concept and not a built device. **Not medically reviewed:** the triage texts cite their sources but no clinician has reviewed them.
+
+## Third-party models
+
+All run locally and keep their own licenses.
+
+| Model | Role | License |
 |---|---|---|
-| GET `/api/health` | | `{status, llm_configured, offline_ready}` |
-| GET `/api/crew` | | `{co2_limit_mmhg:{value,source}, simulated, crew:[{id,name,role,today_out_of_band}]}` |
-| GET `/api/crew/{id}` (`lena`, `marco`) | | resumen + `baseline{metric:{mean,sd,band_low,band_high}}` + `days[30]` + `sources` |
-| GET `/api/blood` | | por C001–C004: analitos con línea base, R+1, rango de referencia y banderas |
-| POST `/api/triage/step` | `{flow, node_id?, answer?}` (`flow`: `companion_collapse` \| `self_chest_pressure`; sin `node_id` = empezar) | `{node_id, node}`; `node.type` = `question` (`text`, `why`, `options[{id,label,next}]`) o `result` (`level`, `title`, `steps`, `surgeon_summary`, `warning`) |
-| POST `/api/metis/say` | `{topic, context?}` (`topic` = clave de `fallback_lines.json`) | `{text, source: llm\|fallback, ai_generated}` |
+| Qwen3-4B-Instruct-2507 (Q4_K_M) on llama.cpp | Wording of conversational replies | Apache-2.0 |
+| Kokoro-82M v1.0 | Voice | Apache-2.0 |
+| OpenAI Whisper `base` and `small` on whisper.cpp | Speech recognition; `small` is a second listener used only to catch emergencies | MIT |
 
-## Qué falta (TODO)
+Fonts and visual credits are listed in [docs/SOBRE-METIS.md](docs/SOBRE-METIS.md).
 
-- **Carlos (front)**: diseño final de las 6 pantallas (marcadas con `TODO` en `src/screens/`); figura humana SVG clicable; subtítulos; selector nave/base lunar; estado sin conexión; botón de micrófono; resumen del cirujano «en cola por retraso»; marca visible de contenido generado por IA.
-- **Manuela (back)**: guardar el resumen del triaje (endpoint nuevo); guion/textos de reserva; revisar el árbol de triaje y sus textos con las fuentes; en `/api/metis/say` enviar contexto real (último día de Lena); declarar en pantalla qué sale de un LLM.
-- **Juan (voz)**: elegir e implementar STT y TTS locales en `voice/` (ver `voice/README.md`).
-- **Investigación de umbrales (pendiente)**: sustituir todo `PENDIENTE: nasa-fuentes-verificadas` en `data/config.json` (y el límite de CO2) por valores citados, o declararlos como supuestos; validar el árbol de triaje con fuentes NASA/HRP.
-- **Equipo**: probar la demo sin red en el portátil; congelar funciones el domingo 14:00.
+## Use of AI
 
-## Licencia
+This project was built with AI assistance (Claude, by Anthropic) for code, tests and documentation. Every source file carries the header "Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026". At run time, a local language model words Metis's conversational replies, a local model produces its voice and another one transcribes speech; the Talk screen labels each reply as coming from the local model or from a scripted line. Medical guidance comes from a deterministic tree, not from a model.
 
-Código del equipo bajo [Apache-2.0](LICENSE). Los modelos, bibliotecas y datos de terceros conservan su propia licencia (por ejemplo, Qwen3-4B-Instruct-2507 y Kokoro-82M, Apache-2.0; datos NASA OSDR OSD-569).
+## License
 
-## Uso de IA
-
-Este esqueleto se generó con asistencia de IA (Claude, de Anthropic), como exige la guía 2026 («Code and data: Must acknowledge SI generation in descriptive text and metadata»). Cada archivo de código lleva la cabecera «Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026». En ejecución, la IA local solo redacta frases (`/api/metis/say` marca `ai_generated`); el triaje es un árbol determinista. Los datos de los tripulantes son simulados; el hemograma es real (NASA OSDR OSD-569). Metis no diagnostica.
+Team code under [Apache-2.0](LICENSE). Third-party models, libraries and data keep their own licenses.

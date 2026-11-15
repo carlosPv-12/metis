@@ -19,7 +19,7 @@ Actualizado el 14-nov a las 10:45. Tres niveles; los comandos se pegan en Termin
 2. **La demo completa** (IA, voz Kokoro y micrófono, sin conexión): `bash codigo/metis/instalar.sh` una vez (unos 3,2 GB; si Tomás sirve los modelos en la misma wifi, añade `--desde http://IP:8765`). Después, cada vez, `bash codigo/metis/arrancar.sh`, que abre `http://localhost:8000/`.
 3. **Editar el código**: `bash codigo/metis/instalar.sh --dev` (añade Node 24 y `npm ci`) y luego `bash codigo/metis/arrancar.sh --dev`, que abre `http://localhost:5173/` con recarga en caliente. Si cambias `frontend/src/`, regenera el archivo del punto 1 con `python3 codigo/metis/demo/construir.py`.
 
-Detalle, opciones y problemas frecuentes: [README.md](README.md), apartado «Cómo arrancar». Mac y WSL reales no se han probado todavía: si algo falla, copiad el mensaje del instalador a Tomás.
+Detalle, opciones y problemas frecuentes: [docs/NOTAS-EQUIPO-14-NOV.md](docs/NOTAS-EQUIPO-14-NOV.md), apartado «Cómo arrancar». Mac y WSL reales no se han probado todavía: si algo falla, copiad el mensaje del instalador a Tomás.
 
 En el portátil de Tomás sigue funcionando lo de siempre: el backend con `.venv/bin/uvicorn main:app --port 8000 --reload` desde `backend/` y el frontend con `npm run dev` desde `frontend/`, en `http://localhost:5173/`. Idioma: botón **EN/ES** arriba a la derecha (o `#/today?lang=es`). Tripulante: botón **Lena/Marco** en la cabecera.
 
