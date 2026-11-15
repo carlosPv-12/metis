@@ -74,7 +74,11 @@ Sin modelos la demo funciona igual con frases de reserva y la voz del navegador.
 - **Manuela (back)**: guardar el resumen del triaje (endpoint nuevo); guion/textos de reserva; revisar el árbol de triaje y sus textos con las fuentes; en `/api/metis/say` enviar contexto real (último día de Lena); declarar en pantalla qué sale de un LLM.
 - **Juan (voz)**: elegir e implementar STT y TTS locales en `voice/` (ver `voice/README.md`).
 - **Investigación de umbrales (pendiente)**: sustituir todo `PENDIENTE: nasa-fuentes-verificadas` en `data/config.json` (y el límite de CO2) por valores citados, o declararlos como supuestos; validar el árbol de triaje con fuentes NASA/HRP.
-- **Equipo**: elegir licencia (Apache-2.0 o MIT) y repo GitHub (se decide el domingo); probar la demo sin red en el portátil; congelar funciones el domingo 14:00.
+- **Equipo**: probar la demo sin red en el portátil; congelar funciones el domingo 14:00.
+
+## Licencia
+
+Código del equipo bajo [Apache-2.0](LICENSE). Los modelos, bibliotecas y datos de terceros conservan su propia licencia (por ejemplo, Qwen3-4B-Instruct-2507 y Kokoro-82M, Apache-2.0; datos NASA OSDR OSD-569).
 
 ## Uso de IA
 
