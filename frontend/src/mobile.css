@@ -228,5 +228,5 @@
 /* Touch screens: a vertical swipe over the 3D ship must scroll the page (it filled the first screen
    of Trends and Ground and swallowed every swipe). Horizontal drag still rotates, two fingers still zoom. */
 @media (pointer: coarse) {
-  .ship3d { touch-action: pan-y }
+  .shell .content .ship3d { touch-action: pan-y }
 }
