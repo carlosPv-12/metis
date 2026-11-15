@@ -253,19 +253,25 @@ SHIP_STATUS = re.compile(r"\bhow(\'s| is)? (the )?(ship|station|habitat|spacecra
 # «How is David?», «¿Cómo está David?»: un nombre que no es de la tripulación. Lo contesta una regla, nunca la IA,
 # porque la IA tendía a decir que esa persona estaba bien (Carlos, 15-nov). Solo nombres con mayúscula (whisper
 # los escribe así), para no confundir «how is it going» o «how is my sleep».
-WHO_Q = re.compile(r"\b(?i:how(?:'s| is| are)|is|cómo (?:está|esta)|qué tal(?: está| esta)?|que tal(?: está| esta)?|está|esta)\s+"
-                   r"([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)\b")
+WHO_Q = re.compile(r"\b(?i:how(?:'s| is)|cómo (?:está|esta)|qué tal(?: está| esta)?|que tal(?: está| esta)?)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)\b"
+                   # «Is David okay?», «¿Está David bien?»: solo con una palabra de estado detrás, para no saltar con
+                   # «Is Tylenol safe to take?», «Is Monday a rest day?» o «My name is Carlos» (revisión del 15-nov).
+                   r"|\b(?i:is|está|esta)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)\s+(?i:okay|ok|fine|alright|all right|well|doing|hurt|sick|alive|awake|bien|mal|herid[oa]|enferm[oa])\b")
 NOT_PEOPLE = {"I", "Earth", "Mars", "Moon", "Houston", "Metis", "Ground", "Tierra", "Marte", "Luna", "Iss", "Nasa", "It", "This", "That",
               "He", "She", "They", "My", "Your", "Our", "The", "Everyone", "Everybody", "Everything", "Todo", "Todos", "Mi", "Tu", "La", "El"}
 
 
 def unknown_person(message, crew_names):
-    """Nombre por el que se pregunta y que no está a bordo, o None."""
-    known = {n.lower() for n in crew_names}
+    """(nombre, tripulante): el nombre por el que se pregunta y, si se parece mucho a alguien de a bordo, quién es
+    (whisper escribe «Marko», «Lina», «Kenzie», «Nor»). (nombre, None) = no está a bordo. None = no se pregunta por nadie."""
+    import difflib
+    known = {n.lower(): n for n in crew_names}
     for m in WHO_Q.finditer(message or ""):
-        w = m.group(1)
-        if w.lower() not in known and w.capitalize() not in NOT_PEOPLE and w.upper() not in ("ISS", "NASA", "CO2", "EVA", "CMO"):
-            return w
+        w = m.group(1) or m.group(2)
+        if w.lower() in known or w.capitalize() in NOT_PEOPLE or w.upper() in ("ISS", "NASA", "CO2", "EVA", "CMO"):
+            continue
+        near = difflib.get_close_matches(w.lower(), list(known), n=1, cutoff=0.72)
+        return w, (known[near[0]] if near else None)
     return None
 
 
@@ -312,11 +318,6 @@ def chat(b: ChatIn):
                 if k == "en" else f"Hay una emergencia con {n} ahora mismo. Vamos a la lista de emergencia: te pregunto una cosa cada vez.")
         return {"text": text, "source": "rule", "latency_ms": int((time.time() - t0) * 1000), "safety": "escalated",
                 "suggest_flow": "companion_collapse", "patient": emerg["crew_id"], "lang": k, "ai_generated": False}
-    crew_names = [c["name"] for c in station.station(crew_doc())["crew"]]
-    if (who := unknown_person(b.message, crew_names)):
-        return {"text": unknown_person_text(who, crew_names, k), "source": "rule", "latency_ms": int((time.time() - t0) * 1000),
-                "safety": "ok", "lang": k, "ai_generated": False, "unknown_person": who,
-                "note": "people not on board are answered by a rule, never generated"}
     if SHIP_STATUS.search(b.message or ""):
         doc = crew_doc()
         return {"text": ship.status_text(doc, station.station(doc)["environment"], k), "source": "rule",
@@ -336,6 +337,17 @@ def chat(b: ChatIn):
     if llm.DIAGQ.search(b.message or ""):
         return {"text": fb("diagnosis", k), "source": "rule", "latency_ms": int((time.time() - t0) * 1000), "safety": "ok",
                 "lang": k, "ai_generated": False, "note": "diagnosis requests are never answered by the model"}
+    # Después de emergencias, estado, medicación y diagnóstico: esas reglas mandan (revisión del 15-nov).
+    crew_names = [x["name"] for x in station.station(crew_doc())["crew"]]
+    if (up := unknown_person(b.message, crew_names)):
+        who, near = up
+        if near:   # nombre mal transcrito de alguien de a bordo: se contesta por esa persona, con sus permisos
+            return {"text": vitals.status_text(crew_doc(), near.lower(), k, viewer=b.crew_id), "source": "rule",
+                    "latency_ms": int((time.time() - t0) * 1000), "safety": "ok", "lang": k, "ai_generated": False, "heard_as": who,
+                    "note": "crew status is read from the sensors, never generated"}
+        return {"text": unknown_person_text(who, crew_names, k), "source": "rule", "latency_ms": int((time.time() - t0) * 1000),
+                "safety": "ok", "lang": k, "ai_generated": False, "unknown_person": who,
+                "note": "people not on board are answered by a rule, never generated"}
     ctx = "Background only, mention it only if relevant:\n" if k == "en" else "Contexto de fondo; menciónalo solo si viene al caso:\n"
     msgs = [{"role": "system", "content": llm.system_for(k, name) + "\n" + ctx + llm.facts_for(c, k)}]
     for h in (b.history or [])[-6:]:
