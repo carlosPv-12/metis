@@ -264,6 +264,70 @@ def _save_debug(wav: pathlib.Path, text: str):
         pass   # nunca romper el reconocimiento por la depuración
 
 
+# Segundo oído para emergencias. Medido el 15-nov con la voz real de Carlos en la sede (sala con ruido, acento):
+# el modelo «base» escribía «Marco, have a good day» o «Marco, Chas, Kolaset» por «Marco has collapsed»; el «small»
+# con el audio normalizado y vocabulario de emergencia en la pista lo sacó en las dos grabaciones. Pero «small» oye
+# peor «Metis» («Me, too.») y tarda 2-3 s en vez de 0,5. Así que «base» sigue mandando y «small» solo se consulta
+# cuando hay una frase libre en la que «base» no ha visto ninguna emergencia; su versión solo se usa si ÉL sí la ve.
+# Si ggml-small.bin no está instalado, no se hace nada.
+WHISPER_SMALL = pathlib.Path(os.path.expanduser(os.environ.get("METIS_WHISPER_SMALL", str(WHISPER_MODEL.parent / "ggml-small.bin"))))
+SMALL_PROMPT = "Metis, Lena, Marco, crew. Collapsed, not breathing, chest pain, help, alert the crew."
+_pyw_small = None
+
+
+def second_opinion(base_text: str, hint: str, lang: str, transcribe_small):
+    """Texto del segundo oído si detecta una emergencia que «base» no vio; si no, None (se queda lo de «base»)."""
+    if hint or lang == "es" or os.environ.get("METIS_STT_SECOND", "1") == "0":
+        return None                      # respuestas cortas esperadas (sí/no) o español: el vocabulario es inglés
+    import llm, voice_answer
+    clean = voice_answer.clean_transcript(base_text)
+    if not clean or llm.EMERGENCY.search(clean):
+        return None                      # silencio, o «base» ya la ha visto
+    wake, rest = voice_answer.match_wake(clean)
+    if wake and not rest:
+        return None                      # «Metis» a secas: contestar rápido
+    try:
+        text = voice_answer.clean_transcript(transcribe_small() or "")
+    except Exception:
+        return None                      # el segundo oído nunca rompe el reconocimiento
+    return text if text and llm.EMERGENCY.search(text) else None
+
+
+def _louder(wav: pathlib.Path, td: pathlib.Path) -> pathlib.Path:
+    """Recorta el silencio de los extremos y sube el volumen al 60 % del máximo (así se midió)."""
+    import numpy as np
+    with wave.open(str(wav), "rb") as w:
+        x = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").astype(np.float32) / 32768.0
+    e = np.abs(x)
+    if len(x) and e.max() > 1e-4:
+        idx = np.where(e > max(e.max() * 0.08, 0.003))[0]
+        x = x[max(0, idx[0] - 4000): idx[-1] + 4000]
+        x = np.clip(x * min(0.6 / np.abs(x).max(), 30), -1, 1)
+    out = td / "louder.wav"
+    with wave.open(str(out), "wb") as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(16000); w.writeframes((x * 32767).astype("<i2").tobytes())
+    return out
+
+
+def _stt_small(wav: pathlib.Path, l: str) -> str:
+    global _pyw_small
+    if not WHISPER_SMALL.exists():
+        return ""
+    if _stt_engine() == "pywhispercpp":
+        import numpy as np
+        with wave.open(str(wav), "rb") as w:
+            pcm = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").astype(np.float32) / 32768.0
+        with _pyw_lock:
+            if _pyw_small is None:
+                from pywhispercpp.model import Model
+                _pyw_small = Model(str(WHISPER_SMALL), redirect_whispercpp_logs_to=None, n_threads=STT_THREADS,
+                                   print_progress=False, print_realtime=False)
+            return " ".join(" ".join(s.text for s in _pyw_small.transcribe(pcm, language=l, initial_prompt=SMALL_PROMPT)).split())
+    r = subprocess.run([str(WHISPER_BIN), "-m", str(WHISPER_SMALL), "-t", str(STT_THREADS), "-l", l, "-nt", "--prompt", SMALL_PROMPT, "-f", str(wav)],
+                       capture_output=True, timeout=60)
+    return " ".join(r.stdout.decode(errors="ignore").split()) if r.returncode == 0 else ""
+
+
 def stt(audio: bytes, lang: str = "auto", hint: str = ""):
     """hint: respuestas esperadas («Yes. No.»); se suman a la pista de vocabulario y whisper acierta más en frases cortas."""
     prompt = " ".join(x for x in (STT_PROMPT, (hint or "")[:200]) if x)
@@ -277,13 +341,17 @@ def stt(audio: bytes, lang: str = "auto", hint: str = ""):
             try:
                 out = _stt_pywhispercpp(wav, l, prompt)
                 _save_debug(wav, out[0])
-                return out
+                second = second_opinion(out[0], hint, l, lambda: _stt_small(_louder(wav, pathlib.Path(td)), l))
+                return (second, out[1]) if second else out
             except Exception as e:
                 raise RuntimeError(f"pywhispercpp falló: {e!r}"[:300])
         r = subprocess.run([str(WHISPER_BIN), "-m", str(WHISPER_MODEL), "-t", str(STT_THREADS), "-l", l, "-nt", *(["--prompt", prompt] if prompt else []), "-f", str(wav)], capture_output=True, timeout=120)
         if r.returncode != 0:
             raise RuntimeError("whisper.cpp falló: " + r.stderr.decode(errors="ignore")[-200:])
         text = " ".join(r.stdout.decode(errors="ignore").split())
+        second = second_opinion(text, hint, l, lambda: _stt_small(_louder(wav, pathlib.Path(td)), l))
+        if second:
+            return second, (l if l != "auto" else "en")
         detected = l
         if l == "auto":
             err = r.stderr.decode(errors="ignore")

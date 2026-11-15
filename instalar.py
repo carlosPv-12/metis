@@ -56,6 +56,10 @@ MODELS = [
     ("whisper.cpp-src/models/ggml-base.bin",
      f"{HF}/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base.bin",
      147951465, "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe", "MIT (OpenAI Whisper / whisper.cpp)", []),
+    # segundo oído para emergencias (backend/voice_engine.py, second_opinion); sin él, la demo funciona igual que antes
+    ("whisper.cpp-src/models/ggml-small.bin",
+     f"{HF}/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small.bin",
+     487601967, "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b", "MIT (OpenAI Whisper / whisper.cpp)", []),
 ]
 
 
