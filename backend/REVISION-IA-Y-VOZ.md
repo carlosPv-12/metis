@@ -67,7 +67,7 @@ Latencias medidas el 14-nov con 4 hilos: frase de `say` 1,4-6,9 s (la primera es
 
 ## Instalar en otra máquina
 
-Un comando, desde la carpeta del brain (detalle y tabla de modos en [../README.md](../README.md), «Cómo arrancar»):
+Un comando, desde la carpeta del brain (detalle y tabla de modos en [../docs/NOTAS-EQUIPO-14-NOV.md](../docs/NOTAS-EQUIPO-14-NOV.md), «Cómo arrancar»):
 
 - **Manuela (Mac Apple Silicon)**, en Terminal: `bash codigo/metis/instalar.sh` (solo probar) o `bash codigo/metis/instalar.sh --dev` (probar y editar). No hace falta Homebrew, Xcode, Python ni Node.
 - **Carlos (Ubuntu 24.04 en WSL2)**, en la terminal de Ubuntu: los mismos dos comandos. No hace falta `apt`, `python3-venv` ni `pip`.
