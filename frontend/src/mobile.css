@@ -346,7 +346,6 @@
   /* Trends and the Ground ship map: projected labels stay on one line and remain tappable. */
   .shell .content .live-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) }
   /* Ship labels keep their desktop look (one line); an invisible halo gives them a 44 px touch area. */
-  .shell .content .ship3d-label::after, .shell .content .ship3d-chip::after { content: ''; position: absolute; inset: -11px -4px }
   .shell .content .sleepair-sketch figcaption { font-size: 12px }
 
   /* P1 screens: contain long data and preserve control sizing after their later component styles load. */
@@ -373,4 +372,11 @@
    of Trends and Ground and swallowed every swipe). Horizontal drag still rotates, two fingers still zoom. */
 @media (pointer: coarse) {
   .shell .content .ship3d { touch-action: pan-y }
+}
+
+/* Ship labels keep their desktop look on phones (one line, compact); an invisible halo gives them
+   a 44 px touch area. Placed last and with extra specificity so the generic 44 px rules do not inflate them. */
+@media (max-width: 640px) {
+  .shell main.content .ship3d .ship3d-label, .shell main.content .ship3d-chip { min-width: 0 !important; min-height: 0 !important }
+  .shell main.content .ship3d .ship3d-label::after, .shell main.content .ship3d-chip::after { content: ''; position: absolute; inset: -11px -4px }
 }
