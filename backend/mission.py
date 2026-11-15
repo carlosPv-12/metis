@@ -67,14 +67,18 @@ def reset():
 
 
 def ground_phrase(lang="en"):
-    """Qué pasa con el cirujano de vuelo según el enlace; Metis lo añade a sus avisos de emergencia."""
+    """Qué pasa con el mensaje a Tierra según el enlace; Metis lo añade a sus avisos de emergencia.
+    Dice siempre «Tierra» y «cirujano de vuelo»: a bordo no hay cirujano, está el oficial médico (Carlos, 15-nov)."""
     d, mode = delay_s(), PROFILES[get()["env"]]["mode"]
     if mode == "none":
-        return ("There is no link with Earth: the report for the flight surgeon waits in the queue."
-                if lang != "es" else "No hay enlace con Tierra: el informe para el cirujano de vuelo espera en cola.")
+        return ("There is no link with Earth right now: my message to the flight surgeon on Earth is queued and goes out when the link is back."
+                if lang != "es" else "Ahora no hay enlace con Tierra: mi mensaje al cirujano de vuelo, en Tierra, queda en cola y sale cuando vuelva el enlace.")
     if mode == "realtime":
-        return ("I'm calling the flight surgeon now; they can join almost live."
-                if lang != "es" else "Llamo ya al cirujano de vuelo; puede entrar casi en directo.")
-    m = round(d / 60)
-    return (f"The report reaches the flight surgeon in about {m} minutes; their answer takes {2 * m}."
-            if lang != "es" else f"El informe llega al cirujano de vuelo en unos {m} minutos; su respuesta tarda {2 * m}.")
+        return ("I've sent a message to the flight surgeon on Earth; they can join almost live."
+                if lang != "es" else "He enviado un mensaje al cirujano de vuelo, en Tierra; puede entrar casi en directo.")
+    if d < 90:                                   # retraso forzado corto (pruebas, ensayo del pitch): en segundos
+        n, u_en, u_es = int(round(d)), "seconds", "segundos"
+    else:
+        n, u_en, u_es = round(d / 60), "minutes", "minutos"
+    return (f"I've sent a message to the flight surgeon on Earth: it arrives in about {n} {u_en}, and their answer takes {2 * n}."
+            if lang != "es" else f"He enviado un mensaje al cirujano de vuelo, en Tierra: llega en unos {n} {u_es} y su respuesta tarda {2 * n}.")

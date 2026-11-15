@@ -1,9 +1,10 @@
 // Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026
 import { useEffect, useState } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
-import { Activity, LayoutDashboard, MessageCircle, PersonStanding, HeartPulse, Settings as SettingsIcon, Siren, Sun } from 'lucide-react'
+import { Activity, LayoutDashboard, MessageCircle, PersonStanding, HeartPulse, Radio, Settings as SettingsIcon, Siren, Sun } from 'lucide-react'
 import { LangCtx, useT, type Lang } from './i18n'
-import { CrewCtx } from './ui'
+import { CrewCtx, useCrew } from './ui'
+import EarthMessages, { EarthToasts } from './earth'
 import { useLang as useLangCtx } from './i18n'
 import Settings from './screens/Settings'
 import Ground, { GroundCrewRail } from './screens/Ground'
@@ -52,6 +53,7 @@ function Shell() {
   useEffect(() => { document.querySelector('.content')?.scrollTo(0, 0) }, [loc.pathname])
   const I = 18
   const groundView = useGroundView()
+  const { crewId } = useCrew()
   return (
     <div className={`shell${groundView ? ' ground-shell' : ''}`}>
       <header className="mobile-header">
@@ -73,11 +75,13 @@ function Shell() {
         <NavLink to="/talk"><MessageCircle size={I} /><span>{t('nav_talk')}</span></NavLink>
         <NavLink to="/triage"><Siren size={I} /><span>{t('nav_triage')}</span></NavLink>
         <NavLink to="/report"><HeartPulse size={I} /><span>{t('nav_report')}</span></NavLink>
+        <NavLink to="/messages"><Radio size={I} /><span>{t('nav_messages')}</span></NavLink>
         </>}
         <NavLink to="/settings" className="rail-settings"><SettingsIcon size={I} /><span>{SETTINGS_LABEL[lang]}</span></NavLink>
       </nav>
       <main className="content">
         <VitalsBanner />
+        <EarthToasts key={groundView ? 'ground' : crewId} viewer={groundView ? 'ground' : crewId} />
         <Routes>
           <Route path="/" element={<Navigate to="/today" replace />} />
           <Route path="/today" element={<Greeting />} />
@@ -88,6 +92,7 @@ function Shell() {
           <Route path="/triage/run" element={<TriageRun />} />
           <Route path="/sleep-air" element={<Navigate to="/trends" replace />} />
           <Route path="/report" element={<Wellbeing />} />
+          <Route path="/messages" element={<EarthMessages viewer={crewId} />} />
           <Route path="/station" element={<Station />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/ground" element={<Ground />} />

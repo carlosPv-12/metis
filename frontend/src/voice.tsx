@@ -219,7 +219,7 @@ export function EarProvider({ children }: { children: ReactNode }) {
           const k = `${c.crew_id}:esc:${c.escalated_at}`
           if (spoken.has(k)) continue
           spoken.add(k)
-          if (mine) { if (c.reason !== 'no_pulse') queue.push({ text_en: 'I’ve alerted the crew and the medical officer. Stay where you are, help is on the way.', text_es: 'He avisado a la tripulación y al oficial médico. Quédate donde estás, van a ayudarte.' }) }
+          if (mine) { if (c.reason !== 'no_pulse') queue.push({ text_en: 'I’ve alerted the crew and the medical officer, and sent a message to the flight surgeon on Earth. Stay where you are, help is on the way.', text_es: 'He avisado a la tripulación y al oficial médico, y he enviado un mensaje al cirujano de vuelo, en Tierra. Quédate donde estás, van a ayudarte.' }) }
           else queue.push({ text_en: c.instructions_en ?? '', text_es: c.instructions_es ?? '', go: `/triage?flow=companion_collapse&patient=${c.crew_id}` })
         }
       }

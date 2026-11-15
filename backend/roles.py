@@ -26,6 +26,16 @@ PERMISSIONS = {
 # Lo que llega a TODOS aunque no puedan ver el detalle médico de esa persona: hay que actuar.
 EMERGENCY_EVENTS = {"crew_alert", "alert_crew", "no_pulse", "collapse", "cmo_alert", "alert_commander",
                     "send_flight_surgeon", "triage_started", "ship_fault"}
+# Mensajes a Tierra de una emergencia: todos ven QUE se ha enviado y cuándo llega, no el detalle médico (Carlos, 15-nov:
+# «no veo los mensajes que mando ni los que llegan a la tierra»). El detalle sigue siendo del afectado, el CMO y Tierra.
+EMERGENCY_PACKETS = {"surgeon_notice", "send_flight_surgeon"}
+# Envíos a Tierra que NO son emergencias: el chequeo de «How I feel» y el informe diario son privados.
+PRIVATE_KINDS = {"wellbeing", "daily_report"}
+TRANSPORT = ("direction", "status", "delay_s", "sent_ts", "arrives_ts", "reply_earliest_ts", "arrives_in_s", "reply_in_s", "queued")
+PACKET_TEXT = {"to_earth": ("Emergency message to the flight surgeon on Earth (medical details with the medical officer)",
+                            "Mensaje de emergencia al cirujano de vuelo, en Tierra (el detalle médico lo tiene el oficial médico)"),
+               "to_ship": ("Answer from the flight surgeon on Earth (details with the medical officer)",
+                           "Respuesta del cirujano de vuelo, en Tierra (el detalle lo tiene el oficial médico)")}
 SUMMARY_VITALS = ("t", "hr_bpm", "spo2_pct", "pulse", "activity")   # «rasgos principales» para el comandante
 FITNESS = ("fit", "limited", "unfit")
 
@@ -155,13 +165,23 @@ def filter_alerts(alerts, viewer):
     return out
 
 
+def _private(e):
+    """Un envío a Tierra que no es emergencia (bienestar, informe diario): no cuenta como aviso para todos."""
+    return ((e.get("payload") or {}).get("kind") in PRIVATE_KINDS)
+
+
 def filter_events(events, viewer):
     out = []
     for e in events:
-        cid = e.get("crew_id")
-        if not cid or e.get("type") in EMERGENCY_EVENTS or access(viewer, cid) == "full":
+        cid, typ = e.get("crew_id"), e.get("type")
+        a = access(viewer, cid) if cid else "full"
+        if not cid or a == "full" or (typ in EMERGENCY_EVENTS and typ not in EMERGENCY_PACKETS and not _private(e)):
             out.append(e)
-        elif access(viewer, cid) == "summary":
+        elif e.get("direction") in PACKET_TEXT and ((typ in EMERGENCY_PACKETS and not _private(e)) or a == "summary"):
+            # mensaje con Tierra: se ve que existe, adónde va y cuándo llega; el texto médico, no
+            en, es = PACKET_TEXT[e["direction"]]
+            out.append({k: v for k, v in e.items() if k in ("id", "ts", "type", "crew_id", *TRANSPORT)} | {"text_en": en, "text_es": es})
+        elif a == "summary":
             out.append({k: v for k, v in e.items() if k in ("id", "ts", "type", "crew_id")}
                        | {"text_en": "Health notice (details with the medical officer)", "text_es": "Aviso de salud (detalle con el oficial médico)"})
     return out
