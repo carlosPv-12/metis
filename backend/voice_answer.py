@@ -6,11 +6,17 @@ import re, unicodedata
 
 # Restos que whisper.cpp escribe cuando no hay voz: [BLANK_AUDIO], (music), *silence*...
 NOISE = re.compile(r"\[[^\]]*\]|\([^)]*\)|\*[^*]*\*")
+# Frases que whisper se inventa con silencio o ruido (vistas el 15-nov: «Thank you for your time, and I'll see you
+# next time.»). Se quitan para que no cierren la conversación ni tapen el «Metis» que va detrás.
+# Un «Thank you.» suelto se deja: puede ser de verdad y sirve para acabar.
+HALLUCINATION = re.compile(r"(?i)\b(?:(?:thank you|thanks) (?:so much )?for (?:your time|watching|listening)"
+                           r"|(?:and )?i'?ll see you (?:next time|in the next (?:one|video))|see you next time"
+                           r"|please subscribe|subt[ií]tulos (?:realizados )?por .*$|gracias por ver(?: el v[ií]deo)?)[.,!?]*")
 
 
 def clean_transcript(text: str) -> str:
     """Quita las marcas de ruido de whisper y espacios; cadena vacía si no queda voz."""
-    t = " ".join(NOISE.sub(" ", text or "").split())
+    t = " ".join(HALLUCINATION.sub(" ", NOISE.sub(" ", text or "")).split()).lstrip(",.;:!? ")
     return "" if not re.search(r"\w", t) else t
 
 
@@ -123,12 +129,31 @@ def match_commands(text: str) -> list[str]:
 # Palabra de activación «Metis». whisper la escribe de muchas formas (medido el 14-nov con voz Kokoro):
 # «Meti's», «Me tiis», «Medis», «Medys», «Maddie's», «metís». Se acepta en las 4 primeras palabras.
 WAKE = re.compile(r"^m[aeiy]+(t|d|th)+[aeiy]+e?[sz]$")
+# Sin la «s» final, con voz real (Carlos, 15-nov): «Meti.», «Thank you, Meti.», «Medici.». Más estricta que WAKE
+# para no despertar con «media», «meta», «mate» o «mete»: m + a/e + t/d + i (+ e / ci).
+WAKE_NO_S = re.compile(r"^m[ae](t|d|tt|dd|th)i(e|ci)?$")
 GREET = {"hey", "hi", "hello", "ok", "okay", "oye", "hola", "eh", "oh", "y", "and"}
 
 
 def match_wake(text: str):
-    """Devuelve (hay_palabra, resto_de_la_frase). «Hey Metis, how did I sleep?» -> (True, "how did I sleep?")."""
+    """Devuelve (hay_palabra, resto_de_la_frase). «Hey Metis, how did I sleep?» -> (True, "how did I sleep?").
+    También vale al empezar otra frase: whisper a veces pega delante un trozo de ruido o de la voz anterior
+    («But I'm not in a hurry. Meti's, Marco is bad.», 15-nov)."""
     clean = clean_transcript(text)
+    ok, rest = _wake_at_start(clean)
+    if ok:
+        return True, rest
+    # En una frase posterior: solo la forma estricta (con «s»), para que una charla de fondo («…Maddie, come here»)
+    # no despierte a Metis. Lo de delante NO se tira: «Marco collapsed, he is not breathing. Metis, help!» tiene que
+    # llegar entero, porque de ahí sale qué emergencia es (revisión del 15-nov).
+    for m in re.finditer(r"(?<=[.!?])\s+", clean):
+        ok, rest = _wake_at_start(clean[m.end():], strict=True)
+        if ok:
+            return True, (clean[:m.start()] + " " + rest).strip()
+    return False, clean
+
+
+def _wake_at_start(clean: str, strict: bool = False):
     words = clean.split()
     norm = [_norm(w).strip() for w in words]
     for i in range(min(4, len(words))):
@@ -136,7 +161,10 @@ def match_wake(text: str):
             break  # antes de «Metis» solo puede haber un saludo
         for span in (1, 2):  # «Me tiis» llega partido en dos palabras
             joined = "".join(norm[i:i + span])
-            if i + span <= len(words) and WAKE.match(joined):
+            # Sin «s» solo vale si va sola o con pausa detrás («Meti.», «Medi, how…»): «Metí la bolsa» y
+            # «Medí la presión» son frases normales en español.
+            alone = i + 1 == len(words) or words[i][-1:] in ",.;:!?"
+            if i + span <= len(words) and (WAKE.match(joined) or (span == 1 and not strict and alone and WAKE_NO_S.match(joined))):
                 rest = " ".join(words[i + span:]).lstrip(",.;:!?¡¿ ")
                 return True, rest
     return False, clean
