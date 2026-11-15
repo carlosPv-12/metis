@@ -22,7 +22,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .mono, .num { font-family: var(--mono); font-feature-settings: 'tnum' 1 }
 
 /* shell */
-.shell { position: relative; z-index: 1; display: grid; grid-template-columns: 232px 1fr; grid-template-rows: 64px 1fr; height: 100vh }
+.shell { position: relative; z-index: 1; display: grid; grid-template-columns: 232px 1fr; grid-template-rows: 64px 1fr; height: 100vh; height: 100dvh }
 .top { grid-column: 1 / -1; display: flex; align-items: center; gap: 18px; padding: 0 24px; border-bottom: 1px solid var(--line); background: rgba(5, 9, 15, .85); backdrop-filter: blur(8px) }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; letter-spacing: .02em; font-size: 18px; width: 184px }
 .brand .orb { width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #d9fff8, var(--metis) 35%, #1d6f66 75%); box-shadow: 0 0 18px rgba(158, 233, 220, .45) }
