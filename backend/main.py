@@ -250,6 +250,40 @@ CREW_STATUS = re.compile(r"\bhow(\'s| is| are)? (the )?(crew|queue|cue|cru|crow|
                          r"\bcómo (está|esta|están|estan) (la tripulación|el equipo|todos|marco|lena|noor|kenji)\b", re.I)
 SHIP_STATUS = re.compile(r"\bhow(\'s| is)? (the )?(ship|station|habitat|spacecraft|vehicle)\b|\b(ship|station|habitat) (status|systems)\b|"
                          r"\bcómo (está|esta) la (nave|estación|estacion)\b", re.I)
+# «How is David?», «¿Cómo está David?»: un nombre que no es de la tripulación. Lo contesta una regla, nunca la IA,
+# porque la IA tendía a decir que esa persona estaba bien (Carlos, 15-nov). Solo nombres con mayúscula (whisper
+# los escribe así), para no confundir «how is it going» o «how is my sleep».
+WHO_Q = re.compile(r"\b(?i:how(?:'s| is)|cómo (?:está|esta)|qué tal(?: está| esta)?|que tal(?: está| esta)?)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)\b"
+                   # «Is David okay?», «¿Está David bien?»: solo con una palabra de estado detrás, para no saltar con
+                   # «Is Tylenol safe to take?», «Is Monday a rest day?» o «My name is Carlos» (revisión del 15-nov).
+                   r"|\b(?i:is|está|esta)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)\s+(?i:okay|ok|fine|alright|all right|well|doing|hurt|sick|alive|awake|bien|mal|herid[oa]|enferm[oa])\b")
+NOT_PEOPLE = {"I", "Earth", "Mars", "Moon", "Houston", "Metis", "Ground", "Tierra", "Marte", "Luna", "Iss", "Nasa", "It", "This", "That",
+              "He", "She", "They", "My", "Your", "Our", "The", "Everyone", "Everybody", "Everything", "Todo", "Todos", "Mi", "Tu", "La", "El"}
+
+
+def unknown_person(message, crew_names):
+    """(nombre, tripulante): el nombre por el que se pregunta y, si se parece mucho a alguien de a bordo, quién es
+    (whisper escribe «Marko», «Lina», «Kenzie», «Nor»). (nombre, None) = no está a bordo. None = no se pregunta por nadie."""
+    import difflib
+    known = {n.lower(): n for n in crew_names}
+    for m in WHO_Q.finditer(message or ""):
+        w = m.group(1) or m.group(2)
+        if w.lower() in known or w.capitalize() in NOT_PEOPLE or w.upper() in ("ISS", "NASA", "CO2", "EVA", "CMO"):
+            continue
+        near = difflib.get_close_matches(w.lower(), list(known), n=1, cutoff=0.72)
+        return w, (known[near[0]] if near else None)
+    return None
+
+
+def unknown_person_text(who, crew_names, lang):
+    names = list(crew_names)
+    if lang == "es":
+        lista = ", ".join(names[:-1]) + " y " + names[-1] if len(names) > 1 else "".join(names)
+        return f"{who} no es de esta tripulación. A bordo están {lista}. Pregúntame por cualquiera de ellos."
+    lst = ", ".join(names[:-1]) + " and " + names[-1] if len(names) > 1 else "".join(names)
+    return f"{who} isn't part of this crew. On board are {lst}. Ask me about any of them."
+
+
 COMPANION = __import__("re").compile(r"\b(he|she|they|crewmate|marco|lena|noor|kenji|compañer|él|ella|se ha|se desplom)\b", __import__("re").I)
 
 
@@ -303,6 +337,17 @@ def chat(b: ChatIn):
     if llm.DIAGQ.search(b.message or ""):
         return {"text": fb("diagnosis", k), "source": "rule", "latency_ms": int((time.time() - t0) * 1000), "safety": "ok",
                 "lang": k, "ai_generated": False, "note": "diagnosis requests are never answered by the model"}
+    # Después de emergencias, estado, medicación y diagnóstico: esas reglas mandan (revisión del 15-nov).
+    crew_names = [x["name"] for x in station.station(crew_doc())["crew"]]
+    if (up := unknown_person(b.message, crew_names)):
+        who, near = up
+        if near:   # nombre mal transcrito de alguien de a bordo: se contesta por esa persona, con sus permisos
+            return {"text": vitals.status_text(crew_doc(), near.lower(), k, viewer=b.crew_id), "source": "rule",
+                    "latency_ms": int((time.time() - t0) * 1000), "safety": "ok", "lang": k, "ai_generated": False, "heard_as": who,
+                    "note": "crew status is read from the sensors, never generated"}
+        return {"text": unknown_person_text(who, crew_names, k), "source": "rule", "latency_ms": int((time.time() - t0) * 1000),
+                "safety": "ok", "lang": k, "ai_generated": False, "unknown_person": who,
+                "note": "people not on board are answered by a rule, never generated"}
     ctx = "Background only, mention it only if relevant:\n" if k == "en" else "Contexto de fondo; menciónalo solo si viene al caso:\n"
     msgs = [{"role": "system", "content": llm.system_for(k, name) + "\n" + ctx + llm.facts_for(c, k)}]
     for h in (b.history or [])[-6:]:
