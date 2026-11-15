@@ -145,6 +145,8 @@ export const api = {
   groundReply: (b: { crew_id?: string | null; text_en: string; text_es?: string; fitness?: Fitness['status'] | null; packet_id?: number | null }) =>
     j<StationEvent>('/api/ground/reply', b, 5000),
   eventsAs: (viewer: Viewer) => j<StationEvent[]>('/api/station/events' + vq(viewer), undefined, 4000),
+  /** Events stored in this browser when there is no backend (single-file demo). */
+  localEvents: () => localEvents(),
   // Ship state (life support, power, radiation) and the medical kit with pre-approved plans. See API.md, «Estado de la nave».
   ship: (viewer?: Viewer) => j<ShipState>('/api/ship' + vq(viewer), undefined, 4000),
   meds: () => j<MedKit>('/api/meds', undefined, 4000),

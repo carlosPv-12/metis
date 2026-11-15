@@ -7,6 +7,7 @@
 //   · People chatting nearby are ignored while no conversation is open.
 // The backend decides (/api/voice/wake, fixed rule, no AI). Screens that listen on their own (triage questions)
 // mark themselves busy and the ear steps aside meanwhile. Whatever is recorded while Metis speaks is dropped.
+import { publishEvents } from './earth'
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AlertTriangle, Ear, EarOff, MessageCircle, Volume2 } from 'lucide-react'
@@ -225,7 +226,8 @@ export function EarProvider({ children }: { children: ReactNode }) {
       }
       // Messages from the flight surgeon that have just ARRIVED on board (with the link delay): Metis reads them
       // out on the earpieces allowed to see them (the backend filters by role; a summary-only copy has no payload).
-      const evs = await api.eventsAs(me.current).catch(() => [] as StationEvent[])
+      const viewer = me.current
+      const evs = await api.eventsAs(viewer).then(x => { publishEvents(viewer, x); return x }).catch(() => [] as StationEvent[])   // shared with earth.tsx
       if (!alive) return
       for (const e of evs as (StationEvent & { status?: string; arrives_ts?: string })[]) {
         if ((e.type !== 'surgeon_reply' && e.type !== 'ground_message') || e.status !== 'delivered' || !e.payload) continue

@@ -330,7 +330,9 @@ function GroundInbox({ g, now }: { g: GroundView; now: number }) {
   const { lang } = useLang(); const x = INBOX[lang]
   const nav = useNavigate()
   const ts = (p: Packet) => Date.parse(p.ts ?? p.sent_ts ?? '') || 0
-  const items = [...g.inbox, ...g.outbox].sort((a, b) => ts(b) - ts(a)).slice(0, 20) as EarthPacket[]
+  // countdown from the server's «arrives in N s» (g is refreshed every 3 s), not from clock times: see earth.tsx
+  const got = useMemo(() => Date.now(), [g])
+  const items = [...g.inbox, ...g.outbox].sort((a, b) => ts(b) - ts(a)).slice(0, 20).map(p => ({ ...p, eta: p.arrives_in_s != null ? got + p.arrives_in_s * 1000 : null })) as EarthPacket[]
   const names = Object.fromEntries(g.crew.map(c => [c.id, c.name]))
   return (
     <Card className="ground-inbox" title={x.title}>

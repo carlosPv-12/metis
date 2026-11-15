@@ -36,27 +36,54 @@ const TXT = {
   },
 }
 
-export type EarthPacket = Packet & StationEvent
-const isPacket = (e: StationEvent): e is EarthPacket => {
-  const d = (e as Partial<Packet>).direction
-  return d === 'to_earth' || d === 'to_ship'
-}
+/** `eta`: when the packet arrives, on THIS device's clock (see publishEvents). */
+export type EarthPacket = Packet & StationEvent & { eta?: number | null }
+const TO_EARTH_TYPES = ['send_flight_surgeon', 'surgeon_notice', 'triage_summary', 'earth_message']
 const arrived = (p: EarthPacket) => p.status !== 'queued_no_link' && p.status !== 'in_transit'
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.max(0, Math.floor(s % 60))).padStart(2, '0')}`
-/** Seconds left until the packet arrives, from its own arrival time (so it counts down between polls). */
-const leftS = (p: EarthPacket, now: number) =>
-  p.arrives_ts ? Math.max(0, (Date.parse(p.arrives_ts) - now) / 1000) : (p.arrives_in_s ?? null)
+/** Seconds left until the packet arrives. Counts down between polls from the server's own «arrives in N s»,
+ *  never from the server's clock time: a phone whose clock is off would show a wrong countdown. */
+const leftS = (p: EarthPacket, now: number) => (p.eta != null ? Math.max(0, (p.eta - now) / 1000) : (p.arrives_in_s ?? null))
 
-/** Ship ↔ Earth messages as one viewer sees them (backend filters by role), newest first. */
+// One shared copy of the ship ↔ Earth messages per viewer. The always-on ear (voice.tsx) already fetches the
+// station events every 2.5 s and publishes them here, so the pop-ups and the Messages screen add no requests
+// of their own on the ship; they only fetch when nobody has published recently (Ground view, ear not polling).
+interface Slot { list: EarthPacket[] | null; at: number; subs: Set<() => void> }
+const slots = new Map<Viewer, Slot>()
+const slot = (v: Viewer) => { let s = slots.get(v); if (!s) { s = { list: null, at: 0, subs: new Set() }; slots.set(v, s) } return s }
+
+/** Feed the shared store with the events one viewer may see (backend-filtered), newest first. */
+export function publishEvents(viewer: Viewer, evs: StationEvent[], local = false) {
+  const now = Date.now(), s = slot(viewer)
+  // the server sends whole seconds: keep the arrival time already worked out, so the countdown never jumps back up
+  const prev = new Map((s.list ?? []).map(p => [String(p.id), p.eta]))
+  const etaOf = (p: EarthPacket) => { if (p.arrives_in_s == null) return null; const e = now + p.arrives_in_s * 1000, o = prev.get(String(p.id)); return o != null && Math.abs(o - e) < 1500 ? o : e }
+  s.list = (evs ?? []).flatMap((e): EarthPacket[] => {
+    const d = (e as Partial<Packet>).direction
+    if (d === 'to_earth' || d === 'to_ship') { const p = e as EarthPacket; return [{ ...p, eta: etaOf(p) }] }
+    // No backend (single-file demo): what this browser stored when «Send to Earth» was pressed. There is no link to simulate.
+    if (local && TO_EARTH_TYPES.includes(e.type)) return [{ ...e, id: e.id ?? e.ts ?? e.t, ts: e.ts ?? e.t, direction: 'to_earth', status: 'queued_no_link', arrives_in_s: null, eta: null } as EarthPacket]
+    return []
+  })
+  if (local) s.list.reverse()
+  s.at = now
+  s.subs.forEach(f => f())
+}
+
+/** Ship ↔ Earth messages as one viewer sees them, newest first. null = not loaded yet. */
 function useEarthPackets(viewer: Viewer, ms = 2500) {
-  const [list, setList] = useState<EarthPacket[] | null>(null)
+  const [, bump] = useState(0)
   useEffect(() => {
-    let alive = true
-    const tick = () => api.eventsAs(viewer).then(evs => { if (alive) setList((evs ?? []).filter(isPacket)) }).catch(() => {})
+    const s = slot(viewer), f = () => bump(n => n + 1)
+    s.subs.add(f)
+    const tick = () => {
+      if (Date.now() - s.at < ms - 500) return                       // someone (the ear) has just published: reuse it
+      api.eventsAs(viewer).then(evs => publishEvents(viewer, evs)).catch(() => publishEvents(viewer, api.localEvents(), true))
+    }
     tick(); const id = setInterval(tick, ms)
-    return () => { alive = false; clearInterval(id) }
+    return () => { s.subs.delete(f); clearInterval(id) }
   }, [viewer, ms])
-  return list
+  return slot(viewer).list
 }
 
 function useNow(ms = 1000) {

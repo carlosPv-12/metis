@@ -63,12 +63,25 @@ def test_todos_ven_que_se_envio_el_mensaje_de_emergencia(client, viewer, detail)
         assert "payload" not in p and p["text_en"].startswith("Emergency message to the flight surgeon on Earth")
 
 
-@pytest.mark.parametrize("viewer,visible", [("marco", True), ("noor", True), ("lena", False), ("kenji", True)])
+@pytest.mark.parametrize("viewer,visible", [("marco", True), ("noor", True), ("lena", False), ("kenji", False)])
 def test_el_chequeo_de_bienestar_no_es_una_emergencia(client, viewer, visible):
     since = _since()
     client.post("/api/station/events", json={"type": "send_flight_surgeon", "crew_id": "marco",
                                              "payload": {"kind": "wellbeing", "text_en": "Marco feels low today."}})
     ps = [e for e in _packets(client, viewer, since) if e["type"] == "send_flight_surgeon"]
     assert bool(ps) == visible
-    if viewer in ("lena", "kenji") and ps:
-        assert "Marco feels low" not in ps[0]["text_en"]                                           # el comandante: sin detalle
+    # el comandante solo ve el «Health notice» de siempre: ni mensaje a Tierra ni «Emergency» (revisión del 15-nov)
+    evs = [e for e in client.get(f"/api/station/events?viewer={viewer}").json() if int(e["id"]) > since]
+    assert not any("Emergency" in (e.get("text_en") or "") or "Marco feels low" in (e.get("text_en") or "") for e in evs) or viewer in ("marco", "noor")
+    if viewer == "kenji":
+        assert evs and evs[0]["text_en"].startswith("Health notice") and "direction" not in evs[0]
+
+
+def test_la_respuesta_de_tierra_no_se_ve_a_bordo_hasta_que_llega(client):
+    since = _since()                                                            # Marte a 5 min: la respuesta tarda
+    r = client.post("/api/ground/reply", json={"crew_id": "marco", "text_en": "Keep CPR going, AED now."}).json()
+    assert r["status"] == "in_transit"
+    for viewer in ("noor", "marco", "kenji", "lena"):
+        assert not [e for e in client.get(f"/api/station/events?viewer={viewer}").json() if int(e["id"]) > since and e.get("direction") == "to_ship"]
+        assert not [e for e in client.get(f"/api/station?viewer={viewer}").json()["events"] if int(e["id"]) > since and e.get("direction") == "to_ship"]
+    assert any(p["id"] == r["id"] for p in client.get("/api/ground").json()["outbox"])   # Tierra sí ve lo que ha enviado
