@@ -1,6 +1,10 @@
 /* Generated with AI assistance (Codex) — Te Falta Tech, NASA Space Apps 2026 */
 
 .mobile-header { display: none }
+.today-tagline { max-width: 60ch; margin: -8px 0 24px; color: #4A5468; font-size: 16px; line-height: 1.5 }
+.talk-layout { grid-template-columns: minmax(0, 1fr) 300px; align-items: stretch; height: calc(100vh - 200px); height: calc(100dvh - 200px); min-height: 520px }
+.talk-chat-card { display: flex; flex-direction: column; min-height: 0 }
+.talk-voice-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; text-align: center }
 
 @media (max-width: 640px) {
   :root { --mobile-header-h: 52px; --mobile-nav-h: 68px }
@@ -113,6 +117,49 @@
   .page textarea,
   .page select { max-width: 100%; font-size: 16px }
 
+  /* Today: keep the greeting, companion sentence, Metis card and all actions above the first fold. */
+  .page:has(.today-hero) .page-heading { margin-bottom: 8px }
+  .page:has(.today-hero) .h1 { max-width: 100%; font-size: clamp(28px, 9vw, 36px); line-height: 1.03 }
+  .page:has(.today-hero) .sub { margin: 4px 0 0; font-size: 12px }
+  .today-tagline { margin: 0 0 10px; font-size: 15px; line-height: 1.3 }
+  .grid.today-hero { grid-template-columns: minmax(0, 1fr); gap: 12px }
+  .today-intro { padding: 12px 0 10px }
+  .today-intro .metis-line { gap: 10px }
+  .today-intro .metis-line > .orb { width: 34px !important; height: 34px !important }
+  .today-intro .quote { min-height: 0 !important; margin: 0 0 10px !important; font-size: 16px; line-height: 1.35 }
+  .today-intro .row.wrap {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+  .today-intro .row.wrap .btn { width: 100%; min-height: 44px; padding: 6px 10px; font-size: 10px; white-space: normal }
+  .today-intro .row.wrap .btn:first-child { grid-column: 1 / -1 }
+  .today-side { grid-template-columns: minmax(0, 1fr); gap: 12px }
+  .metrics-row { grid-template-columns: minmax(0, 1fr) !important; gap: 12px }
+  .metrics-row .metric-action > .row.between { align-items: flex-start; flex-direction: column; gap: 7px; min-height: 0 }
+  .metrics-row .metric-action > .row.between .tag { align-self: flex-start }
+  .metrics-row .metric-action .lbl { font-size: 14px }
+
+  /* Talk: one resilient chat card; composer remains at its bottom as the visual viewport shrinks. */
+  .page:has(.talk-layout) { display: flex; flex-direction: column; height: 100% }
+  .page:has(.talk-layout) .page-heading { flex: none; margin-bottom: 8px }
+  .talk-layout {
+    flex: 1;
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    min-height: 0;
+    gap: 10px;
+  }
+  .talk-chat-card { min-height: 420px; max-height: calc(100dvh - var(--mobile-header-h) - var(--mobile-nav-h) - 104px) }
+  .talk-chat-card .chat { flex: 1; min-height: 0; overflow-y: auto }
+  .talk-chat-card .bubble { max-width: 90%; padding: 10px 12px; font-size: 15px }
+  .talk-chat-card > .row.wrap { flex: none; margin: 8px 0 !important; overflow-x: auto; flex-wrap: nowrap }
+  .talk-chat-card .chip { flex: 0 0 auto; min-height: 44px; padding: 10px 13px; font-size: 13px }
+  .talk-composer { position: sticky; bottom: 0; flex: none; gap: 7px; padding-top: 2px; background: white }
+  .talk-composer .field { width: 100%; min-width: 0; height: 46px; padding: 11px 14px; font-size: 16px }
+  .talk-send { flex: 0 0 auto; min-width: 44px; min-height: 44px; padding: 10px 13px }
+  .talk-voice-card { display: none }
+
   /* Ground uses the same physical bar; its crew controls form the intentional horizontal scroller. */
   .ground-shell nav.rail { display: flex; align-items: stretch; gap: 4px; padding-inline: 6px }
   .ground-shell .rail > a { flex: 0 0 76px }
@@ -123,8 +170,14 @@
   .ground-shell .rail .ground-side-name strong { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
   .ground-shell .rail .ground-side-name small, .ground-shell .rail .ground-side-row > .tag { display: none }
 
+  .chip:hover, .chip:focus-visible { border-color: var(--deep) }
+}
+
+@media (max-width: 400px) {
+  .talk-send span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap }
+  .talk-send { width: 44px; padding-inline: 0 }
 }
 
 @media (max-width: 640px) and (hover: none) {
-  .rail a, .mobile-settings { -webkit-tap-highlight-color: transparent }
+  .rail a, .chip, .mobile-settings { -webkit-tap-highlight-color: transparent }
 }

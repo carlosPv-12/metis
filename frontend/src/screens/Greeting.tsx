@@ -13,6 +13,8 @@ import { useLoad, useSpeaker } from '../hooks'
 import { habitatTime, useLang, useT } from '../i18n'
 import { Card, DEC, LevelTag, Loading, METRICS, MetisLine, Page, Shape, Spark, UNIT, fmt, levelOf, useCrew } from '../ui'
 
+const TODAY_TAGLINE = "Metis is the crew's on-board health companion. It works with no link to Earth: talk to it or start a guided triage."
+
 /** Sentence for the sleep × CO₂ match: n = 0 (no match), 1 or 2–3 (plural). */
 export function insightText(t: ReturnType<typeof useT>, n: number) {
   return n === 0 ? t('sleepair_insight_none') : n === 1 ? t('sleepair_insight_one') : t('sleepair_insight').replace(/\{n\}/g, String(n))
@@ -53,6 +55,7 @@ export default function Greeting() {
   }
   return (
     <Page title={`${t('good_morning')}, ${c.name}`} sub={`${t('mission_day')} 112, ${t('habitat_time')} ${habitatTime(clock)}`}>
+      <p className="today-tagline">{TODAY_TAGLINE}</p>
       <div className="grid today-hero">
         <Card className="today-intro" title={t('metis_says')}>
           <MetisLine speaking={sp.speaking}>

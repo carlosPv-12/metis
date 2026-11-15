@@ -65,8 +65,8 @@ export default function Talk() {
   const quick: Key[] = ['quick_1', 'quick_2', 'quick_3', 'quick_4']
   return (
     <Page title={t('talk_title')}>
-      <div className="grid" style={{ gridTemplateColumns: '1fr 300px', alignItems: 'stretch', height: 'calc(100vh - 200px)', minHeight: 520 }}>
-        <section className="card" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <div className="grid talk-layout">
+        <section className="card talk-chat-card">
           <div className="chat" style={{ flex: 1 }}>
             <MetisLine small><div className="bubble metis" style={{ maxWidth: '90%' }}>{t('talk_intro')}</div></MetisLine>
             {msgs.map((m, i) => (
@@ -89,12 +89,12 @@ export default function Talk() {
           <div className="row wrap" style={{ gap: 8, margin: '12px 0' }}>
             {quick.map(k => <button key={k} className="chip" onClick={() => send(t(k))}>{t(k)}</button>)}
           </div>
-          <form className="row" onSubmit={e => { e.preventDefault(); send(input) }}>
-            <input className="field" value={input} onChange={e => setInput(e.target.value)} placeholder={t('type_message')} aria-label={t('type_message')} />
-            <button className="btn primary" type="submit" disabled={!input.trim() || phase !== 'idle'}><SendHorizontal size={16} />{t('send')}</button>
+          <form className="row talk-composer" onSubmit={e => { e.preventDefault(); send(input) }}>
+            <input className="field" value={input} onChange={e => setInput(e.target.value)} placeholder={t('type_message')} aria-label={t('type_message')} inputMode="text" enterKeyHint="send" />
+            <button className="btn primary talk-send" type="submit" aria-label={t('send')} disabled={!input.trim() || phase !== 'idle'}><SendHorizontal size={16} /><span>{t('send')}</span></button>
           </form>
         </section>
-        <section className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, textAlign: 'center' }}>
+        <section className="card talk-voice-card">
           <button className={`ptt ${phase === 'rec' ? 'rec' : ''}`} aria-label={t('hold_to_talk')}
             onPointerDown={start} onPointerUp={stop} onPointerLeave={stop}
             onKeyDown={e => { if ((e.key === ' ' || e.key === 'Enter') && phase === 'idle') { e.preventDefault(); start() } }}
