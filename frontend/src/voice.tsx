@@ -18,11 +18,16 @@ import { useCrew } from './ui'
 type EarState = 'off' | 'waiting' | 'conversation' | 'hearing' | 'paused'
 export interface GroundMsg { id: string | number; text_en: string; text_es: string }
 export interface SelfNotice { state: 'asking' | 'escalated'; seconds_left: number; text_en: string; text_es: string }
-interface EarApi { on: boolean; state: EarState; heard: string | null; pending: string | null; warning: VitalsAlert | null
+/** One line of the conversation with Metis. It lives here (not in Talk) so it survives leaving the Talk screen. */
+export interface ChatMsg { who: 'me' | 'metis'; text: string; meta?: string; escalated?: boolean; flow?: string }
+interface EarApi { on: boolean; state: EarState; heard: string | null; warning: VitalsAlert | null
   ignored: boolean; selfNotice: SelfNotice | null
   /** Messages from ground that have arrived on board: shown on screen until dismissed (not only spoken). */
   messages: GroundMsg[]; dismissMessage: (id: string | number) => void
-  toggle: () => void; takePending: () => string | null; setBusy: (who: string, busy: boolean) => void }
+  /** The conversation with Metis, on any screen: Talk only shows it. */
+  chat: ChatMsg[]; thinking: boolean; opening: boolean; speaking: boolean
+  ask: (text: string, meta?: string) => Promise<void>; stopVoice: () => void
+  toggle: () => void; setBusy: (who: string, busy: boolean) => void }
 
 const EarCtx = createContext<EarApi | null>(null)
 export const useEar = () => useContext(EarCtx)
@@ -37,12 +42,19 @@ export function EarProvider({ children }: { children: ReactNode }) {
   const myCheck = useRef<string | null>(null)   // set while Metis is waiting for MY answer to «are you okay?»
   // A crewmate's emergency is going on: what I say goes to their checklist, never to small talk in the chat.
   const emergency = useRef<{ crew_id: string; go: string } | null>(null)
-  const pendingRef = useRef<string | null>(null)   // what the ear heard, handed to Talk exactly once
   const [on, setOn] = useState(!NO_SERVER)
   const [state, setState] = useState<EarState>('off')
   const [heard, setHeard] = useState<string | null>(null)
-  const [pending, setPending] = useState<string | null>(null)
   const busy = useRef(new Set<string>())
+  const t = useT()
+  const tRef = useRef(t); tRef.current = t
+  // The conversation with Metis. Kept here, above every screen, so leaving Talk while Metis thinks or speaks
+  // does not cut the answer: the reply still arrives, is spoken, and is waiting in Talk when you come back.
+  const [chat, setChat] = useState<ChatMsg[]>([])
+  const chatRef = useRef<ChatMsg[]>([])
+  const pushChat = (m: ChatMsg) => { chatRef.current = [...chatRef.current, m]; setChat(chatRef.current) }
+  const [thinking, setThinking] = useState(false)
+  const [opening, setOpening] = useState(false)
   const langRef = useRef(lang); const pathRef = useRef(loc.pathname)
   useEffect(() => { langRef.current = lang; pathRef.current = loc.pathname; me.current = crewId }, [lang, loc.pathname, crewId])
   // With several tabs open only the one you used last listens (see isLeader in hooks.ts).
@@ -59,17 +71,43 @@ export function EarProvider({ children }: { children: ReactNode }) {
   const firstCrew = useRef(true)
   useEffect(() => {
     if (firstCrew.current) { firstCrew.current = false; return }
-    myCheck.current = null; emergency.current = null; conv.current = 0; pendingRef.current = null
-    setPending(null); setHeard(null); setIgnored(false); setSelfNotice(null); setMessages([])
+    myCheck.current = null; emergency.current = null; conv.current = 0
+    chatRef.current = []; setChat([]); setOpening(false)
+    setHeard(null); setIgnored(false); setSelfNotice(null); setMessages([])
     sp.stop()
     const name = crewId.charAt(0).toUpperCase() + crewId.slice(1)
     sp.speak(langRef.current === 'es' ? `Ahora soy el auricular de ${name}.` : `This is now ${name}'s earpiece.`, langRef.current)
   }, [crewId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const deliver = (text: string) => {
-    pendingRef.current = text
-    setPending(text)
-    if (!pathRef.current.startsWith('/talk')) nav('/talk')
+  /** Ask Metis (typed, hold-to-talk or heard by the ear). Works on any screen: the answer is spoken from here. */
+  const ask = async (text: string, meta?: string) => {
+    if (!text.trim()) return
+    const l = langRef.current; const T = tRef.current
+    const hist = chatRef.current.map(m => ({ role: m.who === 'me' ? 'user' : 'assistant', content: m.text }))
+    pushChat({ who: 'me', text, meta })
+    busy.current.add('chat'); setThinking(true)   // the ear steps aside while Metis thinks (no double hearing)
+    let r: Awaited<ReturnType<typeof api.chat>>
+    try { r = await api.chat(me.current, text, l, hist) }
+    finally { busy.current.delete('chat'); setThinking(false) }
+    const src = r.source === 'llm' || r.source?.startsWith?.('llm') ? T('src_llm') : T('src_fallback')
+    const flow = (r as { suggest_flow?: string }).suggest_flow
+    const patient = (r as { patient?: string }).patient   // whose emergency (sent by the backend during an emergency)
+    pushChat({ who: 'metis', text: r.text, meta: `${src}${r.latency_ms ? `, ${(r.latency_ms / 1000).toFixed(1)} s` : ''}`, escalated: r.safety === 'escalated', flow })
+    // Emergency: no time to tap anything. Say it and open the triage straight away (hands-free there too).
+    if (r.safety === 'escalated' && flow) {
+      conv.current = 0; setOpening(true)
+      await sp.speak(r.text, l)
+      setOpening(false); nav('/triage?flow=' + flow + (patient ? '&patient=' + patient : ''))
+      return
+    }
+    await sp.speak(r.text, l)
+  }
+
+  /** What the ear heard goes to Metis. openTalk: show the Talk screen (only when a conversation starts or for an
+   *  emergency). Inside an open conversation Metis answers wherever you are: it never drags you back to Talk. */
+  const deliver = (text: string, openTalk: boolean) => {
+    if (openTalk && !pathRef.current.startsWith('/talk')) nav('/talk')
+    void ask(text, tRef.current('heard')).catch(() => { /* chat has its own fallback; never break the ear loop */ })
   }
 
   useEffect(() => {
@@ -117,7 +155,7 @@ export function EarProvider({ children }: { children: ReactNode }) {
         const w = await api.wake(r.text, l).catch(() => null)
         if (ac.signal.aborted || !w) continue
         setHeard(r.text); setIgnored(false)
-        if (w.emergency) { conv.current = 0; deliver(w.wake && w.command ? w.command : w.heard); continue }
+        if (w.emergency) { conv.current = 0; deliver(w.wake && w.command ? w.command : w.heard, true); continue }
         if (wasConv) {
           setHeard(r.text)
           if (w.end) {
@@ -127,12 +165,12 @@ export function EarProvider({ children }: { children: ReactNode }) {
           }
           conv.current = Date.now() + CONV_IDLE_MS
           if (w.wake && !w.command) { await sp.speak(l === 'es' ? 'Dime.' : 'I’m listening.', l); continue }  // «Metis» again, alone
-          deliver(w.wake ? w.command : w.heard)
+          deliver(w.wake ? w.command : w.heard, false)
           continue
         }
         if (w.wake) {
           setHeard(r.text); conv.current = Date.now() + CONV_IDLE_MS
-          if (w.command) deliver(w.command)
+          if (w.command) deliver(w.command, true)
           else { if (!pathRef.current.startsWith('/talk')) nav('/talk'); await sp.speak(l === 'es' ? 'Dime.' : 'I’m listening.', l) }
         }
         else setIgnored(true)   // no conversation and no «Metis»: people chatting nearby, ignored (shown as such)
@@ -215,10 +253,10 @@ export function EarProvider({ children }: { children: ReactNode }) {
   }, [crewId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const ear: EarApi = {
-    on, state, heard, pending, warning, ignored, selfNotice, messages,
+    on, state, heard, warning, ignored, selfNotice, messages,
     dismissMessage: id => setMessages(m => m.filter(x => x.id !== id)),
+    chat, thinking, opening, speaking: sp.speaking, ask, stopVoice: sp.stop,
     toggle: () => { if (!NO_SERVER) { setOn(o => !o); setHeard(null) } },
-    takePending: () => { const p = pendingRef.current; pendingRef.current = null; setPending(null); return p },
     setBusy: (who, b) => { if (b) busy.current.add(who); else busy.current.delete(who) },
   }
   return <EarCtx.Provider value={ear}>{children}</EarCtx.Provider>
