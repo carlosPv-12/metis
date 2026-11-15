@@ -140,14 +140,20 @@ def match_wake(text: str):
     También vale al empezar otra frase: whisper a veces pega delante un trozo de ruido o de la voz anterior
     («But I'm not in a hurry. Meti's, Marco is bad.», 15-nov)."""
     clean = clean_transcript(text)
-    for m in re.finditer(r"(?:^|(?<=[.!?¡¿]))\s*", clean):
-        ok, rest = _wake_at_start(clean[m.end():])
+    ok, rest = _wake_at_start(clean)
+    if ok:
+        return True, rest
+    # En una frase posterior: solo la forma estricta (con «s»), para que una charla de fondo («…Maddie, come here»)
+    # no despierte a Metis. Lo de delante NO se tira: «Marco collapsed, he is not breathing. Metis, help!» tiene que
+    # llegar entero, porque de ahí sale qué emergencia es (revisión del 15-nov).
+    for m in re.finditer(r"(?<=[.!?])\s+", clean):
+        ok, rest = _wake_at_start(clean[m.end():], strict=True)
         if ok:
-            return True, rest
+            return True, (clean[:m.start()] + " " + rest).strip()
     return False, clean
 
 
-def _wake_at_start(clean: str):
+def _wake_at_start(clean: str, strict: bool = False):
     words = clean.split()
     norm = [_norm(w).strip() for w in words]
     for i in range(min(4, len(words))):
@@ -155,7 +161,10 @@ def _wake_at_start(clean: str):
             break  # antes de «Metis» solo puede haber un saludo
         for span in (1, 2):  # «Me tiis» llega partido en dos palabras
             joined = "".join(norm[i:i + span])
-            if i + span <= len(words) and (WAKE.match(joined) or (span == 1 and WAKE_NO_S.match(joined))):
+            # Sin «s» solo vale si va sola o con pausa detrás («Meti.», «Medi, how…»): «Metí la bolsa» y
+            # «Medí la presión» son frases normales en español.
+            alone = i + 1 == len(words) or words[i][-1:] in ",.;:!?"
+            if i + span <= len(words) and (WAKE.match(joined) or (span == 1 and not strict and alone and WAKE_NO_S.match(joined))):
                 rest = " ".join(words[i + span:]).lstrip(",.;:!?¡¿ ")
                 return True, rest
     return False, clean

@@ -7,7 +7,9 @@ from voice_answer import clean_transcript, match_end, match_wake
 
 @pytest.mark.parametrize("said,rest", [
     ("Meti.", ""), ("Medici.", ""), ("Medi, how is the crew?", "how is the crew?"), ("Hey, Maddie, how is Lena?", "how is Lena?"),
-    ("But I'm not in a hurry. Meti's, Marco is bad.", "Marco is bad."),         # ruido pegado delante
+    ("But I'm not in a hurry. Meti's, Marco is bad.", "But I'm not in a hurry. Marco is bad."),   # ruido delante: no se tira nada
+    ("Marco collapsed, he is not breathing. Metis, help!", "Marco collapsed, he is not breathing. help!"),
+    ("My head hurts. Metis, what should I do?", "My head hurts. what should I do?"),
     ("Thanks for watching! Metis, help", "help"),
 ])
 def test_despierta_con_variantes_reales(said, rest):
@@ -15,7 +17,8 @@ def test_despierta_con_variantes_reales(said, rest):
 
 
 @pytest.mark.parametrize("said", ["social media is great", "Meta, the company", "mate", "Mete la bolsa", "the matrix is great",
-                                  "we need more data on Metis", "I slept badly. Media.", "Metal is heavy", "Madrid"])
+                                  "we need more data on Metis", "I slept badly. Media.", "Metal is heavy", "Madrid",
+                                  "Metí la bolsa en el nodo", "Medí la presión", "It looks fine. Maddie, come here"])
 def test_no_despierta_con_palabras_parecidas(said):
     assert match_wake(said)[0] is False
 
@@ -35,5 +38,10 @@ def test_frase_inventada_no_cierra_la_conversacion():
 
 
 def test_wake_por_la_api(client):
-    d = client.post("/api/voice/wake", json={"text": "But I'm not in a hurry. Meti, how is Kenji?"}).json()
-    assert d["wake"] is True and d["command"] == "how is Kenji?"
+    d = client.post("/api/voice/wake", json={"text": "Marco collapsed, he is not breathing. Metis, help!"}).json()
+    assert d["wake"] is True and d["emergency"] is True and d["command"].startswith("Marco collapsed")   # la emergencia llega entera
+
+
+def test_pista_de_whisper_sin_noor():
+    import voice_engine   # con «Noor» en la pista, whisper escribía «Noor» cuando alguien decía «No» (14-nov)
+    assert "Noor" not in voice_engine.STT_PROMPT
