@@ -6,7 +6,7 @@
 .talk-chat-card { display: flex; flex-direction: column; min-height: 0 }
 .talk-voice-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; text-align: center }
 
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 500px) and (orientation: landscape) and (pointer: coarse) {
   :root { --mobile-header-h: 52px; --mobile-nav-h: 68px }
 
   html, body, #root { width: 100%; max-width: 100%; overflow: hidden }
@@ -225,6 +225,7 @@
   .shell .content .page:has(.crewcard) .crewcard > .row.small.mono.muted > span { min-width: 0; overflow-wrap: anywhere }
   .shell .content .page:has(.crewcard) .crewcard > .btn,
   .shell .content .page:has(.crewcard) .station-access-countdown .btn { width: 100%; margin-top: 10px }
+  .shell .content .page:has(.crewcard) .station-guidance a { display: inline-flex; align-items: center; min-height: 44px }
   .shell .content .station-requests li { align-items: stretch; flex-direction: column }
   .shell .content .station-requests li > .row { width: 100% }
   .shell .content .station-requests li .btn { flex: 1 1 120px }
@@ -285,6 +286,84 @@
   .shell .content .mr-nights { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain }
   .shell .content :is(.card, .ground-equipment) > table.t,
   .shell .content :is(.card, .ground-equipment) > div:has(> table.t) { display: block; width: 100%; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain }
+
+  /* Body: fit between the two mobile bars and keep vertical page scrolling available over the 3D canvas. */
+  .shell .content .page > .bodywrap.figure:has(.body-model) {
+    --figure-height: max(300px, calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 200px));
+    width: 100%;
+    height: var(--figure-height);
+    min-height: 300px;
+    margin: 0 !important;
+    border-radius: 22px;
+  }
+  .shell .content .bodywrap.figure :is(.body-model, .body-model > canvas) { touch-action: pan-y }
+  .shell .content .bodywrap.figure .figure-hotspot { width: 44px !important; height: 44px !important }
+  .shell .content .bodywrap.figure .figure-label {
+    max-width: min(112px, 34vw) !important;
+    padding: 6px 9px !important;
+    font-size: 12px !important;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .shell .content .bodywrap.figure .figure-zoom { right: 10px; bottom: 10px }
+  .shell .content .bodywrap.figure .figure-zoom button,
+  .shell .content .bodywrap.figure .body-panel-close { width: 44px; height: 44px; min-width: 44px; min-height: 44px }
+  .shell .content .bodywrap.figure .body-panel { max-width: calc(100% - 16px) }
+
+  /* How I feel: chips are answers, so their visual and effective targets are both full touch size. */
+  .shell .content .page :is(.wb-chip, .wb-tag, .wb-dot, .wb-text-toggle),
+  .shell .content .page .wb-share-seg button,
+  .shell .content .page .wb-talk-offer .btn,
+  .shell .content .page .wb-ask-actions .btn { min-width: 44px; min-height: 44px }
+  .shell .content .page .wb-scale,
+  .shell .content .page .wb-tags > div { gap: 8px }
+  .shell .content .page .wb-scale .wb-dot { width: auto; height: auto; min-width: 44px; min-height: 44px; padding: 7px 10px }
+  .shell .content .page .wb-scale-anchored .wb-dot { width: 100%; min-height: 44px }
+  .shell .content .page .wb-ask-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px }
+  .shell .content .page .wb-ask-actions .btn { width: 100%; padding: 9px 10px; white-space: normal }
+  .shell .content .page .wb-talk-offer .btn { padding: 10px 12px; font-size: 12px }
+  .shell .content .page .wb-src { display: inline-flex; align-items: center; min-height: 44px }
+  .shell .content .page .wb-grid .wb-share-seg { width: 100% }
+  .shell .content .page .wb-grid .wb-share-seg button { flex: 1 1 120px; padding: 8px 10px; font-size: 12px }
+  .shell .content .page .wb-note textarea { font-size: 16px }
+  .shell .content .page .wb-form { min-width: 0 }
+  .shell .content .page .wb-hours { flex-wrap: wrap }
+
+  /* Settings: controls stack without narrowing their labels or editable role fields. */
+  .shell .content .settings-page { width: 100%; max-width: 100%; min-width: 0 }
+  .shell .content .settings-page .settings-view-switch .view-switch { display: flex; width: 100% }
+  .shell .content .settings-page .settings-view-switch .view-switch button { flex: 1 1 0; justify-content: center; min-height: 44px }
+  .shell .content .settings-page .settings-tabs { width: 100%; max-width: 100% }
+  .shell .content .settings-page .settings-tabs button { flex: 1 1 140px; min-width: 0; min-height: 44px; white-space: normal }
+  .shell .content .settings-page .settings-panel { min-width: 0 }
+  .shell .content .settings-page .settings-role-row { grid-template-columns: 36px minmax(0, 1fr); gap: 10px 12px }
+  .shell .content .settings-page .settings-role-row input { grid-column: 1 / -1; width: 100%; min-height: 44px; font-size: 16px }
+  .shell .content .settings-page .settings-body-row .seg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100% }
+  .shell .content .settings-page .settings-body-row .seg button { width: 100%; min-width: 0; min-height: 44px; padding-inline: 10px }
+  .shell .content .settings-page :is(input, select, textarea) { font-size: 16px }
+  .shell .content .settings-page .reference-card a { display: inline-flex; flex-direction: column; justify-content: center; min-height: 44px }
+
+  /* Trends and the Ground ship map: projected labels wrap inside the clipped map and remain tappable. */
+  .shell .content .live-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .shell .content .ship3d-label {
+    max-width: min(144px, 44vw);
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+    padding: 6px 9px;
+    font-size: 12px;
+    text-align: center;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .shell .content .ship3d-label small { font-size: 12px }
+  .shell .content .ship3d-chip { min-width: 44px; min-height: 44px; font-size: 12px; white-space: normal }
+  .shell .content .sleepair-sketch figcaption { font-size: 12px }
+
+  /* P1 screens: contain long data and preserve control sizing after their later component styles load. */
+  .shell .content :is(.ground-page, .settings-page, .page:has(.crewcard), .page:has(.body-model), .page:has(.wb-ask), .page:has(.ground-ship)) { overflow-wrap: anywhere }
+  .shell .content :is(.ground-page, .settings-page, .page:has(.crewcard), .page:has(.body-model), .page:has(.wb-ask), .page:has(.ground-ship)) :is(button, a, input, select, textarea, [role="button"], [role="tab"], [role="radio"]) { min-width: 44px; min-height: 44px }
+  .shell .content :is(.ground-page, .settings-page, .page:has(.crewcard), .page:has(.body-model), .page:has(.wb-ask), .page:has(.ground-ship)) :is(input, select, textarea) { max-width: 100%; font-size: 16px }
 
   .chip:hover, .chip:focus-visible,
   .triage-run .triage-flow:hover, .triage-run .triage-flow:focus-visible,
