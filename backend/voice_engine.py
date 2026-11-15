@@ -247,6 +247,23 @@ def _stt_pywhispercpp(wav: pathlib.Path, l: str, prompt: str = STT_PROMPT):
     return " ".join(" ".join(s.text for s in segs).split()), detected
 
 
+# Depuración, apagada por defecto: con METIS_STT_SAVE_DIR=<carpeta fuera del repo> se guarda cada audio que llega al
+# reconocimiento (WAV 16 kHz) y lo que whisper entendió, para medir mejoras con voces reales. Son grabaciones de
+# voz de personas: no subirlas a ningún sitio y borrarlas al acabar.
+STT_SAVE_DIR = os.environ.get("METIS_STT_SAVE_DIR", "")
+
+
+def _save_debug(wav: pathlib.Path, text: str):
+    if not STT_SAVE_DIR:
+        return
+    try:
+        d = pathlib.Path(os.path.expanduser(STT_SAVE_DIR)); d.mkdir(parents=True, exist_ok=True)
+        name = time.strftime("%H%M%S") + f"-{int(time.time() * 1000) % 1000:03d}"
+        shutil.copy(wav, d / f"{name}.wav"); (d / f"{name}.txt").write_text(text + "\n", encoding="utf-8")
+    except Exception:
+        pass   # nunca romper el reconocimiento por la depuración
+
+
 def stt(audio: bytes, lang: str = "auto", hint: str = ""):
     """hint: respuestas esperadas («Yes. No.»); se suman a la pista de vocabulario y whisper acierta más en frases cortas."""
     prompt = " ".join(x for x in (STT_PROMPT, (hint or "")[:200]) if x)
@@ -258,7 +275,9 @@ def stt(audio: bytes, lang: str = "auto", hint: str = ""):
         l = lang if lang in ("en", "es") else "auto"
         if _stt_engine() == "pywhispercpp":
             try:
-                return _stt_pywhispercpp(wav, l, prompt)
+                out = _stt_pywhispercpp(wav, l, prompt)
+                _save_debug(wav, out[0])
+                return out
             except Exception as e:
                 raise RuntimeError(f"pywhispercpp falló: {e!r}"[:300])
         r = subprocess.run([str(WHISPER_BIN), "-m", str(WHISPER_MODEL), "-t", str(STT_THREADS), "-l", l, "-nt", *(["--prompt", prompt] if prompt else []), "-f", str(wav)], capture_output=True, timeout=120)
