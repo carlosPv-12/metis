@@ -343,21 +343,10 @@
   .shell .content .settings-page :is(input, select, textarea) { font-size: 16px }
   .shell .content .settings-page .reference-card a { display: inline-flex; flex-direction: column; justify-content: center; min-height: 44px }
 
-  /* Trends and the Ground ship map: projected labels wrap inside the clipped map and remain tappable. */
+  /* Trends and the Ground ship map: projected labels stay on one line and remain tappable. */
   .shell .content .live-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) }
-  .shell .content .ship3d-label {
-    max-width: min(144px, 44vw);
-    min-width: 44px;
-    min-height: 44px;
-    justify-content: center;
-    padding: 6px 9px;
-    font-size: 12px;
-    text-align: center;
-    white-space: normal;
-    overflow-wrap: anywhere;
-  }
-  .shell .content .ship3d-label small { font-size: 12px }
-  .shell .content .ship3d-chip { min-width: 44px; min-height: 44px; font-size: 12px; white-space: normal }
+  /* Ship labels keep their desktop look (one line); an invisible halo gives them a 44 px touch area. */
+  .shell .content .ship3d-label::after, .shell .content .ship3d-chip::after { content: ''; position: absolute; inset: -11px -4px }
   .shell .content .sleepair-sketch figcaption { font-size: 12px }
 
   /* P1 screens: contain long data and preserve control sizing after their later component styles load. */
