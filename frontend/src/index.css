@@ -22,7 +22,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .mono, .num { font-family: var(--mono); font-feature-settings: 'tnum' 1 }
 
 /* shell */
-.shell { position: relative; z-index: 1; display: grid; grid-template-columns: 232px 1fr; grid-template-rows: 64px 1fr; height: 100vh }
+.shell { position: relative; z-index: 1; display: grid; grid-template-columns: 232px 1fr; grid-template-rows: 64px 1fr; height: 100vh; height: 100dvh }
 .top { grid-column: 1 / -1; display: flex; align-items: center; gap: 18px; padding: 0 24px; border-bottom: 1px solid var(--line); background: rgba(5, 9, 15, .85); backdrop-filter: blur(8px) }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; letter-spacing: .02em; font-size: 18px; width: 184px }
 .brand .orb { width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #d9fff8, var(--metis) 35%, #1d6f66 75%); box-shadow: 0 0 18px rgba(158, 233, 220, .45) }
@@ -134,7 +134,7 @@ input.field { flex: 1; background: var(--bg2); border: 1px solid var(--line2); b
 .log .e { display: grid; grid-template-columns: 70px 1fr; gap: 10px; padding: 6px 8px; border-radius: 8px; background: rgba(16, 26, 39, .6) }
 
 /* body */
-.bodywrap { position: relative; height: max(560px, calc(100vh - 230px)); border-radius: var(--r); overflow: hidden; background: radial-gradient(ellipse at 50% 40%, rgba(95, 225, 255, .08), transparent 65%), var(--bg2); border: 1px solid var(--line) }
+.bodywrap { position: relative; height: max(560px, calc(100vh - 230px)); height: max(560px, calc(100dvh - 230px)); border-radius: var(--r); overflow: hidden; background: radial-gradient(ellipse at 50% 40%, rgba(95, 225, 255, .08), transparent 65%), var(--bg2); border: 1px solid var(--line) }
 .bodywrap canvas { display: block; cursor: grab } .bodywrap canvas:active { cursor: grabbing }
 .hotlist button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 10px 12px; border-radius: 10px; color: var(--muted) }
 .hotlist button:hover { background: var(--panel2); color: var(--text) }

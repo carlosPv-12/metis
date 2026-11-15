@@ -1,6 +1,6 @@
 // Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026
 import { useEffect, useRef, useState } from 'react'
-import { api } from './api'
+import { api, NO_SERVER } from './api'
 import type { Lang } from './i18n'
 
 /** Load once (or again when deps change). */
@@ -61,7 +61,26 @@ function alreadySaid(text: string): boolean {
   } catch { return false }
 }
 
-/** Speak text: local TTS endpoint first, browser speech synthesis as fallback.
+// ONE voice, always the same: Metis's own (Kokoro, from /api/voice/tts). The browser's built-in voice sounds
+// different, so it is used ONLY when there is no server at all (single-file demo without backend). Before, a slow
+// phrase (> 8 s, e.g. several queued while Kokoro renders them one at a time) or a phone blocking audio.play()
+// switched to the browser's voice mid-conversation.
+const TTS_WAIT_MS = 45000
+// Phones only let a page play sound from an <audio> element that was first started by a tap. Metis speaks long
+// after the tap (hands-free), so a fresh new Audio() each time was blocked. One element, unlocked on the first
+// tap and reused for every phrase (the shared queue already guarantees one phrase at a time).
+const SILENT_WAV = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=='   // 50 ms of silence
+const W2 = window as unknown as { __metisAudio?: HTMLAudioElement }
+const sharedAudio = (): HTMLAudioElement => (W2.__metisAudio ??= new Audio())
+if (typeof window !== 'undefined') {
+  const unlock = () => {
+    const a = sharedAudio()
+    if (!a.src || a.src === SILENT_WAV) { a.src = SILENT_WAV; a.play().catch(() => { /* not yet: next tap */ }) }
+  }
+  for (const ev of ['pointerdown', 'touchend', 'keydown']) window.addEventListener(ev, unlock, { passive: true })
+}
+
+/** Speak text with Metis's voice (local TTS endpoint). Browser speech synthesis only when there is no server.
  *  speak() waits its turn in the shared queue and resolves when the phrase has finished (or was stopped),
  *  so hands-free mode can start listening right after. stop() only cancels this screen's phrase. */
 export function useSpeaker() {
@@ -93,8 +112,9 @@ export function useSpeaker() {
       const run = () => withVoiceLock(async () => {
         if (finished) return
         if (opts.dedupe && alreadySaid(text)) { j.done(); return }
-        // Never wait forever for the voice: after 8 s use the browser's voice, so the shared queue can't stall.
-        const blob = await Promise.race([blobP, new Promise<null>(r => setTimeout(() => r(null), 8000))])
+        // Wait for Metis's own voice (never switch to another one). Not forever: after TTS_WAIT_MS the phrase is
+        // skipped (the text is on screen) so the shared queue can't stall.
+        const blob = await Promise.race([blobP, new Promise<null>(r => setTimeout(() => r(null), TTS_WAIT_MS))])
         if (finished) return
         await new Promise<void>(finishPhrase => {
           // Watchdog: Chrome sometimes never fires «end» (known bug of its built-in voice). Without this the shared
@@ -111,10 +131,12 @@ export function useSpeaker() {
               u.onend = () => res(); u.onerror = () => res(); synth.current = true; window.speechSynthesis.speak(u)
             } catch { res() }
           }
-          if (!blob) { viaSynth(); return }
-          const a = new Audio(URL.createObjectURL(blob)); audio.current = a; mine.audio = a
-          a.onended = () => res(); a.onerror = () => res()
-          a.play().catch(viaSynth)
+          if (!blob) { if (NO_SERVER) viaSynth(); else res(); return }   // no other voice while there is a server
+          const url = URL.createObjectURL(blob)
+          const a = sharedAudio(); a.pause(); a.src = url; audio.current = a; mine.audio = a
+          const done = () => { a.onended = null; a.onerror = null; URL.revokeObjectURL(url); res() }
+          a.onended = done; a.onerror = done
+          a.play().catch(done)                     // blocked (no tap yet): skip it rather than change voice
         })
         audio.current = null; synth.current = false
         j.done()

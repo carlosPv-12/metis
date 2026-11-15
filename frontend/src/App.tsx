@@ -53,7 +53,13 @@ function Shell() {
   const I = 18
   const groundView = useGroundView()
   return (
-    <div className="shell">
+    <div className={`shell${groundView ? ' ground-shell' : ''}`}>
+      <header className="mobile-header">
+        <div className="brand mobile-brand"><span className="orb" />Metis</div>
+        <NavLink to="/settings" className="mobile-settings" aria-label={SETTINGS_LABEL[lang]} title={SETTINGS_LABEL[lang]}>
+          <SettingsIcon size={20} />
+        </NavLink>
+      </header>
       <nav className="rail" aria-label="Main">
         <div className="brand rail-brand"><span className="orb" />Metis</div>
         {groundView ? <>

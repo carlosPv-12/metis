@@ -1,46 +1,36 @@
 // Generated with AI assistance (Claude) — Te Falta Tech, NASA Space Apps 2026
 // "Talk": push-to-talk (MediaRecorder -> /api/voice/stt -> /api/metis/chat -> /api/voice/tts), or text.
+// The conversation itself lives in the always-on ear (voice.tsx), above every screen: leaving Talk while Metis
+// thinks or speaks does not cut the answer, and the conversation is still here when you come back.
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Mic, SendHorizontal, Siren, Volume2 } from 'lucide-react'
 import { api, NO_SERVER } from '../api'
-import { useSpeaker } from '../hooks'
 import { useLang, useT, type Key } from '../i18n'
-import { MetisLine, Page, useCrew } from '../ui'
+import { MetisLine, Page } from '../ui'
 import { useEar } from '../voice'
 
-interface Msg { who: 'me' | 'metis'; text: string; meta?: string; escalated?: boolean; flow?: string }
-
 export default function Talk() {
-  const t = useT(); const { lang } = useLang(); const { crewId } = useCrew(); const nav = useNavigate()
-  const [msgs, setMsgs] = useState<Msg[]>([])
+  const t = useT(); const { lang } = useLang(); const nav = useNavigate()
   const [input, setInput] = useState('')
-  const [phase, setPhase] = useState<'idle' | 'rec' | 'stt' | 'think'>('idle')
+  const [rphase, setPhase] = useState<'idle' | 'rec' | 'stt'>('idle')
   const [err, setErr] = useState<string | null>(null)
-  const [opening, setOpening] = useState(false)
   const ear = useEar()
+  const msgs = ear?.chat ?? []
+  const opening = !!ear?.opening
+  const phase: 'idle' | 'rec' | 'stt' | 'think' = ear?.thinking ? 'think' : rphase
   const rec = useRef<MediaRecorder | null>(null); const chunks = useRef<Blob[]>([])
-  const sp = useSpeaker()
   const end = useRef<HTMLDivElement>(null)
-  useEffect(() => { end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }) }, [msgs, phase])
+  useEffect(() => { end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }) }, [msgs.length, phase])
 
-  const send = async (text: string, meta?: string) => {
-    if (!text.trim()) return
-    const hist = msgs.map(m => ({ role: m.who === 'me' ? 'user' : 'assistant', content: m.text }))
-    setMsgs(m => [...m, { who: 'me', text, meta }]); setInput(''); setPhase('think')
-    const r = await api.chat(crewId, text, lang, hist)
-    const src = r.source === 'llm' || r.source?.startsWith?.('llm') ? t('src_llm') : t('src_fallback')
-    const flow = (r as { suggest_flow?: string }).suggest_flow
-    const patient = (r as { patient?: string }).patient   // whose emergency (sent by the backend during an emergency)
-    setMsgs(m => [...m, { who: 'metis', text: r.text, meta: `${src}${r.latency_ms ? `, ${(r.latency_ms / 1000).toFixed(1)} s` : ''}`, escalated: r.safety === 'escalated', flow }])
-    setPhase('idle')
-    // Emergency: no time to tap anything. Say it and open the triage straight away (hands-free there too).
-    if (r.safety === 'escalated' && flow) { setOpening(true); await sp.speak(r.text, lang); nav('/triage?flow=' + flow + (patient ? '&patient=' + patient : '')); return }
-    sp.speak(r.text, lang)
+  const send = (text: string, meta?: string) => {
+    if (!text.trim() || !ear) return
+    setInput('')
+    void ear.ask(text, meta).catch(() => { /* chat has its own fallback */ })
   }
 
   const start = async () => {
-    setErr(null); sp.stop()
+    setErr(null); ear?.stopVoice()
     if (NO_SERVER) { setErr(t('no_server_mic')); return }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -50,23 +40,23 @@ export default function Talk() {
         stream.getTracks().forEach(tr => tr.stop())
         setPhase('stt')
         const r = await api.stt(new Blob(chunks.current, { type: mr.mimeType }), lang)
+        setPhase('idle')
         if (r?.text) send(r.text, `STT${r.latency_ms ? ', ' + (r.latency_ms / 1000).toFixed(1) + ' s' : ''}`)
-        else { setPhase('idle'); setErr(r ? t('didnt_hear') : t('mic_denied')) }
+        else setErr(r ? t('didnt_hear') : t('mic_denied'))
       }
       mr.start(); rec.current = mr; setPhase('rec')
     } catch { setErr(t('mic_denied')); setPhase('idle') }
   }
   const stop = () => { if (rec.current && rec.current.state === 'recording') rec.current.stop(); rec.current = null }
 
-  // Hands-free: whatever the always-on ear heard after «Metis» (or an emergency) arrives here.
-  useEffect(() => { if (ear?.pending && phase === 'idle') { const p = ear.takePending(); if (p) send(p, t('heard')) } }, [ear?.pending, phase]) // eslint-disable-line react-hooks/exhaustive-deps
-  // While Metis thinks or the hold-to-talk mic is open, the ear steps aside (no double hearing).
-  useEffect(() => { ear?.setBusy('talk', phase !== 'idle'); return () => ear?.setBusy('talk', false) }, [phase]) // eslint-disable-line react-hooks/exhaustive-deps
+  // While the hold-to-talk mic is open or transcribing, the ear steps aside (no double hearing).
+  // (While Metis thinks, the ear itself steps aside: the conversation lives there.)
+  useEffect(() => { ear?.setBusy('talk', rphase !== 'idle'); return () => ear?.setBusy('talk', false) }, [rphase]) // eslint-disable-line react-hooks/exhaustive-deps
   const quick: Key[] = ['quick_1', 'quick_2', 'quick_3', 'quick_4']
   return (
     <Page title={t('talk_title')}>
-      <div className="grid" style={{ gridTemplateColumns: '1fr 300px', alignItems: 'stretch', height: 'calc(100vh - 200px)', minHeight: 520 }}>
-        <section className="card" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <div className="grid talk-layout">
+        <section className="card talk-chat-card">
           <div className="chat" style={{ flex: 1 }}>
             <MetisLine small><div className="bubble metis" style={{ maxWidth: '90%' }}>{t('talk_intro')}</div></MetisLine>
             {msgs.map((m, i) => (
@@ -89,12 +79,12 @@ export default function Talk() {
           <div className="row wrap" style={{ gap: 8, margin: '12px 0' }}>
             {quick.map(k => <button key={k} className="chip" onClick={() => send(t(k))}>{t(k)}</button>)}
           </div>
-          <form className="row" onSubmit={e => { e.preventDefault(); send(input) }}>
-            <input className="field" value={input} onChange={e => setInput(e.target.value)} placeholder={t('type_message')} aria-label={t('type_message')} />
-            <button className="btn primary" type="submit" disabled={!input.trim() || phase !== 'idle'}><SendHorizontal size={16} />{t('send')}</button>
+          <form className="row talk-composer" onSubmit={e => { e.preventDefault(); send(input) }}>
+            <input className="field" value={input} onChange={e => setInput(e.target.value)} placeholder={t('type_message')} aria-label={t('type_message')} inputMode="text" enterKeyHint="send" />
+            <button className="btn primary talk-send" type="submit" aria-label={t('send')} disabled={!input.trim() || phase !== 'idle'}><SendHorizontal size={16} /><span>{t('send')}</span></button>
           </form>
         </section>
-        <section className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, textAlign: 'center' }}>
+        <section className="card talk-voice-card">
           <button className={`ptt ${phase === 'rec' ? 'rec' : ''}`} aria-label={t('hold_to_talk')}
             onPointerDown={start} onPointerUp={stop} onPointerLeave={stop}
             onKeyDown={e => { if ((e.key === ' ' || e.key === 'Enter') && phase === 'idle') { e.preventDefault(); start() } }}
@@ -102,7 +92,7 @@ export default function Talk() {
             <Mic size={38} />
           </button>
           <div style={{ fontWeight: 500 }}>{phase === 'rec' ? t('release_to_send') : phase === 'stt' ? t('transcribing') : phase === 'think' ? t('thinking') : t('hold_to_talk')}</div>
-          {sp.speaking && <div className="s-ok small">{t('speaking')}</div>}
+          {ear?.speaking && <div className="s-ok small">{t('speaking')}</div>}
           {err && <div className="small s-watch">{err}</div>}
           {ear?.on && <div className="s-ok" style={{ maxWidth: 260 }}>{t('talk_handsfree')}</div>}
           <div className="small dim" style={{ marginTop: 20 }}>{t('offline_badge')}</div>
