@@ -31,6 +31,7 @@ import { useCrewSex } from '../settings'
 import '../live.css'
 import '../body-panel.css'
 import '../ground.css'
+import { EarthRow, type EarthPacket } from '../earth'
 
 const TXT = {
   en: {
@@ -319,6 +320,30 @@ function Stock({ label, qty, min, flag }: { label: string; qty: number; min: num
   )
 }
 
+const INBOX = {
+  en: { title: 'Messages with the ship', hint: 'What Metis sends from the ship and your replies, newest first. They travel with the link delay.', empty: 'No messages yet. In an emergency Metis sends one on its own.', reply: 'Reply' },
+  es: { title: 'Mensajes con la nave', hint: 'Lo que Metis envía desde la nave y tus respuestas, lo más nuevo primero. Viajan con el retraso del enlace.', empty: 'Todavía no hay mensajes. En una emergencia, Metis envía uno por su cuenta.', reply: 'Responder' },
+}
+
+/** Ground inbox, at the top of the Global view: every packet from the ship and every reply, with live status. */
+function GroundInbox({ g, now }: { g: GroundView; now: number }) {
+  const { lang } = useLang(); const x = INBOX[lang]
+  const nav = useNavigate()
+  const ts = (p: Packet) => Date.parse(p.ts ?? p.sent_ts ?? '') || 0
+  // countdown from the server's «arrives in N s» (g is refreshed every 3 s), not from clock times: see earth.tsx
+  const got = useMemo(() => Date.now(), [g])
+  const items = [...g.inbox, ...g.outbox].sort((a, b) => ts(b) - ts(a)).slice(0, 20).map(p => ({ ...p, eta: p.arrives_in_s != null ? got + p.arrives_in_s * 1000 : null })) as EarthPacket[]
+  const names = Object.fromEntries(g.crew.map(c => [c.id, c.name]))
+  return (
+    <Card className="ground-inbox" title={x.title}>
+      <p className="small muted" style={{ marginTop: 0 }}>{x.hint}</p>
+      {!items.length && <p className="small muted">{x.empty}</p>}
+      <ul className="earth-list">{items.map(p => <EarthRow key={`${p.id}-${p.direction}`} p={p} now={now} names={names} ground
+        action={p.crew_id ? <button type="button" className="btn ghost ground-inbox-open" onClick={() => nav(`/ground?crew=${p.crew_id}&tab=overview`)}>{x.reply}</button> : undefined} />)}</ul>
+    </Card>
+  )
+}
+
 /** Global: everything that belongs to the whole ship and mission, not to one crew member. */
 function GlobalView({ g, s, now, onPick, children }: { g: GroundView; s: S; now: number; onPick: (id: string) => void; children: React.ReactNode }) {
   const { lang } = useLang()
@@ -330,6 +355,7 @@ function GlobalView({ g, s, now, onPick, children }: { g: GroundView; s: S; now:
   return (
     <div className="ground-global" onClickCapture={e => { const b = (e.target as Element).closest('.ground-hero-member') as HTMLElement | null; if (b?.dataset.crew) onPick(b.dataset.crew) }}>
       {children}
+      <GroundInbox g={g} now={now} />
       <ShipPanel />
       <AskAI crewId={null} />
       <div className="ground-global-grid">

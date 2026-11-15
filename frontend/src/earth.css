@@ -1,0 +1,35 @@
+/* Messages with Earth: pop-ups (EarthToasts), the /messages list and the Ground inbox (EarthRow). */
+.earth-toasts { position: fixed; z-index: 80; bottom: 16px; right: 16px; display: flex; flex-direction: column-reverse; gap: 8px; width: min(380px, calc(100vw - 32px)); pointer-events: none }
+.earth-toast { pointer-events: auto; display: flex; align-items: flex-start; gap: 10px; padding: 12px 10px 12px 14px; border-radius: 20px; background: var(--deep); color: white; box-shadow: 0 12px 32px rgba(7, 23, 63, .28); animation: earth-in .25s ease-out }
+.earth-toast.down { background: #0A4FB8 }
+.earth-toast-icon { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: rgba(255, 255, 255, .14); color: var(--yellow) }
+.earth-toast-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer }
+.earth-toast-main strong { font-size: 14px; line-height: 1.3 }
+.earth-toast-main span { font-size: 13px; line-height: 1.35; opacity: .85; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden }
+.earth-toast-main em { font-style: normal; font-size: 12px; font-weight: 600; color: var(--yellow); margin-top: 2px }
+.earth-toast-x { flex: none; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: none; color: white; opacity: .7; cursor: pointer }
+.earth-toast-x:hover { opacity: 1; background: rgba(255, 255, 255, .12) }
+@keyframes earth-in { from { opacity: 0; transform: translateY(8px) } }
+@media (prefers-reduced-motion: reduce) { .earth-toast { animation: none } }
+
+.earth-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column }
+.earth-row { display: flex; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line) }
+.earth-row:last-child { border-bottom: 0 }
+.earth-row-icon { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--info-bg); color: var(--info) }
+.earth-row.down .earth-row-icon { background: var(--ok-bg); color: var(--ok) }
+.earth-row-main { flex: 1; min-width: 0 }
+.earth-row-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 14px }
+.earth-row-head span { color: var(--muted); font-size: 13px }
+.earth-row-head time { margin-left: auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums }
+.earth-row-main p { margin: 4px 0 6px; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere }
+.earth-status { display: inline-flex; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--bg2); color: var(--muted); font-variant-numeric: tabular-nums }
+.earth-status.in_transit { background: var(--info-bg); color: var(--info) }
+.earth-status.queued_no_link { background: var(--warn-bg); color: var(--warn) }
+.earth-status.delivered, .earth-status.delivered_awaiting_reply, .earth-status.reply_window_open { background: var(--ok-bg); color: var(--ok) }
+
+.ground-inbox .earth-list { max-height: 420px; overflow-y: auto }
+.ground-inbox-open { flex: none; align-self: center }
+
+@media (max-width: 760px) {
+  .earth-toasts { bottom: calc(var(--mobile-nav-h, 68px) + env(safe-area-inset-bottom) + 8px); left: 16px; right: 16px; width: auto }
+}
